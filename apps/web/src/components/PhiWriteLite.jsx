@@ -5,10 +5,11 @@ import {
   ClipboardCopy,
   Download,
   FileText,
+  ListChecks,
   RotateCcw,
-  Save,
   ShieldCheck,
   Sparkles,
+  Wand2,
 } from 'lucide-react';
 import { createArtifactReceipt, trustLabels } from '@phioffice369/core';
 import './PhiWriteLite.css';
@@ -45,6 +46,89 @@ function loadDraft(template) {
   }
 }
 
+function cleanSentences(value) {
+  return value
+    .split(/(?<=[.!?])\s+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
+function buildDraftSection(template) {
+  return [
+    '',
+    '## Professor Phi Draft Pass',
+    '',
+    `This ${template.title.toLowerCase()} is intended to help turn the current idea into a clear, practical artifact.`,
+    '',
+    '- What matters most here?',
+    '- Who does this help?',
+    '- What should stay local or private?',
+    '- What needs evidence before it becomes public?',
+  ].join('\n');
+}
+
+function buildLightPolish(value) {
+  return value
+    .replace(/Write your ([a-z\s]+) here\.\.\./g, 'Add clear notes for $1 here.')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function buildSummary(value) {
+  const sentences = cleanSentences(value.replace(/^#+\s+/gm, ''));
+  const summaryLines = sentences.slice(0, 4).map((sentence) => `- ${sentence}`);
+  return [
+    '',
+    '## Professor Phi Summary',
+    '',
+    ...(summaryLines.length ? summaryLines : ['- Add more draft content to generate a stronger summary.']),
+  ].join('\n');
+}
+
+function buildClaimCheck(value) {
+  const riskyWords = ['prove', 'guarantee', 'cure', 'always', 'never', 'scientifically', 'evidence', 'best', 'only'];
+  const matches = riskyWords.filter((word) => new RegExp(`\\b${word}\\b`, 'i').test(value));
+  return [
+    '',
+    '## Professor Phi Claim-Check Notes',
+    '',
+    matches.length
+      ? `Potential claim-boundary words found: ${matches.join(', ')}.`
+      : 'No obvious high-risk claim words found in this lightweight local scan.',
+    '',
+    '- Mark factual claims as Sourced or Needs citation before publishing.',
+    '- Mark symbolic, mythic, or interface-layer meaning as Symbolic.',
+    '- Keep private/internal details labeled Private until intentionally released.',
+  ].join('\n');
+}
+
+function buildDeckOutline(title, template, value) {
+  const sentences = cleanSentences(value.replace(/^#+\s+/gm, ''));
+  const seed = sentences.slice(0, 5);
+  return [
+    '',
+    '## PhiDeck Outline Draft',
+    '',
+    `### Slide 1 — ${title}`,
+    `- Based on the ${template.title} template.`,
+    '',
+    '### Slide 2 — Why it matters',
+    `- ${seed[0] ?? 'State the core problem or opportunity.'}`,
+    '',
+    '### Slide 3 — Core idea',
+    `- ${seed[1] ?? 'Explain the main idea in simple language.'}`,
+    '',
+    '### Slide 4 — How it works',
+    `- ${seed[2] ?? 'Show the workflow, system, or process.'}`,
+    '',
+    '### Slide 5 — Trust and boundaries',
+    '- Name what is verified, what is AI-assisted, what is symbolic, and what needs citation.',
+    '',
+    '### Slide 6 — Next step',
+    '- Define the first build, test, share, or review action.',
+  ].join('\n');
+}
+
 export default function PhiWriteLite({ template, onBack }) {
   const savedDraft = useMemo(() => loadDraft(template), [template]);
   const [title, setTitle] = useState(savedDraft?.title ?? template.title);
@@ -52,6 +136,7 @@ export default function PhiWriteLite({ template, onBack }) {
   const [activeLabelId, setActiveLabelId] = useState(savedDraft?.activeLabelId ?? template.trustDefaults[0] ?? 'human_written');
   const [saveStatus, setSaveStatus] = useState(savedDraft ? 'Restored local draft' : 'New local draft');
   const [copyStatus, setCopyStatus] = useState('');
+  const [assistantStatus, setAssistantStatus] = useState('Local mock assistant ready');
 
   const activeLabel = trustLabels.find((label) => label.id === activeLabelId) ?? trustLabels[0];
 
@@ -86,6 +171,11 @@ export default function PhiWriteLite({ template, onBack }) {
   const sectionCount = template.sections.length;
   const characterCount = content.length;
 
+  function appendAssistantBlock(label, block) {
+    setContent((current) => `${current.trim()}\n\n${block.trim()}\n`);
+    setAssistantStatus(`${label} added locally`);
+  }
+
   function handleResetDraft() {
     const nextContent = makeStarterContent(template);
     setTitle(template.title);
@@ -95,6 +185,7 @@ export default function PhiWriteLite({ template, onBack }) {
       window.localStorage.removeItem(`phioffice369:phiwrite:${template.id}`);
     }
     setSaveStatus('Reset to template');
+    setAssistantStatus('Local mock assistant ready');
   }
 
   function buildMarkdownExport() {
@@ -141,6 +232,34 @@ export default function PhiWriteLite({ template, onBack }) {
     }
   }
 
+  function handleAssistantAction(action) {
+    if (action === 'draft') {
+      appendAssistantBlock('Draft section', buildDraftSection(template));
+      return;
+    }
+
+    if (action === 'polish') {
+      setContent((current) => buildLightPolish(current));
+      setAssistantStatus('Light polish applied locally');
+      return;
+    }
+
+    if (action === 'summary') {
+      appendAssistantBlock('Summary', buildSummary(content));
+      return;
+    }
+
+    if (action === 'claim-check') {
+      appendAssistantBlock('Claim-check', buildClaimCheck(content));
+      setActiveLabelId('needs_citation');
+      return;
+    }
+
+    if (action === 'deck') {
+      appendAssistantBlock('Deck outline', buildDeckOutline(title, template, content));
+    }
+  }
+
   return (
     <section className="phiwrite-workspace fade-in">
       <div className="workspace-topbar panel">
@@ -184,8 +303,17 @@ export default function PhiWriteLite({ template, onBack }) {
             <Bot aria-hidden="true" />
             <div>
               <h3>Professor Phi</h3>
-              <p>Draft, polish, transform, and claim-check actions will dock here next.</p>
+              <p>This is a local mock assistant for the prototype. No text leaves the browser.</p>
+              <p className="assistant-status">{assistantStatus}</p>
             </div>
+          </div>
+
+          <div className="assistant-actions">
+            <button type="button" onClick={() => handleAssistantAction('draft')}><Sparkles aria-hidden="true" /> Draft Section</button>
+            <button type="button" onClick={() => handleAssistantAction('polish')}><Wand2 aria-hidden="true" /> Light Polish</button>
+            <button type="button" onClick={() => handleAssistantAction('summary')}><ListChecks aria-hidden="true" /> Summarize</button>
+            <button type="button" onClick={() => handleAssistantAction('claim-check')}><ShieldCheck aria-hidden="true" /> Claim-check</button>
+            <button type="button" onClick={() => handleAssistantAction('deck')}><FileText aria-hidden="true" /> Deck Outline</button>
           </div>
         </aside>
 

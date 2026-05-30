@@ -20,6 +20,7 @@ import {
 import { createArtifactReceipt, trustLabels } from '@phioffice369/core';
 import { professorPhiModes, professorPhiSystemNotes } from '@phioffice369/professor-phi';
 import { starterTemplates } from '@phioffice369/templates';
+import PhiWriteLite from './components/PhiWriteLite.jsx';
 import './interactive.css';
 
 const appIcons = {
@@ -155,6 +156,7 @@ function App() {
   const [selectedTrustLabel, setSelectedTrustLabel] = useState(trustLabels[0]);
   const [selectedTemplate, setSelectedTemplate] = useState(starterTemplates[0]);
   const [selectedMode, setSelectedMode] = useState(professorPhiModes[0]);
+  const [activeWorkspaceTemplate, setActiveWorkspaceTemplate] = useState(null);
 
   const filteredApps = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -175,6 +177,14 @@ function App() {
     labels: selectedTemplate.trustDefaults,
     transformations: ['template_to_artifact_preview'],
   }), [selectedTemplate]);
+
+  if (activeWorkspaceTemplate) {
+    return (
+      <main className="shell">
+        <PhiWriteLite template={activeWorkspaceTemplate} onBack={() => setActiveWorkspaceTemplate(null)} />
+      </main>
+    );
+  }
 
   return (
     <main className="shell">
@@ -278,6 +288,9 @@ function App() {
                   <p>{receiptPreview.app} · {receiptPreview.labels.length} trust labels · {receiptPreview.transformations[0]}</p>
                 </div>
               </div>
+              <button className="open-workspace-button" type="button" onClick={() => setActiveWorkspaceTemplate(selectedTemplate)}>
+                Open in PhiWrite-lite
+              </button>
             </aside>
           </div>
         </section>

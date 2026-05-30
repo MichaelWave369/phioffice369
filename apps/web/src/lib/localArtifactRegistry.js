@@ -14,6 +14,7 @@ export function parseStoredJsonValue(key) {
 export function getArtifactKindAndAppFromStorageKey(key) {
   if (key.includes(':phiwrite:')) return { kind: 'document', app: 'PhiWrite' };
   if (key.includes(':phigrid:')) return { kind: 'grid', app: 'PhiGrid' };
+  if (key.includes(':phideck:')) return { kind: 'deck', app: 'PhiDeck' };
   if (key.includes(':export_receipt:')) return { kind: 'export_receipt', app: 'PhiVault' };
   return { kind: 'vault_item', app: 'PhiVault' };
 }
@@ -26,6 +27,14 @@ export function getArtifactTitleFromStoredValue(key, value) {
 
 export function storageKeyToArtifactId(key) {
   return key.replaceAll(':', '_');
+}
+
+export function getArtifactStatusFromStorageKey(key) {
+  if (key.includes(':export_receipt:')) return 'exported';
+  if (key.includes(':phideck:')) return 'local-deck';
+  if (key.includes(':phigrid:')) return 'local-grid';
+  if (key.includes(':phiwrite:')) return 'local-draft';
+  return 'local-item';
 }
 
 export function scanLocalDraftArtifacts() {
@@ -46,7 +55,7 @@ export function scanLocalDraftArtifacts() {
         path: key,
         labels: storedValue?.activeLabelId ? [storedValue.activeLabelId] : [],
         sourceTemplateId: storedValue?.templateId ?? null,
-        status: 'local-draft',
+        status: getArtifactStatusFromStorageKey(key),
       });
     });
 }

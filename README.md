@@ -7,6 +7,21 @@ PhiOffice369 is a PHI369 Labs / Parallax productivity-suite concept for builders
 > Internal codename: **MikeySoft Office**  
 > Public-facing name: **PhiOffice369**
 
+## Live prototype
+
+After GitHub Pages is enabled for this repo, the interactive prototype is intended to publish here:
+
+https://michaelwave369.github.io/phioffice369/
+
+## Run locally
+
+```bash
+npm install
+npm run dev
+```
+
+The Vite dev server will print a local URL. Open it in your browser to view the interactive PhiOffice369 launcher.
+
 ## Core idea
 
 Build once. Transform ethically. Work sovereign.
@@ -54,6 +69,18 @@ PhiOffice369 aims to provide a free core suite with:
 | v0.3 | PhiVault + search | Local index, tags, project graph, related artifacts |
 | v0.4 | Compatibility lab | Evaluate DOCX/XLSX/PPTX workflows with transparent reports |
 | v1.0 | Free sovereign suite | Stable local-first app with practical everyday workflows |
+
+## Current repo structure
+
+```text
+apps/web                  Interactive React/Vite prototype
+apps/desktop              Future desktop shell placeholder
+packages/core             Shared trust labels and artifact receipt model
+packages/professor-phi    Assistant mode definitions
+packages/templates        Starter template catalog
+docs                      Product planning and public notes
+templates                 Template pack manifest examples
+```
 
 ## Repository status
 

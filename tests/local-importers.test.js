@@ -5,6 +5,7 @@ import {
   normalizeTextFile,
   parseCsvImport,
   parseMarkdownImport,
+  parsePhiDeckJsonImport,
   splitCsvLine,
   tryParsePhiOfficeJsonImport,
 } from '../apps/web/src/lib/localImporters.js';
@@ -51,6 +52,31 @@ test('parseCsvImport handles empty CSV', () => {
   assert.equal(result.title, 'Empty Import');
   assert.deepEqual(result.columns, ['Item', 'Value', 'Notes']);
   assert.deepEqual(result.rows, []);
+});
+
+test('parsePhiDeckJsonImport validates and normalizes PhiDeck-lite decks', () => {
+  const result = parsePhiDeckJsonImport(JSON.stringify({
+    schema: 'phioffice369.phideck_lite.v0.1',
+    title: 'Imported Deck',
+    slides: [{ id: 'slide-a', title: 'Opening', bullets: ['One', 'Two'] }],
+  }));
+
+  assert.equal(result.ok, true);
+  assert.equal(result.kind, 'deck');
+  assert.equal(result.app, 'PhiDeck');
+  assert.equal(result.title, 'Imported Deck');
+  assert.deepEqual(result.slides[0], { id: 'slide-a', title: 'Opening', bullets: ['One', 'Two'] });
+  assert.match(result.importNote, /No file was uploaded/);
+});
+
+test('parsePhiDeckJsonImport rejects non-deck JSON and empty decks', () => {
+  const notDeck = parsePhiDeckJsonImport('{"schema":"phioffice369.project_manifest.v0.1"}');
+  const emptyDeck = parsePhiDeckJsonImport('{"schema":"phioffice369.phideck_lite.v0.1","slides":[]}');
+  const invalidJson = parsePhiDeckJsonImport('{not json');
+
+  assert.equal(notDeck.ok, false);
+  assert.equal(emptyDeck.ok, false);
+  assert.equal(invalidJson.ok, false);
 });
 
 test('tryParsePhiOfficeJsonImport validates PhiOffice369 schemas', () => {

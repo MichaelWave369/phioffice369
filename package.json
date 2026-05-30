@@ -1,0 +1,25 @@
+{
+  "name": "phioffice369",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A free, local-first, AI-assisted sovereign productivity suite by PHI369 Labs / Parallax.",
+  "scripts": {
+    "dev": "npm --workspace apps/web run dev",
+    "build": "npm --workspace apps/web run build",
+    "preview": "npm --workspace apps/web run preview"
+  },
+  "workspaces": [
+    "apps/web",
+    "packages/core",
+    "packages/professor-phi",
+    "packages/templates"
+  ],
+  "keywords": [
+    "local-first",
+    "productivity",
+    "office-suite",
+    "phi369",
+    "parallax"
+  ],
+  "license": "MIT"
+}

@@ -6,6 +6,7 @@ import {
   createArtifactManifestEntry,
   createArtifactReceipt,
   createExportReceipt,
+  createLocalStorageExportReceiptKey,
   createProjectManifest,
   getTrustLabelById,
   suiteApps,
@@ -33,10 +34,11 @@ test('suite app catalog includes the first three MVP apps', () => {
   assert.ok(suiteApps.includes('PhiDeck'));
 });
 
-test('artifact kind catalog includes document, grid, and deck', () => {
+test('artifact kind catalog includes core artifact and receipt kinds', () => {
   assert.ok(artifactKinds.includes('document'));
   assert.ok(artifactKinds.includes('grid'));
   assert.ok(artifactKinds.includes('deck'));
+  assert.ok(artifactKinds.includes('export_receipt'));
 });
 
 test('createArtifactReceipt produces a v0.1 receipt envelope', () => {
@@ -95,4 +97,15 @@ test('export receipts capture format, filename, and compatibility status', () =>
   assert.equal(receipt.filename, 'test-artifact.md');
   assert.equal(receipt.compatibility, 'native');
   assert.deepEqual(receipt.warnings, []);
+});
+
+test('export receipt local storage keys are namespaced and scan-friendly', () => {
+  const key = createLocalStorageExportReceiptKey({
+    sourceApp: 'PhiWrite',
+    artifactId: 'draft_basic_project_spec',
+    format: 'markdown',
+    exportedAt: '2026-05-30T00:00:00.000Z',
+  });
+
+  assert.equal(key, 'phioffice369:export_receipt:PhiWrite:draft_basic_project_spec:markdown:2026-05-30T00:00:00.000Z');
 });

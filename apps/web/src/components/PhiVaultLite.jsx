@@ -1,79 +1,15 @@
 import { useMemo, useRef, useState } from 'react';
 import { ClipboardCopy, Download, FolderLock, RefreshCw, Search, ShieldCheck, Sparkles, Upload } from 'lucide-react';
-import { createArtifactManifestEntry, createProjectManifest } from '@phioffice369/core';
-import { scanLocalExportReceipts } from '../lib/localReceipts.js';
+import { createProjectManifest } from '@phioffice369/core';
+import {
+  buildExportTimeline,
+  filterArtifacts,
+  formatExportTime,
+  groupArtifactsByApp,
+  scanContinuityArtifacts,
+  uniqueArtifactValues,
+} from '../lib/localArtifactRegistry.js';
 import './PhiVaultLite.css';
-
-function canUseLocalStorage() {
-  try {
-    return typeof window !== 'undefined' && Boolean(window.localStorage);
-  } catch {
-    return false;
-  }
-}
-
-function parseStoredValue(key) {
-  try {
-    return JSON.parse(window.localStorage.getItem(key));
-  } catch {
-    return null;
-  }
-}
-
-function kindFromKey(key) {
-  if (key.includes(':phiwrite:')) return { kind: 'document', app: 'PhiWrite' };
-  if (key.includes(':phigrid:')) return { kind: 'grid', app: 'PhiGrid' };
-  if (key.includes(':export_receipt:')) return { kind: 'export_receipt', app: 'PhiVault' };
-  return { kind: 'vault_item', app: 'PhiVault' };
-}
-
-function titleFromDraft(key, value) {
-  if (value?.title) return value.title;
-  if (value?.filename) return value.filename;
-  return key.split(':').at(-1) ?? 'Untitled artifact';
-}
-
-function scanLocalArtifacts() {
-  if (!canUseLocalStorage()) return [];
-
-  return Object.keys(window.localStorage)
-    .filter((key) => key.startsWith('phioffice369:'))
-    .filter((key) => !key.startsWith('phioffice369:export_receipt:'))
-    .map((key) => {
-      const storedValue = parseStoredValue(key);
-      const { kind, app } = kindFromKey(key);
-      return createArtifactManifestEntry({
-        artifactId: key.replaceAll(':', '_'),
-        title: titleFromDraft(key, storedValue),
-        kind,
-        app,
-        path: key,
-        labels: storedValue?.activeLabelId ? [storedValue.activeLabelId] : [],
-        sourceTemplateId: storedValue?.templateId ?? null,
-        status: 'local-draft',
-      });
-    });
-}
-
-function exportReceiptToArtifact({ key, receipt }) {
-  return createArtifactManifestEntry({
-    artifactId: key.replaceAll(':', '_'),
-    title: receipt.filename ?? `${receipt.sourceApp} ${receipt.format} export`,
-    kind: 'export_receipt',
-    app: receipt.sourceApp ?? 'PhiVault',
-    path: key,
-    labels: [],
-    receipts: [receipt],
-    sourceTemplateId: null,
-    status: 'exported',
-  });
-}
-
-function scanContinuityArtifacts() {
-  const drafts = scanLocalArtifacts();
-  const exportArtifacts = scanLocalExportReceipts().map(exportReceiptToArtifact);
-  return [...drafts, ...exportArtifacts];
-}
 
 function downloadJson(filename, payload) {
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -85,59 +21,6 @@ function downloadJson(filename, payload) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
-}
-
-function groupArtifactsByApp(artifacts) {
-  return artifacts.reduce((groups, artifact) => {
-    const key = artifact.app ?? 'Unknown';
-    return { ...groups, [key]: [...(groups[key] ?? []), artifact] };
-  }, {});
-}
-
-function uniqueValues(artifacts, key) {
-  return ['all', ...Array.from(new Set(artifacts.map((artifact) => artifact[key]).filter(Boolean))).sort()];
-}
-
-function artifactMatchesSearch(artifact, query) {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return true;
-
-  const haystack = [
-    artifact.title,
-    artifact.app,
-    artifact.kind,
-    artifact.path,
-    artifact.status,
-    artifact.sourceTemplateId,
-    ...(artifact.labels ?? []),
-    artifact.receipts?.[0]?.format,
-    artifact.receipts?.[0]?.filename,
-    artifact.receipts?.[0]?.compatibility,
-  ].filter(Boolean).join(' ').toLowerCase();
-
-  return haystack.includes(needle);
-}
-
-function filterArtifacts(artifacts, query, appFilter, kindFilter) {
-  return artifacts.filter((artifact) => {
-    const appOk = appFilter === 'all' || artifact.app === appFilter;
-    const kindOk = kindFilter === 'all' || artifact.kind === kindFilter;
-    return appOk && kindOk && artifactMatchesSearch(artifact, query);
-  });
-}
-
-function formatExportTime(value) {
-  if (!value) return 'Unknown time';
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString();
-}
-
-function buildExportTimeline(artifacts) {
-  return artifacts
-    .filter((artifact) => artifact.kind === 'export_receipt' && artifact.receipts?.[0])
-    .map((artifact) => ({ artifact, receipt: artifact.receipts[0] }))
-    .sort((left, right) => new Date(right.receipt.exportedAt).getTime() - new Date(left.receipt.exportedAt).getTime());
 }
 
 export default function PhiVaultLite() {
@@ -165,8 +48,8 @@ export default function PhiVaultLite() {
   const exportTimeline = useMemo(() => buildExportTimeline(artifacts), [artifacts]);
   const appGroupCount = Object.keys(groupedArtifacts).length;
   const exportReceiptCount = exportTimeline.length;
-  const appOptions = useMemo(() => uniqueValues(artifacts, 'app'), [artifacts]);
-  const kindOptions = useMemo(() => uniqueValues(artifacts, 'kind'), [artifacts]);
+  const appOptions = useMemo(() => uniqueArtifactValues(artifacts, 'app'), [artifacts]);
+  const kindOptions = useMemo(() => uniqueArtifactValues(artifacts, 'kind'), [artifacts]);
 
   function refreshArtifacts() {
     const nextArtifacts = scanContinuityArtifacts();

@@ -1,5 +1,5 @@
-import { useMemo, useState } from 'react';
-import { Download, FolderLock, RefreshCw, ShieldCheck, Sparkles } from 'lucide-react';
+import { useMemo, useRef, useState } from 'react';
+import { ClipboardCopy, Download, FolderLock, RefreshCw, ShieldCheck, Sparkles, Upload } from 'lucide-react';
 import { createArtifactManifestEntry, createProjectManifest } from '@phioffice369/core';
 import './PhiVaultLite.css';
 
@@ -63,9 +63,19 @@ function downloadJson(filename, payload) {
   URL.revokeObjectURL(url);
 }
 
+function groupArtifactsByApp(artifacts) {
+  return artifacts.reduce((groups, artifact) => {
+    const key = artifact.app ?? 'Unknown';
+    return { ...groups, [key]: [...(groups[key] ?? []), artifact] };
+  }, {});
+}
+
 export default function PhiVaultLite() {
+  const fileInputRef = useRef(null);
   const [artifacts, setArtifacts] = useState(() => scanLocalArtifacts());
   const [status, setStatus] = useState('Local manifest ready');
+  const [copyStatus, setCopyStatus] = useState('');
+  const [importedManifest, setImportedManifest] = useState(null);
 
   const manifest = useMemo(() => createProjectManifest({
     projectId: 'local_phioffice369_project',
@@ -75,6 +85,9 @@ export default function PhiVaultLite() {
     tags: ['local-first', 'prototype', 'phioffice369'],
     artifacts,
   }), [artifacts]);
+
+  const groupedArtifacts = useMemo(() => groupArtifactsByApp(artifacts), [artifacts]);
+  const appGroupCount = Object.keys(groupedArtifacts).length;
 
   function refreshArtifacts() {
     const nextArtifacts = scanLocalArtifacts();
@@ -87,6 +100,39 @@ export default function PhiVaultLite() {
     setStatus('Project manifest exported');
   }
 
+  async function copyManifest() {
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(manifest, null, 2));
+      setCopyStatus('Manifest JSON copied');
+    } catch {
+      setCopyStatus('Copy unavailable in this browser');
+    }
+  }
+
+  function triggerImport() {
+    fileInputRef.current?.click();
+  }
+
+  async function importManifest(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const parsed = JSON.parse(text);
+      if (!parsed.schema?.startsWith('phioffice369.project_manifest.')) {
+        setStatus('Imported file is not a PhiOffice369 project manifest');
+        return;
+      }
+      setImportedManifest(parsed);
+      setStatus(`Imported preview: ${parsed.title ?? 'Untitled manifest'}`);
+    } catch {
+      setStatus('Could not read that manifest JSON');
+    } finally {
+      event.target.value = '';
+    }
+  }
+
   return (
     <section className="phivault-lite section-block fade-in">
       <div className="vault-hero panel">
@@ -94,12 +140,16 @@ export default function PhiVaultLite() {
         <div>
           <p className="eyebrow">PhiVault-lite</p>
           <h2>Local project continuity</h2>
-          <p>Scan browser-local PhiOffice369 drafts, collect artifact entries, and export a project manifest JSON.</p>
+          <p>Scan browser-local PhiOffice369 drafts, collect artifact entries, preview imported manifests, and export project continuity JSON.</p>
           <p className="vault-status">{status}</p>
+          {copyStatus && <p className="vault-copy-status">{copyStatus}</p>}
         </div>
         <div className="vault-actions">
           <button type="button" onClick={refreshArtifacts}><RefreshCw aria-hidden="true" /> Refresh scan</button>
+          <button type="button" onClick={copyManifest}><ClipboardCopy aria-hidden="true" /> Copy manifest</button>
+          <button type="button" onClick={triggerImport}><Upload aria-hidden="true" /> Import preview</button>
           <button type="button" onClick={exportManifest}><Download aria-hidden="true" /> Export manifest</button>
+          <input ref={fileInputRef} className="vault-file-input" type="file" accept="application/json,.json" onChange={importManifest} />
         </div>
       </div>
 
@@ -111,8 +161,19 @@ export default function PhiVaultLite() {
           <div className="vault-stat-grid">
             <div><strong>{artifacts.length}</strong><span>artifacts</span></div>
             <div><strong>{manifest.tags.length}</strong><span>tags</span></div>
+            <div><strong>{appGroupCount}</strong><span>app groups</span></div>
+            <div><strong>{importedManifest ? 1 : 0}</strong><span>imports</span></div>
           </div>
-          <p>Nothing is uploaded. This view only reads local browser storage created by the prototype.</p>
+          <p>Nothing is uploaded. This view only reads local browser storage created by the prototype and imported JSON files you select.</p>
+
+          {importedManifest && (
+            <div className="import-preview">
+              <h3>Imported preview</h3>
+              <p>{importedManifest.title}</p>
+              <code>{importedManifest.schema}</code>
+              <span>{importedManifest.artifacts?.length ?? 0} artifacts</span>
+            </div>
+          )}
         </aside>
 
         <section className="panel vault-artifacts">
@@ -130,19 +191,29 @@ export default function PhiVaultLite() {
               <p>Open a template in PhiWrite-lite or PhiGrid-lite, make a small edit, and return here to refresh the vault scan.</p>
             </div>
           ) : (
-            <div className="artifact-list">
-              {artifacts.map((artifact) => (
-                <article className="artifact-row" key={artifact.artifactId}>
-                  <div>
-                    <span>{artifact.app} · {artifact.kind}</span>
-                    <h3>{artifact.title}</h3>
-                    <p>{artifact.path}</p>
+            <div className="artifact-groups">
+              {Object.entries(groupedArtifacts).map(([app, appArtifacts]) => (
+                <section className="artifact-group" key={app}>
+                  <div className="artifact-group-heading">
+                    <h3>{app}</h3>
+                    <span>{appArtifacts.length} item{appArtifacts.length === 1 ? '' : 's'}</span>
                   </div>
-                  <div className="artifact-badges">
-                    <span>{artifact.status}</span>
-                    {artifact.labels.map((label) => <span key={label}>{label}</span>)}
+                  <div className="artifact-list">
+                    {appArtifacts.map((artifact) => (
+                      <article className="artifact-row" key={artifact.artifactId}>
+                        <div>
+                          <span>{artifact.app} · {artifact.kind}</span>
+                          <h3>{artifact.title}</h3>
+                          <p>{artifact.path}</p>
+                        </div>
+                        <div className="artifact-badges">
+                          <span>{artifact.status}</span>
+                          {artifact.labels.map((label) => <span key={label}>{label}</span>)}
+                        </div>
+                      </article>
+                    ))}
                   </div>
-                </article>
+                </section>
               ))}
             </div>
           )}

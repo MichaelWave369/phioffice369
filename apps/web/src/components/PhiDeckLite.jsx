@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ClipboardCopy, Copy, Download, Layers3, Plus, RotateCcw, ShieldCheck, Sparkles, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, ClipboardCopy, Copy, Download, Layers3, Plus, RotateCcw, ShieldCheck, Sparkles, Trash2, Upload } from 'lucide-react';
 import { createArtifactReceipt, trustLabels } from '@phioffice369/core';
+import { parsePhiDeckJsonImport } from '../lib/localImporters.js';
 import { saveLocalExportReceipt } from '../lib/localReceipts.js';
 import './PhiDeckLite.css';
 
@@ -54,10 +55,12 @@ function bulletTextToArray(value) {
 }
 
 export default function PhiDeckLite({ template, onBack }) {
+  const importInputRef = useRef(null);
   const savedDeck = useMemo(() => loadDeck(template), [template]);
+  const starterSlides = useMemo(() => makeStarterSlides(template), [template]);
   const [title, setTitle] = useState(savedDeck?.title ?? template.title);
-  const [slides, setSlides] = useState(savedDeck?.slides ?? makeStarterSlides(template));
-  const [activeSlideId, setActiveSlideId] = useState((savedDeck?.slides ?? makeStarterSlides(template))[0]?.id ?? 'slide-1');
+  const [slides, setSlides] = useState(savedDeck?.slides ?? starterSlides);
+  const [activeSlideId, setActiveSlideId] = useState((savedDeck?.slides ?? starterSlides)[0]?.id ?? 'slide-1');
   const [activeLabelId, setActiveLabelId] = useState(savedDeck?.activeLabelId ?? template.trustDefaults[0] ?? 'ai_assisted');
   const [saveStatus, setSaveStatus] = useState(savedDeck ? 'Restored local deck' : 'New local deck');
   const [copyStatus, setCopyStatus] = useState('');
@@ -126,10 +129,10 @@ export default function PhiDeckLite({ template, onBack }) {
   }
 
   function resetDeck() {
-    const starterSlides = makeStarterSlides(template);
+    const nextStarterSlides = makeStarterSlides(template);
     setTitle(template.title);
-    setSlides(starterSlides);
-    setActiveSlideId(starterSlides[0]?.id ?? 'slide-1');
+    setSlides(nextStarterSlides);
+    setActiveSlideId(nextStarterSlides[0]?.id ?? 'slide-1');
     setActiveLabelId(template.trustDefaults[0] ?? 'ai_assisted');
     if (canUseLocalStorage()) window.localStorage.removeItem(`phioffice369:phideck:${template.id}`);
     setSaveStatus('Reset to template');
@@ -148,6 +151,33 @@ export default function PhiDeckLite({ template, onBack }) {
     downloadTextFile(filename, JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
     saveLocalExportReceipt({ artifactId: `deck_${template.id}`, format: 'json', filename, sourceApp: 'PhiDeck' });
     setSaveStatus('Deck JSON exported + receipt saved');
+  }
+
+  function triggerDeckImport() {
+    importInputRef.current?.click();
+  }
+
+  async function handleImportDeckJson(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const imported = parsePhiDeckJsonImport(text, file.name.replace(/\.json$/i, ''));
+      if (!imported.ok) {
+        setSaveStatus(imported.reason);
+        return;
+      }
+      setTitle(imported.title);
+      setSlides(imported.slides);
+      setActiveSlideId(imported.slides[0]?.id ?? 'slide-1');
+      setActiveLabelId('ai_assisted');
+      setSaveStatus('PhiDeck JSON imported locally');
+    } catch {
+      setSaveStatus('Could not import PhiDeck JSON');
+    } finally {
+      event.target.value = '';
+    }
   }
 
   async function copyReceipt() {
@@ -170,7 +200,9 @@ export default function PhiDeckLite({ template, onBack }) {
         </div>
         <div className="deck-actions">
           <button type="button" onClick={resetDeck}><RotateCcw aria-hidden="true" /> Reset</button>
+          <button type="button" onClick={triggerDeckImport}><Upload aria-hidden="true" /> Import JSON</button>
           <button type="button" onClick={exportDeckJson}><Download aria-hidden="true" /> Export JSON</button>
+          <input ref={importInputRef} className="deck-file-input" type="file" accept=".json,application/json" onChange={handleImportDeckJson} />
         </div>
       </div>
 

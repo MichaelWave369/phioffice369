@@ -14,6 +14,10 @@
     "packages/professor-phi",
     "packages/templates"
   ],
+  "engines": {
+    "node": ">=20",
+    "npm": ">=10"
+  },
   "keywords": [
     "local-first",
     "productivity",

@@ -82,6 +82,41 @@ export function parseCsvImport(text, fallbackTitle = 'Imported CSV') {
   };
 }
 
+function normalizeDeckSlides(slides) {
+  if (!Array.isArray(slides)) return [];
+
+  return slides.map((slide, index) => ({
+    id: slide?.id ? String(slide.id) : `slide-${index + 1}`,
+    title: slide?.title ? String(slide.title) : `Slide ${index + 1}`,
+    bullets: Array.isArray(slide?.bullets) ? slide.bullets.map((bullet) => String(bullet)) : [],
+  }));
+}
+
+export function parsePhiDeckJsonImport(text, fallbackTitle = 'Imported PhiDeck') {
+  try {
+    const parsed = JSON.parse(normalizeTextFile(text));
+    if (parsed?.schema !== 'phioffice369.phideck_lite.v0.1') {
+      return { ok: false, reason: 'JSON is valid, but it is not a PhiDeck-lite deck.' };
+    }
+
+    const slides = normalizeDeckSlides(parsed.slides);
+    if (slides.length === 0) {
+      return { ok: false, reason: 'PhiDeck-lite JSON did not contain any slides.' };
+    }
+
+    return {
+      ok: true,
+      kind: 'deck',
+      app: 'PhiDeck',
+      title: parsed.title || fallbackTitle,
+      slides,
+      importNote: 'Imported from local PhiDeck-lite JSON. No file was uploaded.',
+    };
+  } catch {
+    return { ok: false, reason: 'Could not parse PhiDeck JSON.' };
+  }
+}
+
 export function tryParsePhiOfficeJsonImport(text) {
   try {
     const parsed = JSON.parse(normalizeTextFile(text));

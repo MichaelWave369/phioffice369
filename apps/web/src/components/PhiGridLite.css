@@ -46,9 +46,13 @@
   gap: 10px;
 }
 
-.grid-actions button:nth-child(2),
-.grid-actions button:nth-child(3) {
+.grid-actions button:nth-child(3),
+.grid-actions button:nth-child(4) {
   background: rgba(214, 168, 61, 0.2);
+}
+
+.grid-file-input {
+  display: none;
 }
 
 .grid-workspace-layout {

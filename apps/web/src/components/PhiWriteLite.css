@@ -31,6 +31,10 @@
   justify-content: flex-end;
 }
 
+.workspace-file-input {
+  display: none;
+}
+
 .ghost-button,
 .gold-button,
 .copy-receipt-button,

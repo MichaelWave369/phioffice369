@@ -1,0 +1,25 @@
+{
+  "pack_id": "starter_templates",
+  "name": "Starter Template Pack",
+  "version": "0.1.0",
+  "templates": [
+    {
+      "template_id": "basic_project_spec",
+      "app": "PhiWrite",
+      "title": "Basic Project Spec",
+      "trust_defaults": ["human-written", "AI-assisted", "needs citation"]
+    },
+    {
+      "template_id": "simple_budget",
+      "app": "PhiGrid",
+      "title": "Simple Budget",
+      "trust_defaults": ["private"]
+    },
+    {
+      "template_id": "pitch_deck_outline",
+      "app": "PhiDeck",
+      "title": "Pitch Deck Outline",
+      "trust_defaults": ["AI-assisted", "needs citation"]
+    }
+  ]
+}

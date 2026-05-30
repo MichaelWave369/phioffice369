@@ -15,10 +15,27 @@
   margin-bottom: 0;
 }
 
+.save-status,
+.copy-status {
+  margin: 8px 0 0;
+  color: #f1e2b8;
+  font-size: 0.92rem;
+  font-weight: 750;
+}
+
+.workspace-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+
 .ghost-button,
-.gold-button {
+.gold-button,
+.copy-receipt-button {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   gap: 10px;
   border: 1px solid rgba(214, 168, 61, 0.46);
   border-radius: 999px;
@@ -30,6 +47,12 @@
 
 .gold-button {
   background: rgba(214, 168, 61, 0.22);
+}
+
+.copy-receipt-button {
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px 12px;
 }
 
 .workspace-grid {
@@ -213,5 +236,9 @@
 
   .workspace-topbar {
     grid-template-columns: 1fr;
+  }
+
+  .workspace-actions {
+    justify-content: flex-start;
   }
 }

@@ -30,6 +30,16 @@ body::before {
   mask-image: radial-gradient(circle at center, black, transparent 80%);
 }
 
+button,
+a,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
 .shell {
   width: min(1180px, calc(100% - 32px));
   margin: 0 auto;
@@ -95,7 +105,7 @@ body::before {
   letter-spacing: 0.18em;
 }
 
-.hero .eyebrow {
+.hero-mark {
   font-size: clamp(2.6rem, 6vw, 5.2rem);
   letter-spacing: 0.04em;
   text-transform: none;
@@ -132,10 +142,12 @@ h3 {
 
 .codename,
 .note,
-.app-card p,
+.app-role,
 .pillar p,
 .privacy p,
-.panel p {
+.panel p,
+.transform-card p,
+.roadmap-item p {
   color: #c9d2e3;
 }
 
@@ -148,7 +160,10 @@ h3 {
 }
 
 .hero-actions a,
-button {
+.tabs button,
+button.label-chip,
+.trust-sample,
+.metadata-row span {
   border: 1px solid rgba(214, 168, 61, 0.46);
   border-radius: 999px;
   padding: 12px 18px;
@@ -156,6 +171,14 @@ button {
   background: rgba(214, 168, 61, 0.12);
   text-decoration: none;
   font-weight: 800;
+}
+
+.hero-actions a:hover,
+.tabs button:hover,
+button.label-chip:hover,
+.app-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(214, 168, 61, 0.74);
 }
 
 .privacy {
@@ -172,12 +195,60 @@ button {
   flex: 0 0 auto;
 }
 
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin: 28px 0 6px;
+}
+
+.tabs button {
+  min-width: 132px;
+}
+
+.tabs button.active {
+  background: linear-gradient(135deg, rgba(214, 168, 61, 0.42), rgba(214, 168, 61, 0.16));
+  box-shadow: 0 0 36px rgba(214, 168, 61, 0.18);
+}
+
 .section-block {
   margin-top: 34px;
 }
 
 .section-heading {
   margin-bottom: 18px;
+}
+
+.split-heading {
+  display: flex;
+  gap: 18px;
+  align-items: end;
+  justify-content: space-between;
+}
+
+.search-box {
+  min-width: min(420px, 100%);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(214, 168, 61, 0.34);
+  background: rgba(9, 18, 33, 0.68);
+  border-radius: 999px;
+  padding: 12px 16px;
+  color: #d6a83d;
+}
+
+.search-box input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  color: #f8fafc;
+  background: transparent;
+}
+
+.search-box input::placeholder {
+  color: #8995aa;
 }
 
 .app-grid {
@@ -193,10 +264,20 @@ button {
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  text-align: left;
+  color: inherit;
+  transition: 180ms ease;
+}
+
+.app-card.selected {
+  border-color: rgba(214, 168, 61, 0.92);
+  background: rgba(30, 37, 50, 0.92);
+  box-shadow: 0 0 0 1px rgba(214, 168, 61, 0.28), 0 24px 80px rgba(0, 0, 0, 0.32);
 }
 
 .app-card svg,
-.pillar svg {
+.pillar svg,
+.transform-card svg {
   color: #d6a83d;
 }
 
@@ -205,8 +286,39 @@ button {
   height: 42px;
 }
 
-.app-card h3 {
+.app-card-topline {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.app-card-topline span {
+  color: #f1e2b8;
+  font-size: 0.78rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.app-name {
   margin: 18px 0 8px;
+  color: #ffffff;
+  font-size: 1.18rem;
+  font-weight: 850;
+}
+
+.detail-panel {
+  margin-top: 18px;
+  border-radius: 28px;
+  padding: 28px;
+}
+
+.metadata-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 18px;
 }
 
 .two-column {
@@ -242,49 +354,149 @@ button {
   margin: 18px 0;
 }
 
-.label-grid span,
-.checklist li {
-  border: 1px solid rgba(214, 168, 61, 0.26);
-  background: rgba(214, 168, 61, 0.08);
+button.label-chip {
+  display: inline-flex;
 }
 
-.label-grid span {
-  border-radius: 999px;
-  padding: 9px 12px;
-  color: #fff8dc;
-  font-weight: 700;
+button.label-chip.selected {
+  background: rgba(214, 168, 61, 0.32);
+  border-color: rgba(214, 168, 61, 0.88);
 }
 
-.checklist {
-  list-style: none;
-  padding: 0;
-  margin: 18px 0 0;
+.trust-preview {
   display: grid;
-  gap: 10px;
+  align-content: start;
 }
 
-.checklist li {
-  border-radius: 16px;
-  padding: 12px 14px;
-  color: #f8fafc;
+.trust-sample {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0;
+  border-radius: 18px;
+}
+
+.trust-sample.green {
+  border-color: rgba(78, 216, 137, 0.42);
+  background: rgba(78, 216, 137, 0.12);
+}
+
+.trust-sample.blue {
+  border-color: rgba(94, 164, 255, 0.42);
+  background: rgba(94, 164, 255, 0.12);
+}
+
+.trust-sample.orange {
+  border-color: rgba(255, 168, 72, 0.44);
+  background: rgba(255, 168, 72, 0.12);
+}
+
+.trust-sample.purple {
+  border-color: rgba(171, 128, 255, 0.44);
+  background: rgba(171, 128, 255, 0.12);
+}
+
+.trust-sample.pink {
+  border-color: rgba(255, 137, 203, 0.44);
+  background: rgba(255, 137, 203, 0.12);
+}
+
+.trust-sample.red {
+  border-color: rgba(255, 98, 111, 0.44);
+  background: rgba(255, 98, 111, 0.12);
+}
+
+.transformation-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.transform-card {
+  border-radius: 28px;
+  padding: 24px;
+}
+
+.transform-card svg {
+  width: 38px;
+  height: 38px;
+}
+
+.transform-card .from {
+  margin-top: 16px;
+  color: #f1e2b8;
+  font-weight: 800;
+}
+
+.transform-card .arrow {
+  color: #d6a83d;
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.roadmap-list {
+  display: grid;
+  gap: 14px;
+}
+
+.roadmap-item {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+.roadmap-item > span {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  border-radius: 999px;
+  background: rgba(214, 168, 61, 0.14);
+  border: 1px solid rgba(214, 168, 61, 0.34);
+  color: #f1e2b8;
+  font-weight: 900;
+}
+
+.fade-in {
+  animation: fadeIn 240ms ease both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (max-width: 980px) {
-  .app-grid {
+  .app-grid,
+  .transformation-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .two-column {
+  .two-column,
+  .split-heading {
     grid-template-columns: 1fr;
+    display: grid;
   }
 }
 
 @media (max-width: 560px) {
-  .app-grid {
+  .app-grid,
+  .transformation-grid {
     grid-template-columns: 1fr;
   }
 
   .privacy {
     align-items: flex-start;
+  }
+
+  .roadmap-item {
+    grid-template-columns: 1fr;
   }
 }

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { ClipboardCopy, Download, FolderLock, RefreshCw, ShieldCheck, Sparkles, Upload } from 'lucide-react';
+import { ClipboardCopy, Download, FolderLock, RefreshCw, Search, ShieldCheck, Sparkles, Upload } from 'lucide-react';
 import { createArtifactManifestEntry, createProjectManifest } from '@phioffice369/core';
 import { scanLocalExportReceipts } from '../lib/localReceipts.js';
 import './PhiVaultLite.css';
@@ -94,12 +94,49 @@ function groupArtifactsByApp(artifacts) {
   }, {});
 }
 
+function uniqueValues(artifacts, key) {
+  return ['all', ...Array.from(new Set(artifacts.map((artifact) => artifact[key]).filter(Boolean))).sort()];
+}
+
+function artifactMatchesSearch(artifact, query) {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return true;
+
+  const haystack = [
+    artifact.title,
+    artifact.app,
+    artifact.kind,
+    artifact.path,
+    artifact.status,
+    artifact.sourceTemplateId,
+    ...(artifact.labels ?? []),
+    artifact.receipts?.[0]?.format,
+    artifact.receipts?.[0]?.filename,
+    artifact.receipts?.[0]?.compatibility,
+  ].filter(Boolean).join(' ').toLowerCase();
+
+  return haystack.includes(needle);
+}
+
+function filterArtifacts(artifacts, query, appFilter, kindFilter) {
+  return artifacts.filter((artifact) => {
+    const appOk = appFilter === 'all' || artifact.app === appFilter;
+    const kindOk = kindFilter === 'all' || artifact.kind === kindFilter;
+    return appOk && kindOk && artifactMatchesSearch(artifact, query);
+  });
+}
+
 export default function PhiVaultLite() {
   const fileInputRef = useRef(null);
   const [artifacts, setArtifacts] = useState(() => scanContinuityArtifacts());
   const [status, setStatus] = useState('Local manifest ready');
   const [copyStatus, setCopyStatus] = useState('');
   const [importedManifest, setImportedManifest] = useState(null);
+  const [query, setQuery] = useState('');
+  const [appFilter, setAppFilter] = useState('all');
+  const [kindFilter, setKindFilter] = useState('all');
+
+  const filteredArtifacts = useMemo(() => filterArtifacts(artifacts, query, appFilter, kindFilter), [appFilter, artifacts, kindFilter, query]);
 
   const manifest = useMemo(() => createProjectManifest({
     projectId: 'local_phioffice369_project',
@@ -110,14 +147,23 @@ export default function PhiVaultLite() {
     artifacts,
   }), [artifacts]);
 
-  const groupedArtifacts = useMemo(() => groupArtifactsByApp(artifacts), [artifacts]);
+  const groupedArtifacts = useMemo(() => groupArtifactsByApp(filteredArtifacts), [filteredArtifacts]);
   const appGroupCount = Object.keys(groupedArtifacts).length;
   const exportReceiptCount = artifacts.filter((artifact) => artifact.kind === 'export_receipt').length;
+  const appOptions = useMemo(() => uniqueValues(artifacts, 'app'), [artifacts]);
+  const kindOptions = useMemo(() => uniqueValues(artifacts, 'kind'), [artifacts]);
 
   function refreshArtifacts() {
     const nextArtifacts = scanContinuityArtifacts();
     setArtifacts(nextArtifacts);
     setStatus(`Scanned ${nextArtifacts.length} continuity item${nextArtifacts.length === 1 ? '' : 's'}`);
+  }
+
+  function resetFilters() {
+    setQuery('');
+    setAppFilter('all');
+    setKindFilter('all');
+    setStatus('Vault filters reset');
   }
 
   function exportManifest() {
@@ -185,9 +231,9 @@ export default function PhiVaultLite() {
           <code>{manifest.schema}</code>
           <div className="vault-stat-grid">
             <div><strong>{artifacts.length}</strong><span>items</span></div>
+            <div><strong>{filteredArtifacts.length}</strong><span>shown</span></div>
             <div><strong>{exportReceiptCount}</strong><span>exports</span></div>
             <div><strong>{appGroupCount}</strong><span>app groups</span></div>
-            <div><strong>{importedManifest ? 1 : 0}</strong><span>imports</span></div>
           </div>
           <p>Nothing is uploaded. This view only reads local browser storage created by the prototype and imported JSON files you select.</p>
 
@@ -209,11 +255,39 @@ export default function PhiVaultLite() {
             </div>
           </div>
 
+          <div className="vault-filter-panel">
+            <label className="vault-search-box">
+              <Search aria-hidden="true" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title, app, kind, label, path, status..." />
+            </label>
+            <div className="vault-select-row">
+              <label>
+                <span>App</span>
+                <select value={appFilter} onChange={(event) => setAppFilter(event.target.value)}>
+                  {appOptions.map((option) => <option key={option} value={option}>{option === 'all' ? 'All apps' : option}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>Kind</span>
+                <select value={kindFilter} onChange={(event) => setKindFilter(event.target.value)}>
+                  {kindOptions.map((option) => <option key={option} value={option}>{option === 'all' ? 'All kinds' : option}</option>)}
+                </select>
+              </label>
+              <button type="button" onClick={resetFilters}>Reset filters</button>
+            </div>
+          </div>
+
           {artifacts.length === 0 ? (
             <div className="empty-vault">
               <Sparkles aria-hidden="true" />
               <h3>No local continuity items yet</h3>
               <p>Open a template, make a small edit, export a file, and return here to refresh the vault scan.</p>
+            </div>
+          ) : filteredArtifacts.length === 0 ? (
+            <div className="empty-vault">
+              <Sparkles aria-hidden="true" />
+              <h3>No matching continuity items</h3>
+              <p>Try clearing the search or changing the app/kind filters.</p>
             </div>
           ) : (
             <div className="artifact-groups">

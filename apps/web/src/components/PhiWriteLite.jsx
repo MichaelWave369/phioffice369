@@ -102,30 +102,56 @@ function buildClaimCheck(value) {
   ].join('\n');
 }
 
-function buildDeckOutline(title, template, value) {
+function createDeckSlides(title, template, value) {
   const sentences = cleanSentences(value.replace(/^#+\s+/gm, ''));
   const seed = sentences.slice(0, 5);
+  return [
+    {
+      id: 'slide-1',
+      title,
+      bullets: [`Based on the ${template.title} template.`, 'A PhiOffice369 artifact transformed into PhiDeck-lite.'],
+    },
+    {
+      id: 'slide-2',
+      title: 'Why it matters',
+      bullets: [seed[0] ?? 'State the core problem or opportunity.'],
+    },
+    {
+      id: 'slide-3',
+      title: 'Core idea',
+      bullets: [seed[1] ?? 'Explain the main idea in simple language.'],
+    },
+    {
+      id: 'slide-4',
+      title: 'How it works',
+      bullets: [seed[2] ?? 'Show the workflow, system, or process.'],
+    },
+    {
+      id: 'slide-5',
+      title: 'Trust and boundaries',
+      bullets: [
+        'Name what is verified, what is AI-assisted, what is symbolic, and what needs citation.',
+        'Keep private details local until intentionally released.',
+      ],
+    },
+    {
+      id: 'slide-6',
+      title: 'Next step',
+      bullets: ['Define the first build, test, share, or review action.'],
+    },
+  ];
+}
+
+function buildDeckOutlineFromSlides(slides) {
   return [
     '',
     '## PhiDeck Outline Draft',
     '',
-    `### Slide 1 — ${title}`,
-    `- Based on the ${template.title} template.`,
-    '',
-    '### Slide 2 — Why it matters',
-    `- ${seed[0] ?? 'State the core problem or opportunity.'}`,
-    '',
-    '### Slide 3 — Core idea',
-    `- ${seed[1] ?? 'Explain the main idea in simple language.'}`,
-    '',
-    '### Slide 4 — How it works',
-    `- ${seed[2] ?? 'Show the workflow, system, or process.'}`,
-    '',
-    '### Slide 5 — Trust and boundaries',
-    '- Name what is verified, what is AI-assisted, what is symbolic, and what needs citation.',
-    '',
-    '### Slide 6 — Next step',
-    '- Define the first build, test, share, or review action.',
+    ...slides.flatMap((slide, index) => [
+      `### Slide ${index + 1} — ${slide.title}`,
+      ...slide.bullets.map((bullet) => `- ${bullet}`),
+      '',
+    ]),
   ].join('\n');
 }
 
@@ -137,6 +163,7 @@ export default function PhiWriteLite({ template, onBack }) {
   const [saveStatus, setSaveStatus] = useState(savedDraft ? 'Restored local draft' : 'New local draft');
   const [copyStatus, setCopyStatus] = useState('');
   const [assistantStatus, setAssistantStatus] = useState('Local mock assistant ready');
+  const [deckSlides, setDeckSlides] = useState([]);
 
   const activeLabel = trustLabels.find((label) => label.id === activeLabelId) ?? trustLabels[0];
 
@@ -180,6 +207,7 @@ export default function PhiWriteLite({ template, onBack }) {
     const nextContent = makeStarterContent(template);
     setTitle(template.title);
     setContent(nextContent);
+    setDeckSlides([]);
     setActiveLabelId(template.trustDefaults[0] ?? 'human_written');
     if (canUseLocalStorage()) {
       window.localStorage.removeItem(`phioffice369:phiwrite:${template.id}`);
@@ -208,18 +236,33 @@ export default function PhiWriteLite({ template, onBack }) {
     ].join('\n');
   }
 
-  function handleExportMarkdown() {
-    const markdown = buildMarkdownExport();
-    const blob = new Blob([markdown], { type: 'text/markdown;charset=utf-8' });
+  function downloadTextFile(filename, body, type) {
+    const blob = new Blob([body], { type });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = `${slugify(title)}.md`;
+    link.download = filename;
     document.body.appendChild(link);
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+  }
+
+  function handleExportMarkdown() {
+    downloadTextFile(`${slugify(title)}.md`, buildMarkdownExport(), 'text/markdown;charset=utf-8');
     setSaveStatus('Markdown exported');
+  }
+
+  function handleExportDeckJson() {
+    const payload = {
+      schema: 'phioffice369.phideck_lite.v0.1',
+      title,
+      sourceTemplate: template.id,
+      generatedAt: new Date().toISOString(),
+      slides: deckSlides,
+    };
+    downloadTextFile(`${slugify(title)}-phideck-lite.json`, JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
+    setAssistantStatus('PhiDeck-lite JSON exported');
   }
 
   async function handleCopyReceipt() {
@@ -256,7 +299,9 @@ export default function PhiWriteLite({ template, onBack }) {
     }
 
     if (action === 'deck') {
-      appendAssistantBlock('Deck outline', buildDeckOutline(title, template, content));
+      const slides = createDeckSlides(title, template, content);
+      setDeckSlides(slides);
+      appendAssistantBlock('Deck outline', buildDeckOutlineFromSlides(slides));
     }
   }
 
@@ -361,6 +406,33 @@ export default function PhiWriteLite({ template, onBack }) {
           </div>
         </aside>
       </div>
+
+      {deckSlides.length > 0 && (
+        <section className="phideck-preview panel fade-in">
+          <div className="phideck-heading">
+            <div>
+              <p className="eyebrow">PhiDeck-lite preview</p>
+              <h2>{title}</h2>
+              <p>{deckSlides.length} slide cards generated locally from this PhiWrite draft.</p>
+            </div>
+            <button className="gold-button" type="button" onClick={handleExportDeckJson}>
+              <Download aria-hidden="true" />
+              Export deck JSON
+            </button>
+          </div>
+          <div className="slide-grid">
+            {deckSlides.map((slide, index) => (
+              <article className="slide-card" key={slide.id}>
+                <span>Slide {index + 1}</span>
+                <h3>{slide.title}</h3>
+                <ul>
+                  {slide.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}
+                </ul>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
     </section>
   );
 }

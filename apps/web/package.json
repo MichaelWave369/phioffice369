@@ -9,9 +9,9 @@
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
-    "@phioffice369/core": "workspace:*",
-    "@phioffice369/professor-phi": "workspace:*",
-    "@phioffice369/templates": "workspace:*",
+    "@phioffice369/core": "file:../../packages/core",
+    "@phioffice369/professor-phi": "file:../../packages/professor-phi",
+    "@phioffice369/templates": "file:../../packages/templates",
     "@vitejs/plugin-react": "latest",
     "vite": "latest",
     "react": "latest",

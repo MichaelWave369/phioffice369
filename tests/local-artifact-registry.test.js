@@ -5,6 +5,7 @@ import {
   buildExportTimeline,
   filterArtifacts,
   getArtifactKindAndAppFromStorageKey,
+  getArtifactStatusFromStorageKey,
   getArtifactTitleFromStoredValue,
   groupArtifactsByApp,
   storageKeyToArtifactId,
@@ -30,7 +31,17 @@ const sampleArtifacts = [
     path: 'phioffice369:phigrid:simple_family_budget',
     labels: ['private'],
     sourceTemplateId: 'simple_family_budget',
-    status: 'local-draft',
+    status: 'local-grid',
+  },
+  {
+    artifactId: 'phioffice369_phideck_pitch_deck_outline',
+    title: 'Pitch Deck Outline',
+    app: 'PhiDeck',
+    kind: 'deck',
+    path: 'phioffice369:phideck:pitch_deck_outline',
+    labels: ['ai_assisted'],
+    sourceTemplateId: 'pitch_deck_outline',
+    status: 'local-deck',
   },
   {
     artifactId: 'phioffice369_export_receipt_PhiWrite_draft_basic_project_spec_markdown_2026',
@@ -78,7 +89,15 @@ test('storageKeyToArtifactId creates manifest-safe ids', () => {
 test('getArtifactKindAndAppFromStorageKey detects core local app storage keys', () => {
   assert.deepEqual(getArtifactKindAndAppFromStorageKey('phioffice369:phiwrite:basic_project_spec'), { kind: 'document', app: 'PhiWrite' });
   assert.deepEqual(getArtifactKindAndAppFromStorageKey('phioffice369:phigrid:simple_family_budget'), { kind: 'grid', app: 'PhiGrid' });
+  assert.deepEqual(getArtifactKindAndAppFromStorageKey('phioffice369:phideck:pitch_deck_outline'), { kind: 'deck', app: 'PhiDeck' });
   assert.deepEqual(getArtifactKindAndAppFromStorageKey('phioffice369:export_receipt:PhiWrite:test:markdown:date'), { kind: 'export_receipt', app: 'PhiVault' });
+});
+
+test('getArtifactStatusFromStorageKey maps local app keys to continuity statuses', () => {
+  assert.equal(getArtifactStatusFromStorageKey('phioffice369:phiwrite:basic_project_spec'), 'local-draft');
+  assert.equal(getArtifactStatusFromStorageKey('phioffice369:phigrid:simple_family_budget'), 'local-grid');
+  assert.equal(getArtifactStatusFromStorageKey('phioffice369:phideck:pitch_deck_outline'), 'local-deck');
+  assert.equal(getArtifactStatusFromStorageKey('phioffice369:export_receipt:PhiWrite:test:markdown:date'), 'exported');
 });
 
 test('getArtifactTitleFromStoredValue prefers stored titles and filenames', () => {
@@ -92,18 +111,20 @@ test('groupArtifactsByApp groups continuity items by app', () => {
 
   assert.equal(grouped.PhiWrite.length, 2);
   assert.equal(grouped.PhiGrid.length, 2);
+  assert.equal(grouped.PhiDeck.length, 1);
 });
 
 test('uniqueArtifactValues returns all plus sorted detected values', () => {
-  assert.deepEqual(uniqueArtifactValues(sampleArtifacts, 'app'), ['all', 'PhiGrid', 'PhiWrite']);
-  assert.deepEqual(uniqueArtifactValues(sampleArtifacts, 'kind'), ['all', 'document', 'export_receipt', 'grid']);
+  assert.deepEqual(uniqueArtifactValues(sampleArtifacts, 'app'), ['all', 'PhiDeck', 'PhiGrid', 'PhiWrite']);
+  assert.deepEqual(uniqueArtifactValues(sampleArtifacts, 'kind'), ['all', 'deck', 'document', 'export_receipt', 'grid']);
 });
 
 test('artifactMatchesSearch checks title app kind path status labels and receipt fields', () => {
   assert.equal(artifactMatchesSearch(sampleArtifacts[0], 'basic project'), true);
   assert.equal(artifactMatchesSearch(sampleArtifacts[1], 'private'), true);
-  assert.equal(artifactMatchesSearch(sampleArtifacts[2], 'markdown'), true);
-  assert.equal(artifactMatchesSearch(sampleArtifacts[2], 'native'), true);
+  assert.equal(artifactMatchesSearch(sampleArtifacts[2], 'local-deck'), true);
+  assert.equal(artifactMatchesSearch(sampleArtifacts[3], 'markdown'), true);
+  assert.equal(artifactMatchesSearch(sampleArtifacts[3], 'native'), true);
   assert.equal(artifactMatchesSearch(sampleArtifacts[0], 'not-present'), false);
 });
 
@@ -111,6 +132,7 @@ test('filterArtifacts applies search app and kind filters together', () => {
   assert.equal(filterArtifacts(sampleArtifacts, 'budget', 'all', 'all').length, 2);
   assert.equal(filterArtifacts(sampleArtifacts, '', 'PhiWrite', 'all').length, 2);
   assert.equal(filterArtifacts(sampleArtifacts, '', 'PhiGrid', 'grid').length, 1);
+  assert.equal(filterArtifacts(sampleArtifacts, '', 'PhiDeck', 'deck').length, 1);
   assert.equal(filterArtifacts(sampleArtifacts, 'csv', 'PhiWrite', 'export_receipt').length, 0);
 });
 

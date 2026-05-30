@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft, ClipboardCopy, Download, Grid3X3, Plus, RotateCcw, ShieldCheck, Sparkles } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ArrowLeft, ClipboardCopy, Download, Grid3X3, Plus, RotateCcw, ShieldCheck, Sparkles, Upload } from 'lucide-react';
 import { createArtifactReceipt, trustLabels } from '@phioffice369/core';
+import { parseCsvImport } from '../lib/localImporters.js';
 import { saveLocalExportReceipt } from '../lib/localReceipts.js';
 import './PhiGridLite.css';
 
@@ -28,15 +29,8 @@ function blankRow(columns) {
 
 function starterRows(template, columns) {
   if (template.id === 'simple_family_budget') {
-    return ['Income', 'Bills', 'Food', 'Savings', 'Kindness Money'].map((category) => ({
-      Category: category,
-      Planned: '0',
-      Actual: '0',
-      Difference: '0',
-      Notes: '',
-    }));
+    return ['Income', 'Bills', 'Food', 'Savings', 'Kindness Money'].map((category) => ({ Category: category, Planned: '0', Actual: '0', Difference: '0', Notes: '' }));
   }
-
   if (template.id === 'claim_boundary_matrix') {
     return [
       { Claim: 'Example claim', Type: 'Needs review', Evidence: '', Boundary: '', 'Publish Status': 'Draft' },
@@ -44,7 +38,6 @@ function starterRows(template, columns) {
       { Claim: 'Verified source note', Type: 'Sourced', Evidence: 'Add citation', Boundary: 'Keep context attached', 'Publish Status': 'Review' },
     ];
   }
-
   return [blankRow(columns), blankRow(columns), blankRow(columns)];
 }
 
@@ -81,10 +74,11 @@ function downloadTextFile(filename, body, type) {
 }
 
 export default function PhiGridLite({ template, onBack }) {
+  const importInputRef = useRef(null);
   const defaultColumns = useMemo(() => getColumns(template), [template]);
   const savedGrid = useMemo(() => loadGrid(template), [template]);
   const [title, setTitle] = useState(savedGrid?.title ?? template.title);
-  const [columns] = useState(savedGrid?.columns ?? defaultColumns);
+  const [columns, setColumns] = useState(savedGrid?.columns ?? defaultColumns);
   const [rows, setRows] = useState(savedGrid?.rows ?? starterRows(template, defaultColumns));
   const [activeLabelId, setActiveLabelId] = useState(savedGrid?.activeLabelId ?? template.trustDefaults[0] ?? 'private');
   const [saveStatus, setSaveStatus] = useState(savedGrid ? 'Restored local grid' : 'New local grid');
@@ -103,14 +97,7 @@ export default function PhiGridLite({ template, onBack }) {
     if (!canUseLocalStorage()) return undefined;
     setSaveStatus('Unsaved changes...');
     const timeout = window.setTimeout(() => {
-      window.localStorage.setItem(`phioffice369:phigrid:${template.id}`, JSON.stringify({
-        templateId: template.id,
-        title,
-        columns,
-        rows,
-        activeLabelId,
-        updatedAt: new Date().toISOString(),
-      }));
+      window.localStorage.setItem(`phioffice369:phigrid:${template.id}`, JSON.stringify({ templateId: template.id, title, columns, rows, activeLabelId, updatedAt: new Date().toISOString() }));
       setSaveStatus('Autosaved locally');
     }, 450);
     return () => window.clearTimeout(timeout);
@@ -136,6 +123,7 @@ export default function PhiGridLite({ template, onBack }) {
 
   function resetGrid() {
     setTitle(template.title);
+    setColumns(defaultColumns);
     setRows(starterRows(template, defaultColumns));
     setActiveLabelId(template.trustDefaults[0] ?? 'private');
     if (canUseLocalStorage()) window.localStorage.removeItem(`phioffice369:phigrid:${template.id}`);
@@ -155,6 +143,28 @@ export default function PhiGridLite({ template, onBack }) {
     downloadTextFile(filename, JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
     saveLocalExportReceipt({ artifactId: `grid_${template.id}`, format: 'json', filename, sourceApp: 'PhiGrid' });
     setSaveStatus('JSON exported + receipt saved');
+  }
+
+  function triggerCsvImport() {
+    importInputRef.current?.click();
+  }
+
+  async function handleImportCsv(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      const imported = parseCsvImport(text, file.name.replace(/\.csv$/i, ''));
+      setTitle(imported.title);
+      setColumns(imported.columns);
+      setRows(imported.rows);
+      setActiveLabelId('private');
+      setSaveStatus('CSV imported locally');
+    } catch {
+      setSaveStatus('Could not import CSV');
+    } finally {
+      event.target.value = '';
+    }
   }
 
   async function copyReceipt() {
@@ -177,8 +187,10 @@ export default function PhiGridLite({ template, onBack }) {
         </div>
         <div className="grid-actions">
           <button type="button" onClick={resetGrid}><RotateCcw aria-hidden="true" /> Reset</button>
+          <button type="button" onClick={triggerCsvImport}><Upload aria-hidden="true" /> Import CSV</button>
           <button type="button" onClick={exportCsv}><Download aria-hidden="true" /> Export CSV</button>
           <button type="button" onClick={exportJson}><Download aria-hidden="true" /> Export JSON</button>
+          <input ref={importInputRef} className="grid-file-input" type="file" accept=".csv,text/csv" onChange={handleImportCsv} />
         </div>
       </div>
 

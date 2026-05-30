@@ -22,6 +22,7 @@ import { professorPhiModes, professorPhiSystemNotes } from '@phioffice369/profes
 import { starterTemplates } from '@phioffice369/templates';
 import PhiWriteLite from './components/PhiWriteLite.jsx';
 import PhiGridLite from './components/PhiGridLite.jsx';
+import PhiDeckLite from './components/PhiDeckLite.jsx';
 import PhiVaultLite from './components/PhiVaultLite.jsx';
 import './interactive.css';
 
@@ -41,12 +42,12 @@ const appIcons = {
 const apps = [
   { name: 'PhiWrite', role: 'Documents, specs, letters, PDFs', category: 'Create', status: 'v0.1 lite', detail: 'Write specs, letters, public docs, structured notes, books, and PDF-ready artifacts.' },
   { name: 'PhiGrid', role: 'Spreadsheets, formulas, budgets, atlases', category: 'Analyze', status: 'v0.1 lite', detail: 'Build budgets, trackers, formula catalogs, ledgers, and simple dashboard-ready tables.' },
-  { name: 'PhiDeck', role: 'Slides, posters, pitch decks', category: 'Present', status: 'v0.1 lite', detail: 'Turn specs and notes into visual decks, one-page explainers, and public launch posters.' },
+  { name: 'PhiDeck', role: 'Slides, posters, pitch decks', category: 'Present', status: 'v0.2 lite', detail: 'Turn specs and notes into visual decks, one-page explainers, and public launch posters.' },
   { name: 'PhiNotes', role: 'Research notebooks and idea gardens', category: 'Research', status: 'planned', detail: 'Capture meeting notes, research trails, source maps, and living idea gardens.' },
   { name: 'PhiMap', role: 'Diagrams, flowcharts, system maps', category: 'Map', status: 'planned', detail: 'Create flowcharts, architecture maps, relationship graphs, and implementation diagrams.' },
   { name: 'PhiPress', role: 'Flyers, zines, print layouts', category: 'Publish', status: 'planned', detail: 'Design flyers, zines, worksheets, one-pagers, and community-ready print layouts.' },
   { name: 'PhiBase', role: 'Local databases and dashboards', category: 'Organize', status: 'planned', detail: 'Build simple records, inventory tables, card catalogs, forms, and local dashboards.' },
-  { name: 'PhiVault', role: 'Local file vault, tags, project folders', category: 'Protect', status: 'v0.1 lite', detail: 'Organize artifacts locally with tags, project folders, export receipts, and private mode.' },
+  { name: 'PhiVault', role: 'Local file vault, tags, project folders', category: 'Protect', status: 'v0.2 lite', detail: 'Organize artifacts locally with tags, project folders, export receipts, and private mode.' },
   { name: 'PhiFlow', role: 'Tasks, calendar, reminders, workflow bridge', category: 'Coordinate', status: 'planned', detail: 'Bridge artifacts into tasks, checklists, project rhythms, reminders, and future calendar flows.' },
   { name: 'Professor Phi', role: 'Assistant, editor, transformer, claim-checker', category: 'Assist', status: 'v0.1 panel', detail: 'Draft, polish, transform, teach, analyze, and label claims while keeping the human in control.' },
 ];
@@ -69,7 +70,7 @@ const transformations = [
 
 const roadmap = [
   ['v0.1', 'Identity MVP', 'Launcher shell, PhiWrite-lite, PhiGrid-lite, PhiVault-lite, PhiDeck preview.'],
-  ['v0.2', 'Artifact transformation', 'Spec-to-deck, grid-to-report, notes-to-doc, doc-to-poster workflows.'],
+  ['v0.2', 'Artifact transformation', 'Imports, receipt timeline, shared artifact registry, standalone PhiDeck-lite.'],
   ['v0.3', 'PhiVault + search', 'Local index, tags, project graph, related artifacts, private mode.'],
   ['v0.4', 'Compatibility lab', 'Evaluate DOCX/XLSX/PPTX with visible compatibility reports.'],
 ];
@@ -88,11 +89,15 @@ function AppCard({ app, isSelected, onSelect }) {
 }
 
 function getWorkspaceKind(template) {
-  return template.app === 'PhiGrid' ? 'grid' : 'write';
+  if (template.app === 'PhiGrid') return 'grid';
+  if (template.app === 'PhiDeck') return 'deck';
+  return 'write';
 }
 
 function getOpenButtonLabel(template) {
-  return template.app === 'PhiGrid' ? 'Open in PhiGrid-lite' : 'Open in PhiWrite-lite';
+  if (template.app === 'PhiGrid') return 'Open in PhiGrid-lite';
+  if (template.app === 'PhiDeck') return 'Open in PhiDeck-lite';
+  return 'Open in PhiWrite-lite';
 }
 
 export default function App() {
@@ -130,7 +135,9 @@ export default function App() {
       <main className="shell">
         {activeWorkspace.kind === 'grid'
           ? <PhiGridLite template={activeWorkspace.template} onBack={() => setActiveWorkspace(null)} />
-          : <PhiWriteLite template={activeWorkspace.template} onBack={() => setActiveWorkspace(null)} />}
+          : activeWorkspace.kind === 'deck'
+            ? <PhiDeckLite template={activeWorkspace.template} onBack={() => setActiveWorkspace(null)} />
+            : <PhiWriteLite template={activeWorkspace.template} onBack={() => setActiveWorkspace(null)} />}
       </main>
     );
   }

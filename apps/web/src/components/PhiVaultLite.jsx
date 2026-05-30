@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { ClipboardCopy, Download, FolderLock, RefreshCw, ShieldCheck, Sparkles, Upload } from 'lucide-react';
 import { createArtifactManifestEntry, createProjectManifest } from '@phioffice369/core';
+import { scanLocalExportReceipts } from '../lib/localReceipts.js';
 import './PhiVaultLite.css';
 
 function canUseLocalStorage() {
@@ -22,11 +23,13 @@ function parseStoredValue(key) {
 function kindFromKey(key) {
   if (key.includes(':phiwrite:')) return { kind: 'document', app: 'PhiWrite' };
   if (key.includes(':phigrid:')) return { kind: 'grid', app: 'PhiGrid' };
+  if (key.includes(':export_receipt:')) return { kind: 'export_receipt', app: 'PhiVault' };
   return { kind: 'vault_item', app: 'PhiVault' };
 }
 
 function titleFromDraft(key, value) {
   if (value?.title) return value.title;
+  if (value?.filename) return value.filename;
   return key.split(':').at(-1) ?? 'Untitled artifact';
 }
 
@@ -35,6 +38,7 @@ function scanLocalArtifacts() {
 
   return Object.keys(window.localStorage)
     .filter((key) => key.startsWith('phioffice369:'))
+    .filter((key) => !key.startsWith('phioffice369:export_receipt:'))
     .map((key) => {
       const storedValue = parseStoredValue(key);
       const { kind, app } = kindFromKey(key);
@@ -49,6 +53,26 @@ function scanLocalArtifacts() {
         status: 'local-draft',
       });
     });
+}
+
+function exportReceiptToArtifact({ key, receipt }) {
+  return createArtifactManifestEntry({
+    artifactId: key.replaceAll(':', '_'),
+    title: receipt.filename ?? `${receipt.sourceApp} ${receipt.format} export`,
+    kind: 'export_receipt',
+    app: receipt.sourceApp ?? 'PhiVault',
+    path: key,
+    labels: [],
+    receipts: [receipt],
+    sourceTemplateId: null,
+    status: 'exported',
+  });
+}
+
+function scanContinuityArtifacts() {
+  const drafts = scanLocalArtifacts();
+  const exportArtifacts = scanLocalExportReceipts().map(exportReceiptToArtifact);
+  return [...drafts, ...exportArtifacts];
 }
 
 function downloadJson(filename, payload) {
@@ -72,7 +96,7 @@ function groupArtifactsByApp(artifacts) {
 
 export default function PhiVaultLite() {
   const fileInputRef = useRef(null);
-  const [artifacts, setArtifacts] = useState(() => scanLocalArtifacts());
+  const [artifacts, setArtifacts] = useState(() => scanContinuityArtifacts());
   const [status, setStatus] = useState('Local manifest ready');
   const [copyStatus, setCopyStatus] = useState('');
   const [importedManifest, setImportedManifest] = useState(null);
@@ -88,11 +112,12 @@ export default function PhiVaultLite() {
 
   const groupedArtifacts = useMemo(() => groupArtifactsByApp(artifacts), [artifacts]);
   const appGroupCount = Object.keys(groupedArtifacts).length;
+  const exportReceiptCount = artifacts.filter((artifact) => artifact.kind === 'export_receipt').length;
 
   function refreshArtifacts() {
-    const nextArtifacts = scanLocalArtifacts();
+    const nextArtifacts = scanContinuityArtifacts();
     setArtifacts(nextArtifacts);
-    setStatus(`Scanned ${nextArtifacts.length} local artifact${nextArtifacts.length === 1 ? '' : 's'}`);
+    setStatus(`Scanned ${nextArtifacts.length} continuity item${nextArtifacts.length === 1 ? '' : 's'}`);
   }
 
   function exportManifest() {
@@ -140,7 +165,7 @@ export default function PhiVaultLite() {
         <div>
           <p className="eyebrow">PhiVault-lite</p>
           <h2>Local project continuity</h2>
-          <p>Scan browser-local PhiOffice369 drafts, collect artifact entries, preview imported manifests, and export project continuity JSON.</p>
+          <p>Scan browser-local drafts, grids, and export receipts; preview imported manifests; and export project continuity JSON.</p>
           <p className="vault-status">{status}</p>
           {copyStatus && <p className="vault-copy-status">{copyStatus}</p>}
         </div>
@@ -159,8 +184,8 @@ export default function PhiVaultLite() {
           <h3>Manifest envelope</h3>
           <code>{manifest.schema}</code>
           <div className="vault-stat-grid">
-            <div><strong>{artifacts.length}</strong><span>artifacts</span></div>
-            <div><strong>{manifest.tags.length}</strong><span>tags</span></div>
+            <div><strong>{artifacts.length}</strong><span>items</span></div>
+            <div><strong>{exportReceiptCount}</strong><span>exports</span></div>
             <div><strong>{appGroupCount}</strong><span>app groups</span></div>
             <div><strong>{importedManifest ? 1 : 0}</strong><span>imports</span></div>
           </div>
@@ -179,16 +204,16 @@ export default function PhiVaultLite() {
         <section className="panel vault-artifacts">
           <div className="vault-section-heading">
             <div>
-              <p className="eyebrow">Local artifacts</p>
-              <h2>Detected drafts and grids</h2>
+              <p className="eyebrow">Local continuity</p>
+              <h2>Detected drafts, grids, and exports</h2>
             </div>
           </div>
 
           {artifacts.length === 0 ? (
             <div className="empty-vault">
               <Sparkles aria-hidden="true" />
-              <h3>No local artifacts yet</h3>
-              <p>Open a template in PhiWrite-lite or PhiGrid-lite, make a small edit, and return here to refresh the vault scan.</p>
+              <h3>No local continuity items yet</h3>
+              <p>Open a template, make a small edit, export a file, and return here to refresh the vault scan.</p>
             </div>
           ) : (
             <div className="artifact-groups">
@@ -200,7 +225,7 @@ export default function PhiVaultLite() {
                   </div>
                   <div className="artifact-list">
                     {appArtifacts.map((artifact) => (
-                      <article className="artifact-row" key={artifact.artifactId}>
+                      <article className={`artifact-row ${artifact.kind === 'export_receipt' ? 'export-row' : ''}`} key={artifact.artifactId}>
                         <div>
                           <span>{artifact.app} · {artifact.kind}</span>
                           <h3>{artifact.title}</h3>
@@ -208,6 +233,7 @@ export default function PhiVaultLite() {
                         </div>
                         <div className="artifact-badges">
                           <span>{artifact.status}</span>
+                          {artifact.receipts?.[0]?.format && <span>{artifact.receipts[0].format}</span>}
                           {artifact.labels.map((label) => <span key={label}>{label}</span>)}
                         </div>
                       </article>

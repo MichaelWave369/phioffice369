@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "npm --workspace apps/web run dev",
     "build": "npm --workspace apps/web run build",
-    "preview": "npm --workspace apps/web run preview"
+    "preview": "npm --workspace apps/web run preview",
+    "test": "node --test tests/*.test.js"
   },
   "workspaces": [
     "apps/web",

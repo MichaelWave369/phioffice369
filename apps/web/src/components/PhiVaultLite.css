@@ -19,7 +19,8 @@
   color: #d6a83d;
 }
 
-.vault-status {
+.vault-status,
+.vault-copy-status {
   margin: 8px 0 0;
   color: #f1e2b8;
   font-size: 0.92rem;
@@ -46,8 +47,12 @@
   font-weight: 850;
 }
 
-.vault-actions button:nth-child(2) {
+.vault-actions button:nth-child(4) {
   background: rgba(214, 168, 61, 0.22);
+}
+
+.vault-file-input {
+  display: none;
 }
 
 .vault-grid {
@@ -64,7 +69,8 @@
   padding: 24px;
 }
 
-.vault-summary code {
+.vault-summary code,
+.import-preview code {
   display: block;
   color: #f1e2b8;
   word-break: break-word;
@@ -95,8 +101,27 @@
 .vault-summary p,
 .vault-hero p,
 .artifact-row p,
-.empty-vault p {
+.empty-vault p,
+.import-preview p {
   color: #c9d2e3;
+}
+
+.import-preview {
+  margin-top: 18px;
+  border: 1px solid rgba(214, 168, 61, 0.28);
+  border-radius: 20px;
+  padding: 16px;
+  background: rgba(214, 168, 61, 0.07);
+}
+
+.import-preview span {
+  display: inline-flex;
+  border: 1px solid rgba(214, 168, 61, 0.26);
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: #fff8dc;
+  background: rgba(2, 7, 16, 0.32);
+  font-weight: 750;
 }
 
 .vault-section-heading {
@@ -112,6 +137,40 @@
   padding: 34px;
   text-align: center;
   background: rgba(214, 168, 61, 0.05);
+}
+
+.artifact-groups {
+  display: grid;
+  gap: 18px;
+}
+
+.artifact-group {
+  display: grid;
+  gap: 12px;
+}
+
+.artifact-group-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid rgba(214, 168, 61, 0.18);
+  padding-bottom: 10px;
+}
+
+.artifact-group-heading h3 {
+  margin: 0;
+  color: #fff8dc;
+}
+
+.artifact-group-heading span {
+  border: 1px solid rgba(214, 168, 61, 0.28);
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: #f1e2b8;
+  background: rgba(214, 168, 61, 0.08);
+  font-size: 0.8rem;
+  font-weight: 800;
 }
 
 .artifact-list {
@@ -167,7 +226,12 @@
   }
 
   .vault-actions,
-  .artifact-badges {
+  .artifact-badges,
+  .artifact-group-heading {
     justify-content: flex-start;
+  }
+
+  .artifact-group-heading {
+    flex-wrap: wrap;
   }
 }

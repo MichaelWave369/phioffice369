@@ -70,6 +70,18 @@ export const suiteApps = [
   'Professor Phi',
 ];
 
+export const artifactKinds = [
+  'document',
+  'grid',
+  'deck',
+  'note',
+  'diagram',
+  'press',
+  'database',
+  'vault_item',
+  'workflow',
+];
+
 export function getTrustLabelById(id) {
   return trustLabels.find((label) => label.id === id) ?? null;
 }
@@ -83,5 +95,80 @@ export function createArtifactReceipt({ artifactId, title, app, labels = [], tra
     transformations,
     createdAt: new Date().toISOString(),
     schema: 'phioffice369.artifact_receipt.v0.1',
+  };
+}
+
+export function createProjectManifest({
+  projectId,
+  title,
+  description = '',
+  artifacts = [],
+  tags = [],
+  owner = 'local-user',
+}) {
+  return {
+    schema: 'phioffice369.project_manifest.v0.1',
+    projectId,
+    title,
+    description,
+    owner,
+    tags,
+    artifacts,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function createArtifactManifestEntry({
+  artifactId,
+  title,
+  kind,
+  app,
+  path = '',
+  labels = [],
+  receipts = [],
+  sourceTemplateId = null,
+  status = 'draft',
+}) {
+  return {
+    artifactId,
+    title,
+    kind,
+    app,
+    path,
+    labels,
+    receipts,
+    sourceTemplateId,
+    status,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function addArtifactToProjectManifest(manifest, artifact) {
+  return {
+    ...manifest,
+    artifacts: [...(manifest.artifacts ?? []), artifact],
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+export function createExportReceipt({
+  artifactId,
+  format,
+  filename,
+  sourceApp,
+  warnings = [],
+  compatibility = 'native',
+}) {
+  return {
+    schema: 'phioffice369.export_receipt.v0.1',
+    artifactId,
+    format,
+    filename,
+    sourceApp,
+    warnings,
+    compatibility,
+    exportedAt: new Date().toISOString(),
   };
 }

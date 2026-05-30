@@ -113,6 +113,17 @@
   word-break: break-word;
 }
 
+.open-workspace-button {
+  width: 100%;
+  margin-top: 20px;
+  border: 1px solid rgba(214, 168, 61, 0.68);
+  border-radius: 999px;
+  padding: 14px 18px;
+  color: #fff8dc;
+  background: linear-gradient(135deg, rgba(214, 168, 61, 0.34), rgba(214, 168, 61, 0.12));
+  font-weight: 900;
+}
+
 .mode-list {
   display: grid;
   gap: 12px;

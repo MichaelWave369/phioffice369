@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Bot,
@@ -9,9 +9,11 @@ import {
   RotateCcw,
   ShieldCheck,
   Sparkles,
+  Upload,
   Wand2,
 } from 'lucide-react';
 import { createArtifactReceipt, trustLabels } from '@phioffice369/core';
+import { parseMarkdownImport } from '../lib/localImporters.js';
 import { saveLocalExportReceipt } from '../lib/localReceipts.js';
 import './PhiWriteLite.css';
 
@@ -114,6 +116,7 @@ function downloadTextFile(filename, body, type) {
 }
 
 export default function PhiWriteLite({ template, onBack }) {
+  const importInputRef = useRef(null);
   const savedDraft = useMemo(() => loadDraft(template), [template]);
   const [title, setTitle] = useState(savedDraft?.title ?? template.title);
   const [content, setContent] = useState(savedDraft?.content ?? makeStarterContent(template));
@@ -180,6 +183,30 @@ export default function PhiWriteLite({ template, onBack }) {
     setAssistantStatus('PhiDeck-lite JSON exported + receipt saved');
   }
 
+  function triggerMarkdownImport() {
+    importInputRef.current?.click();
+  }
+
+  async function handleImportMarkdown(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      const text = await file.text();
+      const imported = parseMarkdownImport(text, file.name.replace(/\.(md|markdown)$/i, ''));
+      setTitle(imported.title);
+      setContent(imported.content);
+      setDeckSlides([]);
+      setActiveLabelId('human_written');
+      setSaveStatus('Markdown imported locally');
+      setAssistantStatus(imported.importNote);
+    } catch {
+      setSaveStatus('Could not import Markdown');
+    } finally {
+      event.target.value = '';
+    }
+  }
+
   async function handleCopyReceipt() {
     try {
       await navigator.clipboard.writeText(JSON.stringify(receipt, null, 2));
@@ -214,7 +241,12 @@ export default function PhiWriteLite({ template, onBack }) {
       <div className="workspace-topbar panel">
         <button className="ghost-button" type="button" onClick={onBack}><ArrowLeft aria-hidden="true" />Back to templates</button>
         <div><p className="eyebrow">PhiWrite-lite</p><h2>{template.title}</h2><p className="save-status">{saveStatus}</p></div>
-        <div className="workspace-actions"><button className="ghost-button" type="button" onClick={handleResetDraft}><RotateCcw aria-hidden="true" />Reset</button><button className="gold-button" type="button" onClick={handleExportMarkdown}><Download aria-hidden="true" />Export .md</button></div>
+        <div className="workspace-actions">
+          <button className="ghost-button" type="button" onClick={handleResetDraft}><RotateCcw aria-hidden="true" />Reset</button>
+          <button className="ghost-button" type="button" onClick={triggerMarkdownImport}><Upload aria-hidden="true" />Import .md</button>
+          <button className="gold-button" type="button" onClick={handleExportMarkdown}><Download aria-hidden="true" />Export .md</button>
+          <input ref={importInputRef} className="workspace-file-input" type="file" accept=".md,.markdown,text/markdown,text/plain" onChange={handleImportMarkdown} />
+        </div>
       </div>
 
       <div className="workspace-grid">

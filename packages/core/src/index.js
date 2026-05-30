@@ -80,6 +80,7 @@ export const artifactKinds = [
   'database',
   'vault_item',
   'workflow',
+  'export_receipt',
 ];
 
 export function getTrustLabelById(id) {
@@ -171,4 +172,8 @@ export function createExportReceipt({
     compatibility,
     exportedAt: new Date().toISOString(),
   };
+}
+
+export function createLocalStorageExportReceiptKey({ sourceApp, artifactId, format, exportedAt = new Date().toISOString() }) {
+  return `phioffice369:export_receipt:${sourceApp}:${artifactId}:${format}:${exportedAt}`;
 }

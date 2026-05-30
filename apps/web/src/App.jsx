@@ -11,11 +11,29 @@ import {
   Network,
   Newspaper,
   NotebookTabs,
+  ReceiptText,
   Search,
   ShieldCheck,
   Sparkles,
   Wand2,
 } from 'lucide-react';
+import { createArtifactReceipt, trustLabels } from '@phioffice369/core';
+import { professorPhiModes, professorPhiSystemNotes } from '@phioffice369/professor-phi';
+import { starterTemplates } from '@phioffice369/templates';
+import './interactive.css';
+
+const appIcons = {
+  PhiWrite: FileText,
+  PhiGrid: Grid3X3,
+  PhiDeck: Layers3,
+  PhiNotes: NotebookTabs,
+  PhiMap: Network,
+  PhiPress: Newspaper,
+  PhiBase: Database,
+  PhiVault: FolderLock,
+  PhiFlow: CalendarCheck,
+  'Professor Phi': Bot,
+};
 
 const apps = [
   {
@@ -23,7 +41,6 @@ const apps = [
     role: 'Documents, specs, letters, PDFs',
     category: 'Create',
     status: 'v0.1 lite',
-    icon: FileText,
     detail: 'Write specs, letters, public docs, structured notes, books, and PDF-ready artifacts.',
   },
   {
@@ -31,7 +48,6 @@ const apps = [
     role: 'Spreadsheets, formulas, budgets, atlases',
     category: 'Analyze',
     status: 'v0.1 lite',
-    icon: Grid3X3,
     detail: 'Build budgets, trackers, formula catalogs, ledgers, and simple dashboard-ready tables.',
   },
   {
@@ -39,7 +55,6 @@ const apps = [
     role: 'Slides, posters, pitch decks',
     category: 'Present',
     status: 'v0.1 lite',
-    icon: Layers3,
     detail: 'Turn specs and notes into visual decks, one-page explainers, and public launch posters.',
   },
   {
@@ -47,7 +62,6 @@ const apps = [
     role: 'Research notebooks and idea gardens',
     category: 'Research',
     status: 'planned',
-    icon: NotebookTabs,
     detail: 'Capture meeting notes, research trails, source maps, and living idea gardens.',
   },
   {
@@ -55,7 +69,6 @@ const apps = [
     role: 'Diagrams, flowcharts, system maps',
     category: 'Map',
     status: 'planned',
-    icon: Network,
     detail: 'Create flowcharts, architecture maps, relationship graphs, and implementation diagrams.',
   },
   {
@@ -63,7 +76,6 @@ const apps = [
     role: 'Flyers, zines, print layouts',
     category: 'Publish',
     status: 'planned',
-    icon: Newspaper,
     detail: 'Design flyers, zines, worksheets, one-pagers, and community-ready print layouts.',
   },
   {
@@ -71,7 +83,6 @@ const apps = [
     role: 'Local databases and dashboards',
     category: 'Organize',
     status: 'planned',
-    icon: Database,
     detail: 'Build simple records, inventory tables, card catalogs, forms, and local dashboards.',
   },
   {
@@ -79,7 +90,6 @@ const apps = [
     role: 'Local file vault, tags, project folders',
     category: 'Protect',
     status: 'planned',
-    icon: FolderLock,
     detail: 'Organize artifacts locally with tags, project folders, export receipts, and private mode.',
   },
   {
@@ -87,7 +97,6 @@ const apps = [
     role: 'Tasks, calendar, reminders, workflow bridge',
     category: 'Coordinate',
     status: 'planned',
-    icon: CalendarCheck,
     detail: 'Bridge artifacts into tasks, checklists, project rhythms, reminders, and future calendar flows.',
   },
   {
@@ -95,7 +104,6 @@ const apps = [
     role: 'Assistant, editor, transformer, claim-checker',
     category: 'Assist',
     status: 'v0.1 panel',
-    icon: Bot,
     detail: 'Draft, polish, transform, teach, analyze, and label claims while keeping the human in control.',
   },
 ];
@@ -107,17 +115,6 @@ const pillars = [
   ['Compatibility honesty', 'Import/export with visible reports instead of false promises.'],
   ['Living artifacts', 'Turn docs into decks, posters, reports, checklists, and handouts.'],
   ['Professor Phi', 'Warm, helpful, funny, disciplined AI assistance built into the suite.'],
-];
-
-const trustLabels = [
-  { label: 'Human-written', tone: 'gold', description: 'Created directly by the user.' },
-  { label: 'AI-assisted', tone: 'blue', description: 'Drafted, transformed, or polished with AI help.' },
-  { label: 'Sourced', tone: 'green', description: 'Backed by visible references or project files.' },
-  { label: 'Needs citation', tone: 'orange', description: 'Factual claim needs support before publishing.' },
-  { label: 'Hypothesis', tone: 'purple', description: 'Plausible but unverified idea.' },
-  { label: 'Symbolic', tone: 'pink', description: 'Mythic, metaphorical, artistic, or interface-layer meaning.' },
-  { label: 'Private', tone: 'red', description: 'Sensitive or internal content.' },
-  { label: 'Verified', tone: 'green', description: 'Checked against a trusted source or project record.' },
 ];
 
 const transformations = [
@@ -134,10 +131,10 @@ const roadmap = [
   ['v0.4', 'Compatibility lab', 'Evaluate DOCX/XLSX/PPTX with visible compatibility reports.'],
 ];
 
-const tabs = ['Suite', 'Trust', 'Transform', 'Roadmap'];
+const tabs = ['Suite', 'Templates', 'Trust', 'Professor Phi', 'Transform', 'Roadmap'];
 
 function AppCard({ app, isSelected, onSelect }) {
-  const Icon = app.icon;
+  const Icon = appIcons[app.name] ?? Sparkles;
   return (
     <button className={`app-card ${isSelected ? 'selected' : ''}`} type="button" onClick={onSelect}>
       <span className="app-card-topline">
@@ -153,14 +150,31 @@ function AppCard({ app, isSelected, onSelect }) {
 function App() {
   const [activeTab, setActiveTab] = useState('Suite');
   const [query, setQuery] = useState('');
+  const [templateQuery, setTemplateQuery] = useState('');
   const [selectedApp, setSelectedApp] = useState(apps[0]);
   const [selectedTrustLabel, setSelectedTrustLabel] = useState(trustLabels[0]);
+  const [selectedTemplate, setSelectedTemplate] = useState(starterTemplates[0]);
+  const [selectedMode, setSelectedMode] = useState(professorPhiModes[0]);
 
   const filteredApps = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return apps;
     return apps.filter((app) => `${app.name} ${app.role} ${app.category} ${app.detail}`.toLowerCase().includes(needle));
   }, [query]);
+
+  const filteredTemplates = useMemo(() => {
+    const needle = templateQuery.trim().toLowerCase();
+    if (!needle) return starterTemplates;
+    return starterTemplates.filter((template) => `${template.title} ${template.app} ${template.purpose} ${template.sections.join(' ')}`.toLowerCase().includes(needle));
+  }, [templateQuery]);
+
+  const receiptPreview = useMemo(() => createArtifactReceipt({
+    artifactId: selectedTemplate.id,
+    title: selectedTemplate.title,
+    app: selectedTemplate.app,
+    labels: selectedTemplate.trustDefaults,
+    transformations: ['template_to_artifact_preview'],
+  }), [selectedTemplate]);
 
   return (
     <main className="shell">
@@ -225,6 +239,50 @@ function App() {
         </section>
       )}
 
+      {activeTab === 'Templates' && (
+        <section className="section-block fade-in">
+          <div className="section-heading split-heading">
+            <div>
+              <p className="eyebrow">Starter templates</p>
+              <h2>Useful artifacts from day one.</h2>
+            </div>
+            <label className="search-box">
+              <Search aria-hidden="true" />
+              <input value={templateQuery} onChange={(event) => setTemplateQuery(event.target.value)} placeholder="Search templates..." />
+            </label>
+          </div>
+
+          <div className="template-layout">
+            <div className="template-list">
+              {filteredTemplates.map((template) => (
+                <button key={template.id} className={`template-card panel ${selectedTemplate.id === template.id ? 'selected' : ''}`} type="button" onClick={() => setSelectedTemplate(template)}>
+                  <span className="template-app">{template.app}</span>
+                  <strong>{template.title}</strong>
+                  <span>{template.purpose}</span>
+                </button>
+              ))}
+            </div>
+
+            <aside className="panel template-preview">
+              <p className="eyebrow">Template preview</p>
+              <h2>{selectedTemplate.title}</h2>
+              <p>{selectedTemplate.purpose}</p>
+              <div className="section-chip-grid">
+                {selectedTemplate.sections.map((section) => <span key={section}>{section}</span>)}
+              </div>
+              <div className="receipt-box">
+                <ReceiptText aria-hidden="true" />
+                <div>
+                  <h3>Artifact receipt preview</h3>
+                  <code>{receiptPreview.schema}</code>
+                  <p>{receiptPreview.app} · {receiptPreview.labels.length} trust labels · {receiptPreview.transformations[0]}</p>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </section>
+      )}
+
       {activeTab === 'Trust' && (
         <section className="section-block two-column fade-in">
           <div className="panel">
@@ -232,7 +290,7 @@ function App() {
             <h2>Clear labels for human + AI work</h2>
             <div className="label-grid interactive-labels">
               {trustLabels.map((item) => (
-                <button key={item.label} type="button" className={`label-chip ${selectedTrustLabel.label === item.label ? 'selected' : ''}`} onClick={() => setSelectedTrustLabel(item)}>
+                <button key={item.id} type="button" className={`label-chip ${selectedTrustLabel.id === item.id ? 'selected' : ''}`} onClick={() => setSelectedTrustLabel(item)}>
                   {item.label}
                 </button>
               ))}
@@ -247,7 +305,38 @@ function App() {
               <CheckCircle2 aria-hidden="true" />
               <span>This artifact block is labeled: {selectedTrustLabel.label}</span>
             </div>
+            <div className="metadata-row"><span>Publish risk: {selectedTrustLabel.publishRisk}</span></div>
             <p className="note">The trust panel protects clarity, authorship, privacy, and public trust without shaming the user.</p>
+          </div>
+        </section>
+      )}
+
+      {activeTab === 'Professor Phi' && (
+        <section className="section-block two-column fade-in">
+          <div className="panel">
+            <p className="eyebrow">Professor Phi modes</p>
+            <h2>Assistant behavior with boundaries.</h2>
+            <div className="mode-list">
+              {professorPhiModes.map((mode) => (
+                <button key={mode.id} type="button" className={`mode-card ${selectedMode.id === mode.id ? 'selected' : ''}`} onClick={() => setSelectedMode(mode)}>
+                  <strong>{mode.label}</strong>
+                  <span>{mode.description}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="panel professor-panel">
+            <p className="eyebrow">Selected mode</p>
+            <h2>{selectedMode.label}</h2>
+            <p>{selectedMode.description}</p>
+            <div className="professor-note-box">
+              <Bot aria-hidden="true" />
+              <p>Professor Phi helps create, transform, explain, and verify — while keeping the user sovereign over final choices.</p>
+            </div>
+            <ul className="system-notes">
+              {professorPhiSystemNotes.map((note) => <li key={note}>{note}</li>)}
+            </ul>
           </div>
         </section>
       )}

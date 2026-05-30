@@ -126,6 +126,20 @@ function filterArtifacts(artifacts, query, appFilter, kindFilter) {
   });
 }
 
+function formatExportTime(value) {
+  if (!value) return 'Unknown time';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString();
+}
+
+function buildExportTimeline(artifacts) {
+  return artifacts
+    .filter((artifact) => artifact.kind === 'export_receipt' && artifact.receipts?.[0])
+    .map((artifact) => ({ artifact, receipt: artifact.receipts[0] }))
+    .sort((left, right) => new Date(right.receipt.exportedAt).getTime() - new Date(left.receipt.exportedAt).getTime());
+}
+
 export default function PhiVaultLite() {
   const fileInputRef = useRef(null);
   const [artifacts, setArtifacts] = useState(() => scanContinuityArtifacts());
@@ -148,8 +162,9 @@ export default function PhiVaultLite() {
   }), [artifacts]);
 
   const groupedArtifacts = useMemo(() => groupArtifactsByApp(filteredArtifacts), [filteredArtifacts]);
+  const exportTimeline = useMemo(() => buildExportTimeline(artifacts), [artifacts]);
   const appGroupCount = Object.keys(groupedArtifacts).length;
-  const exportReceiptCount = artifacts.filter((artifact) => artifact.kind === 'export_receipt').length;
+  const exportReceiptCount = exportTimeline.length;
   const appOptions = useMemo(() => uniqueValues(artifacts, 'app'), [artifacts]);
   const kindOptions = useMemo(() => uniqueValues(artifacts, 'kind'), [artifacts]);
 
@@ -276,6 +291,30 @@ export default function PhiVaultLite() {
               <button type="button" onClick={resetFilters}>Reset filters</button>
             </div>
           </div>
+
+          {exportTimeline.length > 0 && (
+            <section className="receipt-timeline">
+              <div className="receipt-timeline-heading">
+                <div>
+                  <p className="eyebrow">Export receipt timeline</p>
+                  <h3>Recent local exports</h3>
+                </div>
+                <span>{exportTimeline.length} receipt{exportTimeline.length === 1 ? '' : 's'}</span>
+              </div>
+              <div className="receipt-timeline-list">
+                {exportTimeline.slice(0, 8).map(({ artifact, receipt }) => (
+                  <article className="receipt-timeline-item" key={artifact.artifactId}>
+                    <time>{formatExportTime(receipt.exportedAt)}</time>
+                    <div>
+                      <h3>{receipt.filename ?? artifact.title}</h3>
+                      <p>{receipt.sourceApp} · {receipt.format} · {receipt.compatibility}</p>
+                      <code>{receipt.artifactId}</code>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </section>
+          )}
 
           {artifacts.length === 0 ? (
             <div className="empty-vault">

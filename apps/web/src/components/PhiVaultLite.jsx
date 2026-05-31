@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { ClipboardCopy, Download, FolderLock, RefreshCw, Search, ShieldCheck, Sparkles, Upload, X } from 'lucide-react';
 import { createProjectManifest } from '@phioffice369/core';
+import { parseTagInput, writeArtifactMetadata } from '../lib/localArtifactMetadata.js';
 import {
   buildExportTimeline,
   filterArtifacts,
@@ -28,6 +29,10 @@ function detailValue(value, fallback = '—') {
   return value || fallback;
 }
 
+function updateArtifactInList(artifacts, artifactId, updater) {
+  return artifacts.map((artifact) => (artifact.artifactId === artifactId ? updater(artifact) : artifact));
+}
+
 export default function PhiVaultLite() {
   const fileInputRef = useRef(null);
   const [artifacts, setArtifacts] = useState(() => scanContinuityArtifacts());
@@ -38,6 +43,7 @@ export default function PhiVaultLite() {
   const [appFilter, setAppFilter] = useState('all');
   const [kindFilter, setKindFilter] = useState('all');
   const [selectedArtifact, setSelectedArtifact] = useState(null);
+  const [tagInput, setTagInput] = useState('');
 
   const filteredArtifacts = useMemo(() => filterArtifacts(artifacts, query, appFilter, kindFilter), [appFilter, artifacts, kindFilter, query]);
 
@@ -62,6 +68,7 @@ export default function PhiVaultLite() {
     const nextArtifacts = scanContinuityArtifacts();
     setArtifacts(nextArtifacts);
     setSelectedArtifact(null);
+    setTagInput('');
     setStatus(`Scanned ${nextArtifacts.length} continuity item${nextArtifacts.length === 1 ? '' : 's'}`);
   }
 
@@ -70,6 +77,11 @@ export default function PhiVaultLite() {
     setAppFilter('all');
     setKindFilter('all');
     setStatus('Vault filters reset');
+  }
+
+  function selectArtifact(artifact) {
+    setSelectedArtifact(artifact);
+    setTagInput((artifact.tags ?? []).join(', '));
   }
 
   function exportManifest() {
@@ -100,6 +112,30 @@ export default function PhiVaultLite() {
     copyJson(selectedReceipt, 'Receipt JSON');
   }
 
+  function saveSelectedTags() {
+    if (!selectedArtifact) return;
+    const tags = parseTagInput(tagInput);
+    const metadata = writeArtifactMetadata(selectedArtifact.artifactId, { tags });
+    const updateWithMetadata = (artifact) => ({
+      ...artifact,
+      tags,
+      metadata: {
+        ...(artifact.metadata ?? {}),
+        tags,
+        metadataUpdatedAt: metadata.updatedAt,
+      },
+    });
+
+    setArtifacts((currentArtifacts) => updateArtifactInList(currentArtifacts, selectedArtifact.artifactId, updateWithMetadata));
+    setSelectedArtifact((currentSelected) => (currentSelected ? updateWithMetadata(currentSelected) : currentSelected));
+    setTagInput(tags.join(', '));
+    setStatus(`Saved ${tags.length} local tag${tags.length === 1 ? '' : 's'}`);
+  }
+
+  function clearSelectedTags() {
+    setTagInput('');
+  }
+
   function triggerImport() {
     fileInputRef.current?.click();
   }
@@ -127,7 +163,7 @@ export default function PhiVaultLite() {
   function handleArtifactKeyDown(event, artifact) {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
-      setSelectedArtifact(artifact);
+      selectArtifact(artifact);
     }
   }
 
@@ -185,7 +221,7 @@ export default function PhiVaultLite() {
           <div className="vault-filter-panel">
             <label className="vault-search-box">
               <Search aria-hidden="true" />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title, app, kind, label, path, status..." />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title, app, kind, label, tag, path, status..." />
             </label>
             <div className="vault-select-row">
               <label>
@@ -256,6 +292,22 @@ export default function PhiVaultLite() {
                 {(selectedArtifact.labels?.length ? selectedArtifact.labels : ['no_labels']).map((label) => <span key={label}>{label}</span>)}
               </div>
 
+              <div className="detail-tag-editor">
+                <label>
+                  <span>Local tags</span>
+                  <input value={tagInput} onChange={(event) => setTagInput(event.target.value)} placeholder="client-work, launch, private" />
+                </label>
+                <p>Tags are stored as local metadata and included in exported manifests. They do not modify the original draft, grid, deck, or receipt.</p>
+                <div className="detail-tag-actions">
+                  <button type="button" onClick={saveSelectedTags}>Save tags</button>
+                  <button type="button" onClick={clearSelectedTags}>Clear input</button>
+                </div>
+              </div>
+
+              <div className="detail-label-row tag-row">
+                {(selectedArtifact.tags?.length ? selectedArtifact.tags : ['no_tags']).map((tag) => <span key={tag}>{tag}</span>)}
+              </div>
+
               {selectedReceipt && (
                 <div className="detail-receipt-card">
                   <h3>Receipt metadata</h3>
@@ -304,7 +356,7 @@ export default function PhiVaultLite() {
                         key={artifact.artifactId}
                         role="button"
                         tabIndex={0}
-                        onClick={() => setSelectedArtifact(artifact)}
+                        onClick={() => selectArtifact(artifact)}
                         onKeyDown={(event) => handleArtifactKeyDown(event, artifact)}
                       >
                         <div>
@@ -316,6 +368,7 @@ export default function PhiVaultLite() {
                           <span>{artifact.status}</span>
                           {artifact.receipts?.[0]?.format && <span>{artifact.receipts[0].format}</span>}
                           {artifact.labels.map((label) => <span key={label}>{label}</span>)}
+                          {artifact.tags?.map((tag) => <span key={tag}>{tag}</span>)}
                         </div>
                       </article>
                     ))}

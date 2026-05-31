@@ -2,8 +2,8 @@ import { createArtifactManifestEntry } from '@phioffice369/core';
 import { mergeArtifactMetadata, readArtifactMetadata, ARTIFACT_METADATA_PREFIX } from './localArtifactMetadata.js';
 import { canUseBrowserLocalStorage, scanLocalExportReceipts } from './localReceipts.js';
 import {
-  listStorageKeys,
   readStorageJson,
+  scanStorageEntries,
 } from './workspaceStorageAccess.js';
 
 export function parseStoredJsonValue(key) {
@@ -44,8 +44,8 @@ export function attachLocalMetadata(artifact) {
 export function scanLocalDraftArtifacts() {
   if (!canUseBrowserLocalStorage()) return [];
 
-  return listStorageKeys(window.localStorage)
-    .filter((key) => key.startsWith('phioffice369:'))
+  return scanStorageEntries({ prefix: 'phioffice369:', includeValues: false })
+    .map(([key]) => key)
     .filter((key) => !key.startsWith('phioffice369:export_receipt:'))
     .filter((key) => !key.startsWith(ARTIFACT_METADATA_PREFIX))
     .map((key) => {

@@ -45,6 +45,54 @@ export const professorPhiSystemNotes = [
   'Flag public claims that need evidence, boundaries, or context.',
 ];
 
+export const PROFESSOR_PHI_MOCK_RESPONSE_SCHEMA = 'phioffice369.professor_phi_mock_response.v0.1';
+
 export function getProfessorPhiMode(id) {
   return professorPhiModes.find((mode) => mode.id === id) ?? null;
+}
+
+export function normalizeProfessorPhiInput(value) {
+  return String(value ?? '').trim();
+}
+
+export function createProfessorPhiPromptSummary(prompt, maxLength = 140) {
+  const normalized = normalizeProfessorPhiInput(prompt).replace(/\s+/g, ' ');
+  if (!normalized) return 'No prompt provided yet.';
+  return normalized.length > maxLength ? `${normalized.slice(0, maxLength - 1)}…` : normalized;
+}
+
+export function getProfessorPhiModeInstruction(modeId) {
+  const mode = getProfessorPhiMode(modeId) ?? professorPhiModes[0];
+
+  const instructions = {
+    draft: 'I would turn this into a clean first draft with a clear opening, useful sections, and a gentle next step.',
+    polish: 'I would keep your voice intact, then tighten structure, warmth, clarity, and public readability.',
+    transform: 'I would convert the idea into a new artifact shape, such as a deck, checklist, README, or launch packet.',
+    analyze: 'I would look for patterns, gaps, risks, missing context, and the next practical move.',
+    claim_check: 'I would separate supported claims, assumptions, hypotheses, symbolic language, and items needing sources.',
+    teach: 'I would explain the idea step by step in plain language, then give one small practice move.',
+    build: 'I would turn this into a usable structure: schema, checklist, table, component plan, or starter implementation.',
+  };
+
+  return instructions[mode.id] ?? instructions.draft;
+}
+
+export function createProfessorPhiMockResponse({ prompt = '', modeId = 'draft' } = {}) {
+  const mode = getProfessorPhiMode(modeId) ?? professorPhiModes[0];
+  const summary = createProfessorPhiPromptSummary(prompt);
+  const emptyPrompt = normalizeProfessorPhiInput(prompt).length === 0;
+
+  return {
+    schema: PROFESSOR_PHI_MOCK_RESPONSE_SCHEMA,
+    createdAt: new Date().toISOString(),
+    modeId: mode.id,
+    modeLabel: mode.label,
+    trustLabel: 'ai_assisted',
+    publishRisk: mode.id === 'claim_check' ? 'medium' : 'low',
+    localOnly: true,
+    promptSummary: summary,
+    response: emptyPrompt
+      ? `I’m here, my friend. Choose a mode, type what you want help with, and I’ll give a local demo response without sending anything to a server.`
+      : `Professor Phi mock response (${mode.label} mode): ${getProfessorPhiModeInstruction(mode.id)}\n\nWorking note: “${summary}”\n\nTrust note: this is AI-assisted demo guidance. Review before publishing, and add sources for factual claims.`,
+  };
 }

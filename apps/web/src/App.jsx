@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bot,
   CalendarCheck,
@@ -24,6 +24,13 @@ import PhiWriteLite from './components/PhiWriteLite.jsx';
 import PhiGridLite from './components/PhiGridLite.jsx';
 import PhiDeckLite from './components/PhiDeckLite.jsx';
 import PhiVaultLite from './components/PhiVaultLite.jsx';
+import ShortcutHelpOverlay from './components/ShortcutHelpOverlay.jsx';
+import {
+  getTabShortcutIndex,
+  shouldCloseOverlay,
+  shouldFocusSearch,
+  shouldOpenShortcutHelp,
+} from './lib/keyboardShortcuts.js';
 import './interactive.css';
 
 const appIcons = {
@@ -112,6 +119,8 @@ function createBridgeDeckTemplate(deckPayload) {
 }
 
 export default function App() {
+  const suiteSearchRef = useRef(null);
+  const templateSearchRef = useRef(null);
   const [activeTab, setActiveTab] = useState('Suite');
   const [query, setQuery] = useState('');
   const [templateQuery, setTemplateQuery] = useState('');
@@ -120,6 +129,7 @@ export default function App() {
   const [selectedTemplate, setSelectedTemplate] = useState(starterTemplates[0]);
   const [selectedMode, setSelectedMode] = useState(professorPhiModes[0]);
   const [activeWorkspace, setActiveWorkspace] = useState(null);
+  const [showShortcuts, setShowShortcuts] = useState(false);
 
   const filteredApps = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -142,12 +152,45 @@ export default function App() {
   }), [selectedTemplate]);
 
   function openBridgeDeck(deckPayload) {
-    setActiveWorkspace({
-      kind: 'deck',
-      template: createBridgeDeckTemplate(deckPayload),
-      initialDeck: deckPayload,
-    });
+    setActiveWorkspace({ kind: 'deck', template: createBridgeDeckTemplate(deckPayload), initialDeck: deckPayload });
   }
+
+  function focusActiveSearch() {
+    if (activeTab === 'Suite') suiteSearchRef.current?.focus();
+    if (activeTab === 'Templates') templateSearchRef.current?.focus();
+  }
+
+  useEffect(() => {
+    function handleKeyDown(event) {
+      if (shouldCloseOverlay(event) && showShortcuts) {
+        event.preventDefault();
+        setShowShortcuts(false);
+        return;
+      }
+
+      if (shouldOpenShortcutHelp(event)) {
+        event.preventDefault();
+        setShowShortcuts(true);
+        return;
+      }
+
+      if (shouldFocusSearch(event)) {
+        event.preventDefault();
+        focusActiveSearch();
+        return;
+      }
+
+      if (activeWorkspace) return;
+      const tabIndex = getTabShortcutIndex(event, tabs.length);
+      if (tabIndex >= 0) {
+        event.preventDefault();
+        setActiveTab(tabs[tabIndex]);
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [activeTab, activeWorkspace, showShortcuts]);
 
   if (activeWorkspace) {
     return (
@@ -157,12 +200,15 @@ export default function App() {
           : activeWorkspace.kind === 'deck'
             ? <PhiDeckLite template={activeWorkspace.template} initialDeck={activeWorkspace.initialDeck} onBack={() => setActiveWorkspace(null)} />
             : <PhiWriteLite template={activeWorkspace.template} onOpenDeck={openBridgeDeck} onBack={() => setActiveWorkspace(null)} />}
+        <ShortcutHelpOverlay isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
       </main>
     );
   }
 
   return (
     <main className="shell">
+      <ShortcutHelpOverlay isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
+      <button className="shortcut-help-button" type="button" onClick={() => setShowShortcuts(true)}>Shortcuts</button>
       <section className="hero panel">
         <div className="orb orb-left" />
         <div className="orb orb-right" />
@@ -179,11 +225,11 @@ export default function App() {
 
       <section className="privacy panel"><ShieldCheck aria-hidden="true" /><div><h2>Local-first promise</h2><p>No forced login. No hidden cloud dependency. AI help should be labeled, controllable, and honest.</p></div></section>
 
-      <nav className="tabs" aria-label="PhiOffice369 sections">{tabs.map((tab) => <button key={tab} type="button" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)}>{tab}</button>)}</nav>
+      <nav className="tabs" aria-label="PhiOffice369 sections">{tabs.map((tab, index) => <button key={tab} type="button" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)} title={`Ctrl/⌘ + ${index + 1}`}>{tab}</button>)}</nav>
 
       {activeTab === 'Suite' && (
         <section className="section-block fade-in">
-          <div className="section-heading split-heading"><div><p className="eyebrow">Core apps</p><h2>Build once. Transform ethically. Work sovereign.</h2></div><label className="search-box"><Search aria-hidden="true" /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search apps, roles, workflows..." /></label></div>
+          <div className="section-heading split-heading"><div><p className="eyebrow">Core apps</p><h2>Build once. Transform ethically. Work sovereign.</h2></div><label className="search-box"><Search aria-hidden="true" /><input ref={suiteSearchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search apps, roles, workflows..." /></label></div>
           <div className="app-grid">{filteredApps.map((app) => <AppCard key={app.name} app={app} isSelected={selectedApp.name === app.name} onSelect={() => setSelectedApp(app)} />)}</div>
           <aside className="detail-panel panel"><p className="eyebrow">Selected app</p><h2>{selectedApp.name}</h2><p>{selectedApp.detail}</p><div className="metadata-row"><span>{selectedApp.category}</span><span>{selectedApp.status}</span></div></aside>
         </section>
@@ -191,7 +237,7 @@ export default function App() {
 
       {activeTab === 'Templates' && (
         <section className="section-block fade-in">
-          <div className="section-heading split-heading"><div><p className="eyebrow">Starter templates</p><h2>Useful artifacts from day one.</h2></div><label className="search-box"><Search aria-hidden="true" /><input value={templateQuery} onChange={(event) => setTemplateQuery(event.target.value)} placeholder="Search templates..." /></label></div>
+          <div className="section-heading split-heading"><div><p className="eyebrow">Starter templates</p><h2>Useful artifacts from day one.</h2></div><label className="search-box"><Search aria-hidden="true" /><input ref={templateSearchRef} value={templateQuery} onChange={(event) => setTemplateQuery(event.target.value)} placeholder="Search templates..." /></label></div>
           <div className="template-layout">
             <div className="template-list">{filteredTemplates.map((template) => <button key={template.id} className={`template-card panel ${selectedTemplate.id === template.id ? 'selected' : ''}`} type="button" onClick={() => setSelectedTemplate(template)}><span className="template-app">{template.app}</span><strong>{template.title}</strong><span>{template.purpose}</span></button>)}</div>
             <aside className="panel template-preview">

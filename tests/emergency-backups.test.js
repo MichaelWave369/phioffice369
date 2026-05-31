@@ -1,0 +1,89 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+  collectPhiOfficeStorageSnapshot,
+  createEmergencyBackupPayload,
+  EMERGENCY_BACKUP_PREFIX,
+  errorToPlainObject,
+  restoreEmergencyBackupPayload,
+  storageKeys,
+} from '../apps/web/src/lib/emergencyBackups.js';
+
+function createFakeStorage(seed = {}) {
+  const map = new Map(Object.entries(seed));
+  return {
+    get length() {
+      return map.size;
+    },
+    key(index) {
+      return Array.from(map.keys())[index] ?? null;
+    },
+    getItem(key) {
+      return map.has(key) ? map.get(key) : null;
+    },
+    setItem(key, value) {
+      map.set(key, String(value));
+    },
+    toObject() {
+      return Object.fromEntries(map.entries());
+    },
+  };
+}
+
+test('storageKeys supports Storage-like objects', () => {
+  const storage = createFakeStorage({ a: '1', b: '2' });
+  assert.deepEqual(storageKeys(storage), ['a', 'b']);
+});
+
+test('collectPhiOfficeStorageSnapshot captures only PhiOffice keys and skips emergency backups', () => {
+  const storage = createFakeStorage({
+    'phioffice369:phiwrite:test': '{"title":"Doc"}',
+    [`${EMERGENCY_BACKUP_PREFIX}old`]: '{"schema":"backup"}',
+    'other-app:key': 'ignore',
+  });
+
+  assert.deepEqual(collectPhiOfficeStorageSnapshot(storage), [
+    ['phioffice369:phiwrite:test', '{"title":"Doc"}'],
+  ]);
+});
+
+test('errorToPlainObject serializes safe error details', () => {
+  const error = new Error('Boom');
+  const plain = errorToPlainObject(error);
+
+  assert.equal(plain.name, 'Error');
+  assert.equal(plain.message, 'Boom');
+  assert.equal(typeof plain.stack, 'string');
+});
+
+test('createEmergencyBackupPayload creates a versioned local backup snapshot', () => {
+  const storage = createFakeStorage({ 'phioffice369:phigrid:test': '{"rows":[]}' });
+  const payload = createEmergencyBackupPayload({
+    error: new Error('Crash'),
+    errorInfo: { componentStack: 'Component stack' },
+    storage,
+    source: 'test',
+  });
+
+  assert.equal(payload.schema, 'phioffice369.emergency_backup.v0.1');
+  assert.equal(payload.source, 'test');
+  assert.equal(payload.error.message, 'Crash');
+  assert.equal(payload.componentStack, 'Component stack');
+  assert.deepEqual(payload.storageSnapshot, [['phioffice369:phigrid:test', '{"rows":[]}']]);
+});
+
+test('restoreEmergencyBackupPayload writes captured keys back to storage', () => {
+  const storage = createFakeStorage();
+  const restored = restoreEmergencyBackupPayload({
+    storageSnapshot: [
+      ['phioffice369:phiwrite:test', '{"title":"Recovered"}'],
+      ['phioffice369:phideck:test', '{"slides":[]}'],
+    ],
+  }, storage);
+
+  assert.equal(restored, 2);
+  assert.deepEqual(storage.toObject(), {
+    'phioffice369:phiwrite:test': '{"title":"Recovered"}',
+    'phioffice369:phideck:test': '{"slides":[]}',
+  });
+});

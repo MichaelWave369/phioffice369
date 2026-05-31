@@ -2,9 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   buildIndexedDbReadinessBlockers,
+  clearStorageBackendPreference,
   createIndexedDbPilotPreference,
   createStorageBackendPreference,
+  createStoragePreferenceStatus,
   createStorageReadinessReport,
+  getStoragePreferenceLabel,
+  getStoragePreferenceMessage,
   readStorageBackendPreference,
   safeParseStoragePreference,
   STORAGE_BACKEND_PREFERENCE_KEY,
@@ -20,6 +24,9 @@ function createFakeStorage() {
     },
     setItem(key, value) {
       map.set(key, String(value));
+    },
+    removeItem(key) {
+      map.delete(key);
     },
   };
 }
@@ -66,7 +73,7 @@ test('createStorageReadinessReport allows pilot only when IndexedDB is ready and
   assert.deepEqual(blocked.blockers, ['indexeddb_unavailable']);
 });
 
-test('storage backend preferences can be created parsed read and written', () => {
+test('storage backend preferences can be created parsed read written and cleared', () => {
   const storage = createFakeStorage();
   const preference = createStorageBackendPreference({ backend: 'localStorage', reason: 'default' });
 
@@ -75,6 +82,35 @@ test('storage backend preferences can be created parsed read and written', () =>
   assert.deepEqual(safeParseStoragePreference(JSON.stringify(preference)), preference);
   assert.equal(safeParseStoragePreference('{bad json'), null);
   assert.equal(storage.getItem(STORAGE_BACKEND_PREFERENCE_KEY), JSON.stringify(preference));
+  assert.equal(clearStorageBackendPreference(storage), true);
+  assert.equal(readStorageBackendPreference(storage), null);
+});
+
+test('storage preference labels and messages explain saved state', () => {
+  const indexed = createStorageBackendPreference({ backend: 'indexedDB-pilot', reason: 'verified' });
+  const local = createStorageBackendPreference({ backend: 'localStorage', reason: 'manual' });
+
+  assert.equal(getStoragePreferenceLabel(null), 'Default localStorage mode');
+  assert.equal(getStoragePreferenceLabel(indexed), 'IndexedDB pilot preference saved');
+  assert.equal(getStoragePreferenceLabel(local), 'LocalStorage preference saved');
+  assert.match(getStoragePreferenceMessage(null), /default/);
+  assert.match(getStoragePreferenceMessage(indexed), /IndexedDB pilot/);
+  assert.match(getStoragePreferenceMessage(local), /safest fallback/);
+});
+
+test('createStoragePreferenceStatus reports whether active adapter matches preference', () => {
+  const storage = createFakeStorage();
+  const indexed = createStorageBackendPreference({ backend: 'indexedDB-pilot', reason: 'verified' });
+
+  assert.equal(createStoragePreferenceStatus({ storage, activeAdapterId: 'localStorage' }).activeMatchesPreference, true);
+  writeStorageBackendPreference(storage, indexed);
+
+  const matching = createStoragePreferenceStatus({ storage, activeAdapterId: 'indexedDB' });
+  const mismatching = createStoragePreferenceStatus({ storage, activeAdapterId: 'localStorage' });
+
+  assert.equal(matching.requestedBackend, 'indexedDB-pilot');
+  assert.equal(matching.activeMatchesPreference, true);
+  assert.equal(mismatching.activeMatchesPreference, false);
 });
 
 test('createIndexedDbPilotPreference falls back to localStorage when readiness is blocked', () => {

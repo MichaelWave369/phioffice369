@@ -27,6 +27,7 @@ test('shouldIncludeAsyncArtifactEntry excludes metadata emergency and control-pl
   assert.equal(shouldIncludeAsyncArtifactEntry({ key: 'phioffice369:artifact_metadata:test' }), false);
   assert.equal(shouldIncludeAsyncArtifactEntry({ key: 'phioffice369:emergency_backup:test' }), false);
   assert.equal(shouldIncludeAsyncArtifactEntry({ key: 'phioffice369:storage_backend_preference' }), false);
+  assert.equal(shouldIncludeAsyncArtifactEntry({ key: 'phioffice369:vault_scan_source_preference' }), false);
   assert.equal(shouldIncludeAsyncArtifactEntry({ key: 'external:key' }), false);
 });
 
@@ -53,6 +54,8 @@ test('scanContinuityArtifactsAsync scans adapter-backed workspace artifacts', as
     'phioffice369:export_receipt:test': '{"filename":"doc.md","sourceApp":"PhiWrite","format":"markdown"}',
     'phioffice369:artifact_metadata:phioffice369_phiwrite_test': '{"tags":["Launch"],"projectFolder":"Client Work","updatedAt":"now"}',
     'phioffice369:emergency_backup:test': '{"skip":true}',
+    'phioffice369:storage_backend_preference': '{"backend":"localStorage"}',
+    'phioffice369:vault_scan_source_preference': '{"requestedSource":"async-preference-aware-registry"}',
   });
 
   const artifacts = await scanContinuityArtifactsAsync({ adapter });
@@ -62,6 +65,8 @@ test('scanContinuityArtifactsAsync scans adapter-backed workspace artifacts', as
   assert.ok(ids.includes('phioffice369_phiwrite_test'));
   assert.ok(ids.includes('phioffice369_phigrid_test'));
   assert.ok(ids.includes('phioffice369_export_receipt_test'));
+  assert.equal(ids.includes('phioffice369_storage_backend_preference'), false);
+  assert.equal(ids.includes('phioffice369_vault_scan_source_preference'), false);
   assert.equal(artifacts.find((artifact) => artifact.artifactId === 'phioffice369_phiwrite_test').projectFolder, 'Client Work');
 });
 

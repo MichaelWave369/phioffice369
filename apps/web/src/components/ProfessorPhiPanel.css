@@ -1,0 +1,123 @@
+.professor-chat-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.85fr) minmax(320px, 1.35fr);
+  gap: 1rem;
+}
+
+.professor-mode-panel,
+.professor-chat-panel {
+  min-width: 0;
+}
+
+.professor-chat-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.professor-chat-heading svg {
+  width: 2.4rem;
+  height: 2.4rem;
+  color: #f8d66d;
+}
+
+.professor-prompt-box {
+  display: grid;
+  gap: 0.45rem;
+  margin-top: 1rem;
+}
+
+.professor-prompt-box span {
+  color: rgba(255, 255, 255, 0.72);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+
+.professor-prompt-box textarea {
+  width: 100%;
+  resize: vertical;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 1rem;
+  padding: 0.9rem;
+  color: rgba(255, 255, 255, 0.92);
+  background: rgba(255, 255, 255, 0.07);
+  font: inherit;
+  line-height: 1.55;
+}
+
+.professor-chat-actions,
+.professor-response-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.professor-chat-actions {
+  margin-top: 0.8rem;
+}
+
+.professor-chat-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 0;
+  border-radius: 999px;
+  padding: 0.65rem 0.9rem;
+  color: #21132c;
+  background: linear-gradient(135deg, #f8d66d, #ffb15c);
+  font-weight: 850;
+  cursor: pointer;
+}
+
+.professor-chat-actions button:nth-child(2) {
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.11);
+}
+
+.professor-chat-actions svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.professor-response-card {
+  margin-top: 1rem;
+  border: 1px solid rgba(248, 214, 109, 0.26);
+  border-radius: 1.2rem;
+  padding: 1rem;
+  background: rgba(248, 214, 109, 0.08);
+}
+
+.professor-response-meta span {
+  border-radius: 999px;
+  padding: 0.35rem 0.55rem;
+  color: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+.professor-response-card pre {
+  margin: 0.85rem 0 0;
+  white-space: pre-wrap;
+  color: rgba(255, 255, 255, 0.88);
+  font: inherit;
+  line-height: 1.6;
+}
+
+.professor-copy-status {
+  color: #b7ffd9;
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.live-note {
+  margin-top: 1rem;
+}
+
+@media (max-width: 900px) {
+  .professor-chat-layout {
+    grid-template-columns: 1fr;
+  }
+}

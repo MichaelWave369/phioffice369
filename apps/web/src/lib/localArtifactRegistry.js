@@ -110,6 +110,7 @@ export function artifactMatchesSearch(artifact, query) {
     artifact.path,
     artifact.status,
     artifact.sourceTemplateId,
+    artifact.projectFolder,
     ...(artifact.labels ?? []),
     ...(artifact.tags ?? []),
     artifact.receipts?.[0]?.format,
@@ -120,11 +121,12 @@ export function artifactMatchesSearch(artifact, query) {
   return haystack.includes(needle);
 }
 
-export function filterArtifacts(artifacts, query, appFilter, kindFilter) {
+export function filterArtifacts(artifacts, query, appFilter, kindFilter, projectFilter = 'all') {
   return artifacts.filter((artifact) => {
     const appOk = appFilter === 'all' || artifact.app === appFilter;
     const kindOk = kindFilter === 'all' || artifact.kind === kindFilter;
-    return appOk && kindOk && artifactMatchesSearch(artifact, query);
+    const projectOk = projectFilter === 'all' || artifact.projectFolder === projectFilter;
+    return appOk && kindOk && projectOk && artifactMatchesSearch(artifact, query);
   });
 }
 

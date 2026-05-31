@@ -25,6 +25,7 @@ import PhiGridLite from './components/PhiGridLite.jsx';
 import PhiDeckLite from './components/PhiDeckLite.jsx';
 import PhiVaultLite from './components/PhiVaultLite.jsx';
 import ShortcutHelpOverlay from './components/ShortcutHelpOverlay.jsx';
+import DataSovereigntyStatusBar from './components/DataSovereigntyStatusBar.jsx';
 import {
   getTabShortcutIndex,
   shouldCloseOverlay,
@@ -201,6 +202,7 @@ export default function App() {
             ? <PhiDeckLite template={activeWorkspace.template} initialDeck={activeWorkspace.initialDeck} onBack={() => setActiveWorkspace(null)} />
             : <PhiWriteLite template={activeWorkspace.template} onOpenDeck={openBridgeDeck} onBack={() => setActiveWorkspace(null)} />}
         <ShortcutHelpOverlay isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
+        <DataSovereigntyStatusBar />
       </main>
     );
   }
@@ -267,6 +269,8 @@ export default function App() {
       {activeTab === 'Roadmap' && (
         <section className="section-block two-column fade-in"><div className="panel"><p className="eyebrow">Feature pillars</p><div className="pillar-list">{pillars.map(([title, body]) => <div className="pillar" key={title}><Sparkles aria-hidden="true" /><div><h3>{title}</h3><p>{body}</p></div></div>)}</div></div><div className="panel roadmap-panel"><p className="eyebrow">Roadmap</p><div className="roadmap-list">{roadmap.map(([version, title, body]) => <article className="roadmap-item" key={version}><span>{version}</span><div><h3>{title}</h3><p>{body}</p></div></article>)}</div></div></section>
       )}
+
+      <DataSovereigntyStatusBar />
     </main>
   );
 }

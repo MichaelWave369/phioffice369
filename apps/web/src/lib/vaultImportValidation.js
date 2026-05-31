@@ -166,3 +166,13 @@ export function applyVaultImportPreviewState(previewState, setters = {}) {
 
   return previewState;
 }
+
+export function createPhiVaultImportChangeHandler(setters = {}) {
+  return async function handlePhiVaultImportChange(event) {
+    const file = event?.target?.files?.[0] ?? null;
+    const result = await createVaultImportPreviewFromFile(file);
+    applyVaultImportPreviewState(result.previewState, setters);
+    if (event?.target) event.target.value = '';
+    return result;
+  };
+}

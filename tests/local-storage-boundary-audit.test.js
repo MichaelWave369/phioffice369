@@ -10,11 +10,15 @@ import {
 
 test('localStorage boundary files are versioned and discoverable', () => {
   const files = getLocalStorageBoundaryFiles();
+  const paths = files.map((entry) => entry.path);
 
   assert.ok(files.length >= 6);
   assert.ok(files.every((entry) => entry.path && entry.boundary && entry.migrationAction));
   assert.equal(findLocalStorageBoundaryFile('apps/web/src/lib/workspaceStorageAccess.js')?.boundary, 'primary-sync-access-layer');
+  assert.equal(findLocalStorageBoundaryFile('apps/web/src/components/PhiWriteLite.jsx'), null);
   assert.equal(findLocalStorageBoundaryFile('unknown.js'), null);
+  assert.equal(paths.includes('apps/web/src/components/PhiGridLite.jsx'), false);
+  assert.equal(paths.includes('apps/web/src/components/PhiDeckLite.jsx'), false);
 });
 
 test('createLocalStorageBoundaryAudit reports unexpected files and unknown keys', () => {
@@ -32,8 +36,8 @@ test('createLocalStorageBoundaryAudit reports unexpected files and unknown keys'
   assert.equal(audit.schema, LOCAL_STORAGE_BOUNDARY_AUDIT_SCHEMA);
   assert.deepEqual(audit.unexpectedFiles, ['apps/web/src/components/Unexpected.jsx']);
   assert.deepEqual(audit.unknownPhiOfficeKeys, ['phioffice369:unknown:test']);
-  assert.ok(audit.missingExpectedFiles.includes('apps/web/src/components/PhiWriteLite.jsx'));
-  assert.ok(audit.adapterRefactorBacklog.length >= 3);
+  assert.ok(audit.missingExpectedFiles.includes('apps/web/src/components/PhiVaultLite.jsx'));
+  assert.equal(audit.adapterRefactorBacklog.length, 0);
 });
 
 test('summarizeLocalStorageBoundaryAudit returns clean boundary decision fields', () => {

@@ -15,6 +15,13 @@ export function normalizeTag(value) {
     .toLowerCase();
 }
 
+export function normalizeProjectFolder(value) {
+  return String(value ?? '')
+    .trim()
+    .replace(/\s+/g, ' ')
+    .slice(0, 80);
+}
+
 export function parseTagInput(value) {
   return Array.from(new Set(
     String(value ?? '')
@@ -24,27 +31,35 @@ export function parseTagInput(value) {
   ));
 }
 
+export function normalizeMetadata(metadata = {}) {
+  return {
+    tags: Array.isArray(metadata.tags) ? Array.from(new Set(metadata.tags.map(normalizeTag).filter(Boolean))) : [],
+    projectFolder: normalizeProjectFolder(metadata.projectFolder),
+    updatedAt: metadata.updatedAt ?? null,
+  };
+}
+
 export function readArtifactMetadata(artifactId) {
-  if (!canUseBrowserLocalStorage()) return { tags: [] };
+  if (!canUseBrowserLocalStorage()) return normalizeMetadata();
 
   try {
     const raw = window.localStorage.getItem(createArtifactMetadataKey(artifactId));
-    if (!raw) return { tags: [] };
-    const parsed = JSON.parse(raw);
-    return {
-      ...parsed,
-      tags: Array.isArray(parsed.tags) ? parsed.tags.map(normalizeTag).filter(Boolean) : [],
-    };
+    if (!raw) return normalizeMetadata();
+    return normalizeMetadata(JSON.parse(raw));
   } catch {
-    return { tags: [] };
+    return normalizeMetadata();
   }
 }
 
 export function writeArtifactMetadata(artifactId, metadata) {
-  const nextMetadata = {
-    tags: Array.isArray(metadata?.tags) ? Array.from(new Set(metadata.tags.map(normalizeTag).filter(Boolean))) : [],
+  const existingMetadata = readArtifactMetadata(artifactId);
+  const nextMetadata = normalizeMetadata({
+    ...existingMetadata,
+    ...metadata,
+    tags: metadata?.tags ?? existingMetadata.tags,
+    projectFolder: metadata?.projectFolder ?? existingMetadata.projectFolder,
     updatedAt: new Date().toISOString(),
-  };
+  });
 
   if (canUseBrowserLocalStorage()) {
     window.localStorage.setItem(createArtifactMetadataKey(artifactId), JSON.stringify(nextMetadata));
@@ -53,16 +68,18 @@ export function writeArtifactMetadata(artifactId, metadata) {
   return nextMetadata;
 }
 
-export function mergeArtifactMetadata(artifact, metadata = { tags: [] }) {
-  const tags = Array.isArray(metadata.tags) ? Array.from(new Set(metadata.tags.map(normalizeTag).filter(Boolean))) : [];
+export function mergeArtifactMetadata(artifact, metadata = {}) {
+  const normalizedMetadata = normalizeMetadata(metadata);
 
   return {
     ...artifact,
-    tags,
+    tags: normalizedMetadata.tags,
+    projectFolder: normalizedMetadata.projectFolder,
     metadata: {
       ...(artifact.metadata ?? {}),
-      tags,
-      metadataUpdatedAt: metadata.updatedAt ?? null,
+      tags: normalizedMetadata.tags,
+      projectFolder: normalizedMetadata.projectFolder,
+      metadataUpdatedAt: normalizedMetadata.updatedAt,
     },
   };
 }

@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createArtifactManifestEntry, createProjectManifest } from '../packages/core/src/index.js';
 import {
+  createVaultImportPreviewState,
+  parseAndValidateVaultImportText,
   validateProjectManifestImport,
   validateVaultImportPayload,
   validateWorkspaceBackupImport,
@@ -67,4 +69,44 @@ test('validateVaultImportPayload dispatches supported import types and rejects u
   const unknown = validateVaultImportPayload({ schema: 'other.v0.1' });
   assert.equal(unknown.ok, false);
   assert.equal(unknown.kind, 'unknown');
+});
+
+test('createVaultImportPreviewState maps valid project manifests and backups to UI preview state', () => {
+  const manifestResult = validateProjectManifestImport(createValidManifest());
+  const manifestState = createVaultImportPreviewState(manifestResult);
+
+  assert.equal(manifestState.importedBackup, null);
+  assert.equal(manifestState.importedManifest.projectId, 'project_001');
+  assert.equal(manifestState.errors.length, 0);
+
+  const backupResult = validateWorkspaceBackupImport({
+    schema: 'phioffice369.workspace_backup.v0.1',
+    manifest: createValidManifest(),
+    storageSnapshot: [],
+  });
+  const backupState = createVaultImportPreviewState(backupResult);
+
+  assert.equal(backupState.importedBackup.schema, 'phioffice369.workspace_backup.v0.1');
+  assert.equal(backupState.importedManifest.projectId, 'project_001');
+});
+
+test('createVaultImportPreviewState clears preview state when validation fails', () => {
+  const state = createVaultImportPreviewState(validateVaultImportPayload({ schema: 'other.v0.1' }));
+
+  assert.equal(state.importedBackup, null);
+  assert.equal(state.importedManifest, null);
+  assert.ok(state.errors.length > 0);
+});
+
+test('parseAndValidateVaultImportText parses valid JSON and rejects invalid JSON before preview', () => {
+  const valid = parseAndValidateVaultImportText(JSON.stringify(createValidManifest()));
+  assert.equal(valid.parseOk, true);
+  assert.equal(valid.validation.ok, true);
+  assert.equal(valid.previewState.importedManifest.projectId, 'project_001');
+
+  const invalid = parseAndValidateVaultImportText('{bad json');
+  assert.equal(invalid.parseOk, false);
+  assert.equal(invalid.validation.ok, false);
+  assert.equal(invalid.previewState.importedManifest, null);
+  assert.match(invalid.previewState.status, /Could not read/);
 });

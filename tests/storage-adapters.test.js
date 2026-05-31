@@ -8,6 +8,7 @@ import {
   detectStorageBackend,
   isEmergencyBackupStorageKey,
   isPhiOfficeStorageKey,
+  resolvePreferredStorageBackend,
   shouldIncludeInWorkspaceSnapshot,
 } from '../apps/web/src/lib/storageAdapters.js';
 import {
@@ -15,6 +16,7 @@ import {
   restoreWorkspaceBackupPayloadWithAdapter,
   WORKSPACE_BACKUP_SCHEMA,
 } from '../apps/web/src/lib/emergencyBackups.js';
+import { STORAGE_BACKEND_PREFERENCE_KEY } from '../apps/web/src/lib/storageReadinessGate.js';
 
 function createFakeStorage(seed = {}) {
   const map = new Map(Object.entries(seed));
@@ -103,6 +105,34 @@ test('browser adapter can explicitly select IndexedDB adapter when preferred', (
   const adapter = createBrowserStorageAdapter({ indexedDB: {}, localStorage: createFakeStorage() }, { preferredBackend: 'indexedDB' });
 
   assert.equal(adapter.id, 'indexedDB');
+});
+
+test('browser adapter selects IndexedDB only when a pilot preference exists', () => {
+  const localStorage = createFakeStorage();
+  assert.equal(resolvePreferredStorageBackend({ indexedDB: {}, localStorage }), 'localStorage');
+
+  localStorage.setItem(STORAGE_BACKEND_PREFERENCE_KEY, JSON.stringify({
+    schema: 'phioffice369.storage_backend_preference.v0.1',
+    backend: 'indexedDB-pilot',
+    reason: 'verified_indexeddb_copy',
+  }));
+
+  assert.equal(resolvePreferredStorageBackend({ indexedDB: {}, localStorage }), 'indexedDB');
+  assert.equal(createBrowserStorageAdapter({ indexedDB: {}, localStorage }).id, 'indexedDB');
+});
+
+test('invalid or blocked backend preference falls back to localStorage', () => {
+  const localStorage = createFakeStorage({
+    [STORAGE_BACKEND_PREFERENCE_KEY]: JSON.stringify({
+      schema: 'phioffice369.storage_backend_preference.v0.1',
+      backend: 'localStorage',
+      reason: 'indexeddb_pilot_blocked',
+    }),
+  });
+
+  assert.equal(resolvePreferredStorageBackend({ indexedDB: {}, localStorage }), 'localStorage');
+  localStorage.setItem(STORAGE_BACKEND_PREFERENCE_KEY, '{bad json');
+  assert.equal(resolvePreferredStorageBackend({ indexedDB: {}, localStorage }), 'localStorage');
 });
 
 test('workspace backups can use async storage adapters', async () => {

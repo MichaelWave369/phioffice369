@@ -3,6 +3,7 @@ import { ArrowLeft, ClipboardCopy, Copy, Download, Layers3, Plus, RotateCcw, Shi
 import { createArtifactReceipt, trustLabels } from '@phioffice369/core';
 import { parsePhiDeckJsonImport } from '../lib/localImporters.js';
 import { saveLocalExportReceipt } from '../lib/localReceipts.js';
+import { getTransformIds } from '../lib/transformRegistry.js';
 import './PhiDeckLite.css';
 
 function slugify(value) {
@@ -94,14 +95,15 @@ export default function PhiDeckLite({ template, onBack, initialDeck = null }) {
 
   const activeSlide = slides.find((slide) => slide.id === activeSlideId) ?? slides[0];
   const activeLabel = trustLabels.find((label) => label.id === activeLabelId) ?? trustLabels[0];
+  const transformId = initialDeck?.transformId ?? 'template_to_phideck_lite_deck';
 
   const receipt = useMemo(() => createArtifactReceipt({
     artifactId: `deck_${template.id}`,
     title,
     app: 'PhiDeck',
     labels: Array.from(new Set([...template.trustDefaults, activeLabelId])),
-    transformations: initialDeck ? ['phiwrite_to_phideck_lite_workspace'] : ['template_to_phideck_lite_deck'],
-  }), [activeLabelId, initialDeck, template, title]);
+    transformations: getTransformIds([transformId]),
+  }), [activeLabelId, template, title, transformId]);
 
   useEffect(() => {
     if (!canUseLocalStorage()) return undefined;
@@ -112,12 +114,14 @@ export default function PhiDeckLite({ template, onBack, initialDeck = null }) {
         title,
         slides,
         activeLabelId,
+        transformId,
+        transformTrace: initialDeck?.trace ?? null,
         updatedAt: new Date().toISOString(),
       }));
       setSaveStatus('Autosaved locally');
     }, 450);
     return () => window.clearTimeout(timeout);
-  }, [activeLabelId, slides, template.id, title]);
+  }, [activeLabelId, initialDeck, slides, template.id, title, transformId]);
 
   function updateActiveSlideTitle(value) {
     setSlides((currentSlides) => currentSlides.map((slide) => (slide.id === activeSlide.id ? { ...slide, title: value } : slide)));
@@ -172,6 +176,8 @@ export default function PhiDeckLite({ template, onBack, initialDeck = null }) {
       title,
       sourceTemplate: template.id,
       generatedAt: new Date().toISOString(),
+      transformId,
+      transformTrace: initialDeck?.trace ?? null,
       slides,
       receipt,
     };
@@ -293,7 +299,7 @@ export default function PhiDeckLite({ template, onBack, initialDeck = null }) {
           <div className="deck-receipt-mini">
             <h3>Receipt preview</h3>
             <code>{receipt.schema}</code>
-            <p>{receipt.app} · {receipt.labels.length} labels · local deck</p>
+            <p>{receipt.app} · {receipt.labels.length} labels · {transformId}</p>
             <button type="button" onClick={copyReceipt}><ClipboardCopy aria-hidden="true" /> Copy receipt JSON</button>
             {copyStatus && <p className="deck-copy-status">{copyStatus}</p>}
           </div>

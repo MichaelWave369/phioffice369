@@ -5,6 +5,7 @@ import {
   getArtifactKindAndAppFromStorageKey,
   getArtifactStatusFromStorageKey,
   getArtifactTitleFromStoredValue,
+  isControlPlaneStorageKey,
   storageKeyToArtifactId,
 } from './localArtifactRegistry.js';
 
@@ -58,7 +59,7 @@ export function shouldIncludeAsyncArtifactEntry({ key }) {
   if (!key.startsWith('phioffice369:')) return false;
   if (key.startsWith(ARTIFACT_METADATA_PREFIX)) return false;
   if (key.startsWith('phioffice369:emergency_backup:')) return false;
-  if (key.startsWith('phioffice369:storage_backend_preference')) return false;
+  if (isControlPlaneStorageKey(key)) return false;
   return true;
 }
 

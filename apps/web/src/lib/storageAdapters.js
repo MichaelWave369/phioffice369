@@ -1,4 +1,5 @@
 import { createIndexedDbStorageAdapter, isIndexedDbAvailable } from './indexedDbStorageAdapter.js';
+import { readStorageBackendPreference } from './storageReadinessGate.js';
 
 export const PHIOFFICE_STORAGE_PREFIX = 'phioffice369:';
 export const EMERGENCY_BACKUP_PREFIX = 'phioffice369:emergency_backup:';
@@ -113,9 +114,19 @@ export function detectStorageBackend(environment = globalThis) {
   return 'memory';
 }
 
+export function resolvePreferredStorageBackend(environment = globalThis, options = {}) {
+  if (options.preferredBackend) return options.preferredBackend;
+
+  const preference = readStorageBackendPreference(environment?.localStorage);
+  if (preference?.backend === 'indexedDB-pilot') return 'indexedDB';
+  if (preference?.backend === 'localStorage') return 'localStorage';
+
+  return 'localStorage';
+}
+
 export function createBrowserStorageAdapter(environment = globalThis, options = {}) {
   const backend = detectStorageBackend(environment);
-  const preferredBackend = options.preferredBackend ?? 'localStorage';
+  const preferredBackend = resolvePreferredStorageBackend(environment, options);
 
   if (preferredBackend === 'indexedDB' && backend === 'indexedDB') {
     return createIndexedDbStorageAdapter(environment);

@@ -17,8 +17,10 @@ import { createStorageMigrationPlan, migrateStorage, summarizeMigrationPlan } fr
 import { createStorageMigrationReport, getMigrationConflictKeys } from '../lib/storageMigrationReports.js';
 import { getVerificationProblemKeys, verifyStorageMigration } from '../lib/storageMigrationVerify.js';
 import {
+  clearStorageBackendPreference,
   createIndexedDbPilotPreference,
   createStorageBackendPreference,
+  createStoragePreferenceStatus,
   createStorageReadinessReport,
   writeStorageBackendPreference,
 } from '../lib/storageReadinessGate.js';
@@ -52,6 +54,7 @@ export default function PhiVaultLite() {
   const [status, setStatus] = useState('Local manifest ready');
   const [copyStatus, setCopyStatus] = useState('');
   const [storageStatus, setStorageStatus] = useState(null);
+  const [storagePreferenceStatus, setStoragePreferenceStatus] = useState(null);
   const [migrationPlan, setMigrationPlan] = useState(null);
   const [migrationResult, setMigrationResult] = useState(null);
   const [verificationReport, setVerificationReport] = useState(null);
@@ -100,6 +103,10 @@ export default function PhiVaultLite() {
   async function refreshStorageStatus() {
     const nextStatus = await getStorageStatus(window);
     setStorageStatus(nextStatus);
+    setStoragePreferenceStatus(createStoragePreferenceStatus({
+      storage: window.localStorage,
+      activeAdapterId: nextStatus.activeAdapterId,
+    }));
   }
 
   useEffect(() => {
@@ -247,6 +254,12 @@ export default function PhiVaultLite() {
     setStatus('LocalStorage preference saved. PhiOffice will stay on localStorage mode.');
   }
 
+  async function resetStoragePreference() {
+    clearStorageBackendPreference(window.localStorage);
+    await refreshStorageStatus();
+    setStatus('Storage preference reset. PhiOffice will use default localStorage mode after refresh.');
+  }
+
   function restoreImportedBackup() {
     if (!importedBackup) return;
     const result = restoreWorkspaceBackupPayload(importedBackup, window.localStorage);
@@ -299,6 +312,14 @@ export default function PhiVaultLite() {
       return;
     }
     copyJson(readinessReport, 'Storage readiness report');
+  }
+
+  function copyPreferenceStatus() {
+    if (!storagePreferenceStatus) {
+      setStatus('Storage preference status is not available yet');
+      return;
+    }
+    copyJson(storagePreferenceStatus, 'Storage preference status');
   }
 
   function copySelectedArtifact() {
@@ -436,6 +457,22 @@ export default function PhiVaultLite() {
                   <span>Snapshot items: {storageStatus.snapshotCount}</span>
                   <span>IndexedDB ready: {storageStatus.readyForIndexedDbMigration ? 'yes' : 'no'}</span>
                 </div>
+                {storagePreferenceStatus && (
+                  <div className={`storage-preference-card ${storagePreferenceStatus.activeMatchesPreference ? 'matched' : 'mismatch'}`}>
+                    <h4>{storagePreferenceStatus.label}</h4>
+                    <p>{storagePreferenceStatus.message}</p>
+                    <div className="storage-readiness-grid">
+                      <span>Requested: {storagePreferenceStatus.requestedBackend}</span>
+                      <span>Active: {storagePreferenceStatus.activeAdapterId}</span>
+                      <span>Matches: {storagePreferenceStatus.activeMatchesPreference ? 'yes' : 'no'}</span>
+                      <span>Reason: {storagePreferenceStatus.preference?.reason ?? 'default'}</span>
+                    </div>
+                    <div className="storage-migration-actions preference-actions">
+                      <button type="button" onClick={resetStoragePreference}>Reset storage preference</button>
+                      <button type="button" onClick={copyPreferenceStatus}>Copy preference status</button>
+                    </div>
+                  </div>
+                )}
                 <div className="storage-migration-actions">
                   <button type="button" onClick={planIndexedDbMigration}>Plan IndexedDB migration</button>
                   <button type="button" onClick={copyMissingToIndexedDb}>Copy missing safely</button>

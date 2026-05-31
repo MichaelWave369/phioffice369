@@ -1,4 +1,5 @@
 import { createArtifactManifestEntry } from '@phioffice369/core';
+import { mergeArtifactMetadata, readArtifactMetadata, ARTIFACT_METADATA_PREFIX } from './localArtifactMetadata.js';
 import { canUseBrowserLocalStorage, scanLocalExportReceipts } from './localReceipts.js';
 
 export function parseStoredJsonValue(key) {
@@ -37,17 +38,22 @@ export function getArtifactStatusFromStorageKey(key) {
   return 'local-item';
 }
 
+export function attachLocalMetadata(artifact) {
+  return mergeArtifactMetadata(artifact, readArtifactMetadata(artifact.artifactId));
+}
+
 export function scanLocalDraftArtifacts() {
   if (!canUseBrowserLocalStorage()) return [];
 
   return Object.keys(window.localStorage)
     .filter((key) => key.startsWith('phioffice369:'))
     .filter((key) => !key.startsWith('phioffice369:export_receipt:'))
+    .filter((key) => !key.startsWith(ARTIFACT_METADATA_PREFIX))
     .map((key) => {
       const storedValue = parseStoredJsonValue(key);
       const { kind, app } = getArtifactKindAndAppFromStorageKey(key);
 
-      return createArtifactManifestEntry({
+      return attachLocalMetadata(createArtifactManifestEntry({
         artifactId: storageKeyToArtifactId(key),
         title: getArtifactTitleFromStoredValue(key, storedValue),
         kind,
@@ -56,12 +62,12 @@ export function scanLocalDraftArtifacts() {
         labels: storedValue?.activeLabelId ? [storedValue.activeLabelId] : [],
         sourceTemplateId: storedValue?.templateId ?? null,
         status: getArtifactStatusFromStorageKey(key),
-      });
+      }));
     });
 }
 
 export function exportReceiptToArtifact({ key, receipt }) {
-  return createArtifactManifestEntry({
+  return attachLocalMetadata(createArtifactManifestEntry({
     artifactId: storageKeyToArtifactId(key),
     title: receipt.filename ?? `${receipt.sourceApp} ${receipt.format} export`,
     kind: 'export_receipt',
@@ -71,7 +77,7 @@ export function exportReceiptToArtifact({ key, receipt }) {
     receipts: [receipt],
     sourceTemplateId: null,
     status: 'exported',
-  });
+  }));
 }
 
 export function scanExportReceiptArtifacts() {
@@ -105,6 +111,7 @@ export function artifactMatchesSearch(artifact, query) {
     artifact.status,
     artifact.sourceTemplateId,
     ...(artifact.labels ?? []),
+    ...(artifact.tags ?? []),
     artifact.receipts?.[0]?.format,
     artifact.receipts?.[0]?.filename,
     artifact.receipts?.[0]?.compatibility,

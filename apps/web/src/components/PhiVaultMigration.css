@@ -39,10 +39,17 @@
   background: rgba(78, 216, 137, 0.13);
 }
 
-.storage-migration-actions.readiness-actions button:nth-child(2) {
+.storage-migration-actions.readiness-actions button:nth-child(2),
+.storage-migration-actions.preference-actions button:first-child {
   border-color: rgba(94, 164, 255, 0.36);
   color: #e5f0ff;
   background: rgba(94, 164, 255, 0.1);
+}
+
+.storage-migration-actions.preference-actions button:nth-child(2) {
+  border-color: rgba(214, 168, 61, 0.34);
+  color: #fff8dc;
+  background: rgba(214, 168, 61, 0.1);
 }
 
 .storage-migration-summary,
@@ -68,14 +75,16 @@
 
 .storage-conflict-preview,
 .storage-verify-summary,
-.storage-readiness-card {
+.storage-readiness-card,
+.storage-preference-card {
   display: grid;
   gap: 8px;
 }
 
 .storage-conflict-preview h4,
 .storage-verify-summary h4,
-.storage-readiness-card h4 {
+.storage-readiness-card h4,
+.storage-preference-card h4 {
   margin: 0;
   color: #fff8dc;
   font-size: 0.84rem;
@@ -92,7 +101,8 @@
   color: #d7ffe8;
 }
 
-.storage-readiness-card {
+.storage-readiness-card,
+.storage-preference-card {
   margin-top: 12px;
   border: 1px solid rgba(214, 168, 61, 0.28);
   border-radius: 18px;
@@ -100,25 +110,30 @@
   background: rgba(214, 168, 61, 0.06);
 }
 
-.storage-readiness-card.ready {
+.storage-readiness-card.ready,
+.storage-preference-card.matched {
   border-color: rgba(78, 216, 137, 0.34);
   background: rgba(78, 216, 137, 0.07);
 }
 
-.storage-readiness-card.blocked {
+.storage-readiness-card.blocked,
+.storage-preference-card.mismatch {
   border-color: rgba(255, 122, 134, 0.28);
   background: rgba(255, 122, 134, 0.06);
 }
 
-.storage-readiness-card.ready h4 {
+.storage-readiness-card.ready h4,
+.storage-preference-card.matched h4 {
   color: #d7ffe8;
 }
 
-.storage-readiness-card.blocked h4 {
+.storage-readiness-card.blocked h4,
+.storage-preference-card.mismatch h4 {
   color: #ffd6da;
 }
 
-.storage-readiness-card p {
+.storage-readiness-card p,
+.storage-preference-card p {
   color: #c9d2e3;
   margin: 0;
 }

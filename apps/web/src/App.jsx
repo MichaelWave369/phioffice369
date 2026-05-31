@@ -28,6 +28,11 @@ import ShortcutHelpOverlay from './components/ShortcutHelpOverlay.jsx';
 import DataSovereigntyStatusBar from './components/DataSovereigntyStatusBar.jsx';
 import ProfessorPhiPanel from './components/ProfessorPhiPanel.jsx';
 import {
+  getAppReadinessBadge,
+  getAppReadinessMessage,
+  shouldAllowAppSelection,
+} from './lib/appReadiness.js';
+import {
   getTabShortcutIndex,
   shouldCloseOverlay,
   shouldFocusSearch,
@@ -88,11 +93,20 @@ const tabs = ['Suite', 'Templates', 'Vault', 'Trust', 'Professor Phi', 'Transfor
 
 function AppCard({ app, isSelected, onSelect }) {
   const Icon = appIcons[app.name] ?? Sparkles;
+  const isReady = shouldAllowAppSelection(app);
   return (
-    <button className={`app-card ${isSelected ? 'selected' : ''}`} type="button" onClick={onSelect}>
-      <span className="app-card-topline"><Icon aria-hidden="true" /><span>{app.status}</span></span>
+    <button
+      className={`app-card ${isSelected ? 'selected' : ''} ${isReady ? 'ready' : 'planned'}`}
+      type="button"
+      onClick={isReady ? onSelect : undefined}
+      disabled={!isReady}
+      aria-disabled={!isReady}
+      title={getAppReadinessMessage(app)}
+    >
+      <span className="app-card-topline"><Icon aria-hidden="true" /><span>{getAppReadinessBadge(app)}</span></span>
       <span className="app-name">{app.name}</span>
       <span className="app-role">{app.role}</span>
+      {!isReady && <span className="app-coming-soon">Placeholder preview</span>}
     </button>
   );
 }
@@ -136,7 +150,7 @@ export default function App() {
   const filteredApps = useMemo(() => {
     const needle = query.trim().toLowerCase();
     if (!needle) return apps;
-    return apps.filter((app) => `${app.name} ${app.role} ${app.category} ${app.detail}`.toLowerCase().includes(needle));
+    return apps.filter((app) => `${app.name} ${app.role} ${app.category} ${app.detail} ${getAppReadinessBadge(app)}`.toLowerCase().includes(needle));
   }, [query]);
 
   const filteredTemplates = useMemo(() => {
@@ -234,7 +248,7 @@ export default function App() {
         <section className="section-block fade-in">
           <div className="section-heading split-heading"><div><p className="eyebrow">Core apps</p><h2>Build once. Transform ethically. Work sovereign.</h2></div><label className="search-box"><Search aria-hidden="true" /><input ref={suiteSearchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search apps, roles, workflows..." /></label></div>
           <div className="app-grid">{filteredApps.map((app) => <AppCard key={app.name} app={app} isSelected={selectedApp.name === app.name} onSelect={() => setSelectedApp(app)} />)}</div>
-          <aside className="detail-panel panel"><p className="eyebrow">Selected app</p><h2>{selectedApp.name}</h2><p>{selectedApp.detail}</p><div className="metadata-row"><span>{selectedApp.category}</span><span>{selectedApp.status}</span></div></aside>
+          <aside className="detail-panel panel"><p className="eyebrow">Selected app</p><h2>{selectedApp.name}</h2><p>{selectedApp.detail}</p><div className="metadata-row"><span>{selectedApp.category}</span><span>{getAppReadinessBadge(selectedApp)}</span></div><p className="note">{getAppReadinessMessage(selectedApp)}</p></aside>
         </section>
       )}
 

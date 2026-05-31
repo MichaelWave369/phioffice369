@@ -5,6 +5,7 @@ import {
   ClipboardCopy,
   Download,
   FileText,
+  Layers3,
   ListChecks,
   RotateCcw,
   ShieldCheck,
@@ -115,7 +116,7 @@ function downloadTextFile(filename, body, type) {
   URL.revokeObjectURL(url);
 }
 
-export default function PhiWriteLite({ template, onBack }) {
+export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   const importInputRef = useRef(null);
   const savedDraft = useMemo(() => loadDraft(template), [template]);
   const [title, setTitle] = useState(savedDraft?.title ?? template.title);
@@ -181,6 +182,22 @@ export default function PhiWriteLite({ template, onBack }) {
     downloadTextFile(filename, JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
     saveLocalExportReceipt({ artifactId: `deck_${template.id}`, format: 'json', filename, sourceApp: 'PhiDeck' });
     setAssistantStatus('PhiDeck-lite JSON exported + receipt saved');
+  }
+
+  function handleOpenDeckWorkspace() {
+    const slides = deckSlides.length ? deckSlides : createDeckSlides(title, template, content);
+    setDeckSlides(slides);
+    if (!onOpenDeck) {
+      setAssistantStatus('PhiDeck-lite workspace bridge is unavailable');
+      return;
+    }
+    onOpenDeck({
+      title,
+      sourceTemplateId: template.id,
+      sourceTemplateTitle: template.title,
+      trustDefaults: Array.from(new Set([...template.trustDefaults, 'ai_assisted', 'needs_citation'])),
+      slides,
+    });
   }
 
   function triggerMarkdownImport() {
@@ -272,7 +289,7 @@ export default function PhiWriteLite({ template, onBack }) {
 
       {deckSlides.length > 0 && (
         <section className="phideck-preview panel fade-in">
-          <div className="phideck-heading"><div><p className="eyebrow">PhiDeck-lite preview</p><h2>{title}</h2><p>{deckSlides.length} slide cards generated locally from this PhiWrite draft.</p></div><button className="gold-button" type="button" onClick={handleExportDeckJson}><Download aria-hidden="true" />Export deck JSON</button></div>
+          <div className="phideck-heading"><div><p className="eyebrow">PhiDeck-lite preview</p><h2>{title}</h2><p>{deckSlides.length} slide cards generated locally from this PhiWrite draft.</p></div><div className="phideck-actions"><button className="ghost-button" type="button" onClick={handleOpenDeckWorkspace}><Layers3 aria-hidden="true" />Open in PhiDeck-lite</button><button className="gold-button" type="button" onClick={handleExportDeckJson}><Download aria-hidden="true" />Export deck JSON</button></div></div>
           <div className="slide-grid">{deckSlides.map((slide, index) => <article className="slide-card" key={slide.id}><span>Slide {index + 1}</span><h3>{slide.title}</h3><ul>{slide.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}</ul></article>)}</div>
         </section>
       )}

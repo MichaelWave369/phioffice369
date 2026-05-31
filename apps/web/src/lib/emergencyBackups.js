@@ -1,4 +1,5 @@
 export const EMERGENCY_BACKUP_PREFIX = 'phioffice369:emergency_backup:';
+export const WORKSPACE_BACKUP_SCHEMA = 'phioffice369.workspace_backup.v0.1';
 
 export function canUseEmergencyStorage() {
   try {
@@ -47,12 +48,16 @@ export function createEmergencyBackupPayload({ error, errorInfo, storage, source
 
 export function createWorkspaceBackupPayload({ storage, manifest = null, source = 'PhiVault-lite manual export' }) {
   return {
-    schema: 'phioffice369.workspace_backup.v0.1',
+    schema: WORKSPACE_BACKUP_SCHEMA,
     source,
     createdAt: new Date().toISOString(),
     manifest,
     storageSnapshot: collectPhiOfficeStorageSnapshot(storage),
   };
+}
+
+export function isWorkspaceBackupPayload(payload) {
+  return payload?.schema === WORKSPACE_BACKUP_SCHEMA && Array.isArray(payload.storageSnapshot);
 }
 
 export function writeEmergencyBackup({ error, errorInfo, source = 'AppErrorBoundary' }) {
@@ -93,6 +98,18 @@ export function restoreEmergencyBackupPayload(payload, storage) {
   });
 
   return restored;
+}
+
+export function restoreWorkspaceBackupPayload(payload, storage) {
+  if (!isWorkspaceBackupPayload(payload)) {
+    return { ok: false, restored: 0, reason: 'not a PhiOffice369 workspace backup' };
+  }
+
+  try {
+    return { ok: true, restored: restoreEmergencyBackupPayload(payload, storage), reason: null };
+  } catch (restoreError) {
+    return { ok: false, restored: 0, reason: restoreError?.message ?? 'restore failed' };
+  }
 }
 
 export function restoreEmergencyBackup(key) {

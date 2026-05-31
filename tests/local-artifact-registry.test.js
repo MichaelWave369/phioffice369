@@ -3,11 +3,14 @@ import assert from 'node:assert/strict';
 import {
   artifactMatchesSearch,
   buildExportTimeline,
+  CONTROL_PLANE_STORAGE_KEYS,
   filterArtifacts,
   getArtifactKindAndAppFromStorageKey,
   getArtifactStatusFromStorageKey,
   getArtifactTitleFromStoredValue,
   groupArtifactsByApp,
+  isControlPlaneStorageKey,
+  scanContinuityArtifacts,
   storageKeyToArtifactId,
   uniqueArtifactValues,
 } from '../apps/web/src/lib/localArtifactRegistry.js';
@@ -18,6 +21,27 @@ import {
   normalizeTag,
   parseTagInput,
 } from '../apps/web/src/lib/localArtifactMetadata.js';
+
+function createFakeStorage(seed = {}) {
+  const map = new Map(Object.entries(seed));
+  return {
+    get length() {
+      return map.size;
+    },
+    key(index) {
+      return Array.from(map.keys())[index] ?? null;
+    },
+    getItem(key) {
+      return map.has(key) ? map.get(key) : null;
+    },
+    setItem(key, value) {
+      map.set(key, String(value));
+    },
+    removeItem(key) {
+      map.delete(key);
+    },
+  };
+}
 
 const sampleArtifacts = [
   {
@@ -121,6 +145,45 @@ test('getArtifactTitleFromStoredValue prefers stored titles and filenames', () =
   assert.equal(getArtifactTitleFromStoredValue('key', { title: 'Stored Title' }), 'Stored Title');
   assert.equal(getArtifactTitleFromStoredValue('key', { filename: 'export.csv' }), 'export.csv');
   assert.equal(getArtifactTitleFromStoredValue('phioffice369:phiwrite:fallback_title', null), 'fallback_title');
+});
+
+test('control-plane storage keys are not treated as artifact keys', () => {
+  assert.equal(CONTROL_PLANE_STORAGE_KEYS.includes('phioffice369:storage_backend_preference'), true);
+  assert.equal(CONTROL_PLANE_STORAGE_KEYS.includes('phioffice369:vault_scan_source_preference'), true);
+  assert.equal(isControlPlaneStorageKey('phioffice369:storage_backend_preference'), true);
+  assert.equal(isControlPlaneStorageKey('phioffice369:vault_scan_source_preference'), true);
+  assert.equal(isControlPlaneStorageKey('phioffice369:phiwrite:test'), false);
+});
+
+test('scanContinuityArtifacts excludes sync control-plane and emergency keys', () => {
+  const previousWindow = globalThis.window;
+  globalThis.window = {
+    localStorage: createFakeStorage({
+      'phioffice369:phiwrite:test': '{"title":"Doc","activeLabelId":"private"}',
+      'phioffice369:phigrid:test': '{"title":"Grid","rows":[]}',
+      'phioffice369:export_receipt:test': '{"filename":"doc.md","sourceApp":"PhiWrite","format":"markdown"}',
+      'phioffice369:artifact_metadata:phioffice369_phiwrite_test': '{"tags":["Launch"],"projectFolder":"Client Work","updatedAt":"now"}',
+      'phioffice369:emergency_backup:test': '{"skip":true}',
+      'phioffice369:storage_backend_preference': '{"backend":"localStorage"}',
+      'phioffice369:vault_scan_source_preference': '{"requestedSource":"async-preference-aware-registry"}',
+    }),
+  };
+
+  try {
+    const artifacts = scanContinuityArtifacts();
+    const ids = artifacts.map((artifact) => artifact.artifactId);
+
+    assert.equal(artifacts.length, 3);
+    assert.ok(ids.includes('phioffice369_phiwrite_test'));
+    assert.ok(ids.includes('phioffice369_phigrid_test'));
+    assert.ok(ids.includes('phioffice369_export_receipt_test'));
+    assert.equal(ids.includes('phioffice369_storage_backend_preference'), false);
+    assert.equal(ids.includes('phioffice369_vault_scan_source_preference'), false);
+    assert.equal(ids.includes('phioffice369_emergency_backup_test'), false);
+    assert.equal(artifacts.find((artifact) => artifact.artifactId === 'phioffice369_phiwrite_test').projectFolder, 'Client Work');
+  } finally {
+    globalThis.window = previousWindow;
+  }
 });
 
 test('groupArtifactsByApp groups continuity items by app', () => {

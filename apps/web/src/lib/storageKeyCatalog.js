@@ -7,9 +7,9 @@ export const STORAGE_NAMESPACE_CATALOG = [
     app: 'PhiWrite',
     kind: 'document',
     purpose: 'Browser-local PhiWrite-lite draft autosave records.',
-    currentBackend: 'localStorage',
+    currentBackend: 'localStorage-via-workspaceStorageAccess',
     migrationTarget: 'indexedDB',
-    adapterStatus: 'pending-adapter-refactor',
+    adapterStatus: 'routed-through-workspace-storage-access',
     sourceOfTruth: 'localStorage-until-pilot-flip',
   },
   {
@@ -18,9 +18,9 @@ export const STORAGE_NAMESPACE_CATALOG = [
     app: 'PhiGrid',
     kind: 'grid',
     purpose: 'Browser-local PhiGrid-lite table autosave records.',
-    currentBackend: 'localStorage',
+    currentBackend: 'localStorage-via-workspaceStorageAccess',
     migrationTarget: 'indexedDB',
-    adapterStatus: 'pending-adapter-refactor',
+    adapterStatus: 'routed-through-workspace-storage-access',
     sourceOfTruth: 'localStorage-until-pilot-flip',
   },
   {
@@ -29,9 +29,9 @@ export const STORAGE_NAMESPACE_CATALOG = [
     app: 'PhiDeck',
     kind: 'deck',
     purpose: 'Browser-local PhiDeck-lite slide deck autosave records.',
-    currentBackend: 'localStorage',
+    currentBackend: 'localStorage-via-workspaceStorageAccess',
     migrationTarget: 'indexedDB',
-    adapterStatus: 'pending-adapter-refactor',
+    adapterStatus: 'routed-through-workspace-storage-access',
     sourceOfTruth: 'localStorage-until-pilot-flip',
   },
   {
@@ -40,9 +40,9 @@ export const STORAGE_NAMESPACE_CATALOG = [
     app: 'PhiVault',
     kind: 'export_receipt',
     purpose: 'Local export receipt records for exported documents, grids, and decks.',
-    currentBackend: 'localStorage',
+    currentBackend: 'localStorage-via-workspaceStorageAccess',
     migrationTarget: 'indexedDB',
-    adapterStatus: 'pending-adapter-refactor',
+    adapterStatus: 'routed-through-workspace-storage-access',
     sourceOfTruth: 'localStorage-until-pilot-flip',
   },
   {
@@ -51,9 +51,9 @@ export const STORAGE_NAMESPACE_CATALOG = [
     app: 'PhiVault',
     kind: 'metadata',
     purpose: 'Local tags and project folder assignments per artifact id.',
-    currentBackend: 'localStorage',
+    currentBackend: 'localStorage-via-workspaceStorageAccess',
     migrationTarget: 'indexedDB',
-    adapterStatus: 'pending-adapter-refactor',
+    adapterStatus: 'routed-through-workspace-storage-access',
     sourceOfTruth: 'localStorage-until-pilot-flip',
   },
   {
@@ -136,10 +136,15 @@ export function summarizeStorageCatalog(namespaces = STORAGE_NAMESPACE_CATALOG) 
       ...summary.byBackend,
       [entry.currentBackend]: (summary.byBackend[entry.currentBackend] ?? 0) + 1,
     },
+    routedThroughWorkspaceAccess: summary.routedThroughWorkspaceAccess + (entry.adapterStatus === 'routed-through-workspace-storage-access' ? 1 : 0),
     pendingAdapterRefactor: summary.pendingAdapterRefactor + (entry.adapterStatus === 'pending-adapter-refactor' ? 1 : 0),
-  }), { totalNamespaces: 0, byBackend: {}, pendingAdapterRefactor: 0 });
+  }), { totalNamespaces: 0, byBackend: {}, routedThroughWorkspaceAccess: 0, pendingAdapterRefactor: 0 });
 }
 
 export function getAdapterRefactorBacklog(namespaces = STORAGE_NAMESPACE_CATALOG) {
   return namespaces.filter((entry) => entry.adapterStatus === 'pending-adapter-refactor');
+}
+
+export function getWorkspaceAccessRoutedNamespaces(namespaces = STORAGE_NAMESPACE_CATALOG) {
+  return namespaces.filter((entry) => entry.adapterStatus === 'routed-through-workspace-storage-access');
 }

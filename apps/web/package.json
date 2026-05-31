@@ -12,11 +12,12 @@
     "@phioffice369/core": "file:../../packages/core",
     "@phioffice369/professor-phi": "file:../../packages/professor-phi",
     "@phioffice369/templates": "file:../../packages/templates",
-    "@vitejs/plugin-react": "^5.0.0",
-    "vite": "^7.0.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "lucide-react": "^0.468.0"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.0",
+    "vite": "^7.0.0"
+  }
 }

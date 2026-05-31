@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from 'react';
-import { ClipboardCopy, Download, FolderLock, RefreshCw, Search, ShieldCheck, Sparkles, Upload } from 'lucide-react';
+import { ClipboardCopy, Download, FolderLock, RefreshCw, Search, ShieldCheck, Sparkles, Upload, X } from 'lucide-react';
 import { createProjectManifest } from '@phioffice369/core';
 import {
   buildExportTimeline,
@@ -23,6 +23,11 @@ function downloadJson(filename, payload) {
   URL.revokeObjectURL(url);
 }
 
+function detailValue(value, fallback = '—') {
+  if (Array.isArray(value)) return value.length ? value.join(', ') : fallback;
+  return value || fallback;
+}
+
 export default function PhiVaultLite() {
   const fileInputRef = useRef(null);
   const [artifacts, setArtifacts] = useState(() => scanContinuityArtifacts());
@@ -32,6 +37,7 @@ export default function PhiVaultLite() {
   const [query, setQuery] = useState('');
   const [appFilter, setAppFilter] = useState('all');
   const [kindFilter, setKindFilter] = useState('all');
+  const [selectedArtifact, setSelectedArtifact] = useState(null);
 
   const filteredArtifacts = useMemo(() => filterArtifacts(artifacts, query, appFilter, kindFilter), [appFilter, artifacts, kindFilter, query]);
 
@@ -50,10 +56,12 @@ export default function PhiVaultLite() {
   const exportReceiptCount = exportTimeline.length;
   const appOptions = useMemo(() => uniqueArtifactValues(artifacts, 'app'), [artifacts]);
   const kindOptions = useMemo(() => uniqueArtifactValues(artifacts, 'kind'), [artifacts]);
+  const selectedReceipt = selectedArtifact?.receipts?.[0] ?? null;
 
   function refreshArtifacts() {
     const nextArtifacts = scanContinuityArtifacts();
     setArtifacts(nextArtifacts);
+    setSelectedArtifact(null);
     setStatus(`Scanned ${nextArtifacts.length} continuity item${nextArtifacts.length === 1 ? '' : 's'}`);
   }
 
@@ -69,13 +77,27 @@ export default function PhiVaultLite() {
     setStatus('Project manifest exported');
   }
 
-  async function copyManifest() {
+  async function copyJson(payload, label) {
     try {
-      await navigator.clipboard.writeText(JSON.stringify(manifest, null, 2));
-      setCopyStatus('Manifest JSON copied');
+      await navigator.clipboard.writeText(JSON.stringify(payload, null, 2));
+      setCopyStatus(`${label} copied`);
     } catch {
       setCopyStatus('Copy unavailable in this browser');
     }
+  }
+
+  function copyManifest() {
+    copyJson(manifest, 'Manifest JSON');
+  }
+
+  function copySelectedArtifact() {
+    if (!selectedArtifact) return;
+    copyJson(selectedArtifact, 'Artifact JSON');
+  }
+
+  function copySelectedReceipt() {
+    if (!selectedReceipt) return;
+    copyJson(selectedReceipt, 'Receipt JSON');
   }
 
   function triggerImport() {
@@ -99,6 +121,13 @@ export default function PhiVaultLite() {
       setStatus('Could not read that manifest JSON');
     } finally {
       event.target.value = '';
+    }
+  }
+
+  function handleArtifactKeyDown(event, artifact) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      setSelectedArtifact(artifact);
     }
   }
 
@@ -199,6 +228,55 @@ export default function PhiVaultLite() {
             </section>
           )}
 
+          {selectedArtifact && (
+            <section className="artifact-detail-drawer">
+              <div className="artifact-detail-heading">
+                <div>
+                  <p className="eyebrow">Artifact detail</p>
+                  <h3>{selectedArtifact.title}</h3>
+                </div>
+                <button type="button" className="detail-close-button" onClick={() => setSelectedArtifact(null)}><X aria-hidden="true" /> Close</button>
+              </div>
+
+              <div className="detail-metadata-grid">
+                <div><span>App</span><strong>{detailValue(selectedArtifact.app)}</strong></div>
+                <div><span>Kind</span><strong>{detailValue(selectedArtifact.kind)}</strong></div>
+                <div><span>Status</span><strong>{detailValue(selectedArtifact.status)}</strong></div>
+                <div><span>Source template</span><strong>{detailValue(selectedArtifact.sourceTemplateId)}</strong></div>
+                <div><span>Created</span><strong>{detailValue(selectedArtifact.createdAt)}</strong></div>
+                <div><span>Updated</span><strong>{detailValue(selectedArtifact.updatedAt)}</strong></div>
+              </div>
+
+              <div className="detail-path-box">
+                <span>Storage path</span>
+                <code>{selectedArtifact.path}</code>
+              </div>
+
+              <div className="detail-label-row">
+                {(selectedArtifact.labels?.length ? selectedArtifact.labels : ['no_labels']).map((label) => <span key={label}>{label}</span>)}
+              </div>
+
+              {selectedReceipt && (
+                <div className="detail-receipt-card">
+                  <h3>Receipt metadata</h3>
+                  <div className="detail-metadata-grid compact">
+                    <div><span>Filename</span><strong>{detailValue(selectedReceipt.filename)}</strong></div>
+                    <div><span>Format</span><strong>{detailValue(selectedReceipt.format)}</strong></div>
+                    <div><span>Source app</span><strong>{detailValue(selectedReceipt.sourceApp)}</strong></div>
+                    <div><span>Compatibility</span><strong>{detailValue(selectedReceipt.compatibility)}</strong></div>
+                    <div><span>Exported</span><strong>{detailValue(selectedReceipt.exportedAt)}</strong></div>
+                    <div><span>Artifact id</span><strong>{detailValue(selectedReceipt.artifactId)}</strong></div>
+                  </div>
+                </div>
+              )}
+
+              <div className="detail-copy-actions">
+                <button type="button" onClick={copySelectedArtifact}><ClipboardCopy aria-hidden="true" /> Copy artifact JSON</button>
+                {selectedReceipt && <button type="button" onClick={copySelectedReceipt}><ClipboardCopy aria-hidden="true" /> Copy receipt JSON</button>}
+              </div>
+            </section>
+          )}
+
           {artifacts.length === 0 ? (
             <div className="empty-vault">
               <Sparkles aria-hidden="true" />
@@ -221,7 +299,14 @@ export default function PhiVaultLite() {
                   </div>
                   <div className="artifact-list">
                     {appArtifacts.map((artifact) => (
-                      <article className={`artifact-row ${artifact.kind === 'export_receipt' ? 'export-row' : ''}`} key={artifact.artifactId}>
+                      <article
+                        className={`artifact-row ${artifact.kind === 'export_receipt' ? 'export-row' : ''} ${selectedArtifact?.artifactId === artifact.artifactId ? 'selected' : ''}`}
+                        key={artifact.artifactId}
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => setSelectedArtifact(artifact)}
+                        onKeyDown={(event) => handleArtifactKeyDown(event, artifact)}
+                      >
                         <div>
                           <span>{artifact.app} · {artifact.kind}</span>
                           <h3>{artifact.title}</h3>

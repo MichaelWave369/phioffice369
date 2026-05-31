@@ -1,5 +1,5 @@
-import { useMemo, useRef, useState } from 'react';
-import { ClipboardCopy, Download, FolderLock, RefreshCw, Search, ShieldCheck, Sparkles, Upload, X } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { ClipboardCopy, Database, Download, FolderLock, RefreshCw, Search, ShieldCheck, Sparkles, Upload, X } from 'lucide-react';
 import { createProjectManifest } from '@phioffice369/core';
 import { createWorkspaceBackupPayload, isWorkspaceBackupPayload, restoreWorkspaceBackupPayload } from '../lib/emergencyBackups.js';
 import { normalizeProjectFolder, parseTagInput, writeArtifactMetadata } from '../lib/localArtifactMetadata.js';
@@ -11,6 +11,7 @@ import {
   scanContinuityArtifacts,
   uniqueArtifactValues,
 } from '../lib/localArtifactRegistry.js';
+import { getStorageStatus, getStorageStatusMessage } from '../lib/storageDiagnostics.js';
 import './PhiVaultLite.css';
 
 function downloadJson(filename, payload) {
@@ -39,6 +40,7 @@ export default function PhiVaultLite() {
   const [artifacts, setArtifacts] = useState(() => scanContinuityArtifacts());
   const [status, setStatus] = useState('Local manifest ready');
   const [copyStatus, setCopyStatus] = useState('');
+  const [storageStatus, setStorageStatus] = useState(null);
   const [importedManifest, setImportedManifest] = useState(null);
   const [importedBackup, setImportedBackup] = useState(null);
   const [query, setQuery] = useState('');
@@ -69,12 +71,22 @@ export default function PhiVaultLite() {
   const selectedReceipt = selectedArtifact?.receipts?.[0] ?? null;
   const projectFolderCount = projectOptions.filter((option) => option !== 'all').length;
 
+  async function refreshStorageStatus() {
+    const nextStatus = await getStorageStatus(window);
+    setStorageStatus(nextStatus);
+  }
+
+  useEffect(() => {
+    refreshStorageStatus();
+  }, []);
+
   function refreshArtifacts() {
     const nextArtifacts = scanContinuityArtifacts();
     setArtifacts(nextArtifacts);
     setSelectedArtifact(null);
     setTagInput('');
     setProjectInput('');
+    refreshStorageStatus();
     setStatus(`Scanned ${nextArtifacts.length} continuity item${nextArtifacts.length === 1 ? '' : 's'}`);
   }
 
@@ -117,6 +129,7 @@ export default function PhiVaultLite() {
     setSelectedArtifact(null);
     setTagInput('');
     setProjectInput('');
+    refreshStorageStatus();
     setStatus(`Restored ${result.restored} local item${result.restored === 1 ? '' : 's'} from workspace backup`);
   }
 
@@ -162,6 +175,7 @@ export default function PhiVaultLite() {
     setSelectedArtifact((currentSelected) => (currentSelected ? updateWithMetadata(currentSelected) : currentSelected));
     setTagInput(nextMetadata.tags.join(', '));
     setProjectInput(nextMetadata.projectFolder ?? '');
+    refreshStorageStatus();
     setStatus(statusMessage(nextMetadata));
   }
 
@@ -254,6 +268,22 @@ export default function PhiVaultLite() {
             <div><strong>{projectFolderCount}</strong><span>folders</span></div>
           </div>
           <p>Nothing is uploaded. This view only reads local browser storage created by the prototype and imported JSON files you select.</p>
+
+          {storageStatus && (
+            <div className="storage-status-card">
+              <Database aria-hidden="true" />
+              <div>
+                <h3>Storage status</h3>
+                <p>{getStorageStatusMessage(storageStatus)}</p>
+                <div className="storage-status-grid">
+                  <span>Detected: {storageStatus.detectedBackend}</span>
+                  <span>Adapter: {storageStatus.activeAdapterId}</span>
+                  <span>Snapshot items: {storageStatus.snapshotCount}</span>
+                  <span>IndexedDB ready: {storageStatus.readyForIndexedDbMigration ? 'yes' : 'no'}</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {importedBackup && (
             <div className="import-preview backup-preview">

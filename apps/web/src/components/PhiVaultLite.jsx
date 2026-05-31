@@ -11,6 +11,7 @@ import {
   scanContinuityArtifacts,
   uniqueArtifactValues,
 } from '../lib/localArtifactRegistry.js';
+import { createAsyncArtifactRegistryStatus } from '../lib/localArtifactRegistryAsync.js';
 import { getStorageStatus, getStorageStatusMessage } from '../lib/storageDiagnostics.js';
 import { createBrowserStorageAdapter } from '../lib/storageAdapters.js';
 import { createStorageMigrationPlan, migrateStorage, summarizeMigrationPlan } from '../lib/storageMigration.js';
@@ -56,6 +57,7 @@ export default function PhiVaultLite() {
   const [copyStatus, setCopyStatus] = useState('');
   const [storageStatus, setStorageStatus] = useState(null);
   const [workspaceAsyncStatus, setWorkspaceAsyncStatus] = useState(null);
+  const [asyncRegistryStatus, setAsyncRegistryStatus] = useState(null);
   const [storagePreferenceStatus, setStoragePreferenceStatus] = useState(null);
   const [migrationPlan, setMigrationPlan] = useState(null);
   const [migrationResult, setMigrationResult] = useState(null);
@@ -104,13 +106,34 @@ export default function PhiVaultLite() {
 
   async function refreshStorageStatus() {
     const nextStatus = await getStorageStatus(window);
-    const nextAsyncStatus = await createWorkspaceAsyncStatus({ environment: window });
     setStorageStatus(nextStatus);
-    setWorkspaceAsyncStatus(nextAsyncStatus);
-    setStoragePreferenceStatus(createStoragePreferenceStatus({
-      storage: window.localStorage,
-      activeAdapterId: nextAsyncStatus.adapterId,
-    }));
+
+    try {
+      const [nextAsyncStatus, nextAsyncRegistryStatus] = await Promise.all([
+        createWorkspaceAsyncStatus({ environment: window }),
+        createAsyncArtifactRegistryStatus({ environment: window }),
+      ]);
+      setWorkspaceAsyncStatus(nextAsyncStatus);
+      setAsyncRegistryStatus(nextAsyncRegistryStatus);
+      setStoragePreferenceStatus(createStoragePreferenceStatus({
+        storage: window.localStorage,
+        activeAdapterId: nextAsyncStatus.adapterId,
+      }));
+    } catch (error) {
+      setWorkspaceAsyncStatus({
+        schema: 'phioffice369.workspace_storage_async.v0.1',
+        createdAt: new Date().toISOString(),
+        adapterId: 'unavailable',
+        available: false,
+        snapshotCount: 0,
+        error: error?.message ?? 'unknown error',
+      });
+      setAsyncRegistryStatus(null);
+      setStoragePreferenceStatus(createStoragePreferenceStatus({
+        storage: window.localStorage,
+        activeAdapterId: nextStatus.activeAdapterId,
+      }));
+    }
   }
 
   useEffect(() => {
@@ -334,6 +357,14 @@ export default function PhiVaultLite() {
     copyJson(workspaceAsyncStatus, 'Workspace async storage status');
   }
 
+  function copyAsyncRegistryStatus() {
+    if (!asyncRegistryStatus) {
+      setStatus('Async artifact registry status is not available yet');
+      return;
+    }
+    copyJson(asyncRegistryStatus, 'Async artifact registry status');
+  }
+
   function copySelectedArtifact() {
     if (!selectedArtifact) return;
     copyJson(selectedArtifact, 'Artifact JSON');
@@ -480,6 +511,20 @@ export default function PhiVaultLite() {
                     </div>
                     <div className="storage-migration-actions preference-actions">
                       <button type="button" onClick={copyAsyncStatus}>Copy async status</button>
+                    </div>
+                  </div>
+                )}
+                {asyncRegistryStatus && (
+                  <div className="storage-async-card registry-preview">
+                    <h4>Async artifact registry preview</h4>
+                    <p>This previews continuity parsing from the preference-aware async adapter without replacing the current visible vault scan.</p>
+                    <div className="storage-readiness-grid">
+                      <span>Artifacts: {asyncRegistryStatus.artifactCount}</span>
+                      <span>Apps: {asyncRegistryStatus.apps.length ? asyncRegistryStatus.apps.join(', ') : 'none'}</span>
+                      <span>Kinds: {asyncRegistryStatus.kinds.length ? asyncRegistryStatus.kinds.join(', ') : 'none'}</span>
+                    </div>
+                    <div className="storage-migration-actions preference-actions">
+                      <button type="button" onClick={copyAsyncRegistryStatus}>Copy registry status</button>
                     </div>
                   </div>
                 )}

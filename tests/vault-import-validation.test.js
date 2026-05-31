@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { createArtifactManifestEntry, createProjectManifest } from '../packages/core/src/index.js';
 import {
   applyVaultImportPreviewState,
+  createPhiVaultImportChangeHandler,
   createVaultImportPreviewFromFile,
   createVaultImportPreviewState,
   parseAndValidateVaultImportText,
@@ -148,5 +149,32 @@ test('applyVaultImportPreviewState calls supplied component setters', () => {
   });
 
   assert.equal(applied.importedManifest.projectId, 'project_001');
+  assert.deepEqual(calls.map(([name]) => name), ['backup', 'manifest', 'status', 'errors']);
+});
+
+test('createPhiVaultImportChangeHandler validates selected file and resets input value', async () => {
+  const calls = [];
+  const handler = createPhiVaultImportChangeHandler({
+    setImportedBackup: (value) => calls.push(['backup', value]),
+    setImportedManifest: (value) => calls.push(['manifest', value?.projectId]),
+    setStatus: (value) => calls.push(['status', value]),
+    setImportErrors: (value) => calls.push(['errors', value.length]),
+  });
+  const event = {
+    target: {
+      value: 'manifest.json',
+      files: [{
+        name: 'manifest.json',
+        async text() {
+          return JSON.stringify(createValidManifest());
+        },
+      }],
+    },
+  };
+
+  const result = await handler(event);
+
+  assert.equal(result.validation.ok, true);
+  assert.equal(event.target.value, '');
   assert.deepEqual(calls.map(([name]) => name), ['backup', 'manifest', 'status', 'errors']);
 });

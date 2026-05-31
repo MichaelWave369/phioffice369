@@ -1,4 +1,5 @@
-export const EMERGENCY_BACKUP_PREFIX = 'phioffice369:emergency_backup:';
+import { EMERGENCY_BACKUP_PREFIX, createBrowserStorageAdapter } from './storageAdapters.js';
+
 export const WORKSPACE_BACKUP_SCHEMA = 'phioffice369.workspace_backup.v0.1';
 
 export function canUseEmergencyStorage() {
@@ -27,6 +28,10 @@ export function collectPhiOfficeStorageSnapshot(storage) {
     .filter(([, value]) => value !== null && value !== undefined);
 }
 
+export async function collectPhiOfficeStorageSnapshotFromAdapter(adapter = createBrowserStorageAdapter()) {
+  return adapter.workspaceSnapshot({ includeEmergencyBackups: false });
+}
+
 export function errorToPlainObject(error) {
   return {
     name: error?.name ?? 'UnknownError',
@@ -46,6 +51,17 @@ export function createEmergencyBackupPayload({ error, errorInfo, storage, source
   };
 }
 
+export async function createEmergencyBackupPayloadFromAdapter({ error, errorInfo, adapter = createBrowserStorageAdapter(), source = 'AppErrorBoundary' }) {
+  return {
+    schema: 'phioffice369.emergency_backup.v0.1',
+    source,
+    createdAt: new Date().toISOString(),
+    error: errorToPlainObject(error),
+    componentStack: errorInfo?.componentStack ?? null,
+    storageSnapshot: await collectPhiOfficeStorageSnapshotFromAdapter(adapter),
+  };
+}
+
 export function createWorkspaceBackupPayload({ storage, manifest = null, source = 'PhiVault-lite manual export' }) {
   return {
     schema: WORKSPACE_BACKUP_SCHEMA,
@@ -53,6 +69,16 @@ export function createWorkspaceBackupPayload({ storage, manifest = null, source 
     createdAt: new Date().toISOString(),
     manifest,
     storageSnapshot: collectPhiOfficeStorageSnapshot(storage),
+  };
+}
+
+export async function createWorkspaceBackupPayloadFromAdapter({ adapter = createBrowserStorageAdapter(), manifest = null, source = 'PhiVault-lite manual export' }) {
+  return {
+    schema: WORKSPACE_BACKUP_SCHEMA,
+    source,
+    createdAt: new Date().toISOString(),
+    manifest,
+    storageSnapshot: await collectPhiOfficeStorageSnapshotFromAdapter(adapter),
   };
 }
 
@@ -100,6 +126,20 @@ export function restoreEmergencyBackupPayload(payload, storage) {
   return restored;
 }
 
+export async function restoreBackupPayloadWithAdapter(payload, adapter = createBrowserStorageAdapter()) {
+  if (!payload?.storageSnapshot) return 0;
+
+  let restored = 0;
+  for (const [key, value] of payload.storageSnapshot) {
+    if (typeof key === 'string' && typeof value === 'string') {
+      await adapter.setItem(key, value);
+      restored += 1;
+    }
+  }
+
+  return restored;
+}
+
 export function restoreWorkspaceBackupPayload(payload, storage) {
   if (!isWorkspaceBackupPayload(payload)) {
     return { ok: false, restored: 0, reason: 'not a PhiOffice369 workspace backup' };
@@ -107,6 +147,18 @@ export function restoreWorkspaceBackupPayload(payload, storage) {
 
   try {
     return { ok: true, restored: restoreEmergencyBackupPayload(payload, storage), reason: null };
+  } catch (restoreError) {
+    return { ok: false, restored: 0, reason: restoreError?.message ?? 'restore failed' };
+  }
+}
+
+export async function restoreWorkspaceBackupPayloadWithAdapter(payload, adapter = createBrowserStorageAdapter()) {
+  if (!isWorkspaceBackupPayload(payload)) {
+    return { ok: false, restored: 0, reason: 'not a PhiOffice369 workspace backup' };
+  }
+
+  try {
+    return { ok: true, restored: await restoreBackupPayloadWithAdapter(payload, adapter), reason: null };
   } catch (restoreError) {
     return { ok: false, restored: 0, reason: restoreError?.message ?? 'restore failed' };
   }

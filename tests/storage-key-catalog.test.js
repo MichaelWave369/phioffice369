@@ -17,7 +17,7 @@ test('storage key catalog exposes versioned namespace records', () => {
 
   assert.equal(catalog.schema, STORAGE_KEY_CATALOG_SCHEMA);
   assert.equal(catalog.namespaces.length, STORAGE_NAMESPACE_CATALOG.length);
-  assert.ok(catalog.namespaces.length >= 7);
+  assert.ok(catalog.namespaces.length >= 8);
 });
 
 test('storage key namespaces have unique ids and prefixes', () => {
@@ -40,6 +40,7 @@ test('findStorageNamespace finds known prefixes', () => {
   assert.equal(findStorageNamespace('phioffice369:artifact_metadata:test')?.id, 'artifact_metadata');
   assert.equal(findStorageNamespace('phioffice369:emergency_backup:test')?.id, 'emergency_backups');
   assert.equal(findStorageNamespace('phioffice369:storage_backend_preference')?.id, 'storage_backend_preference');
+  assert.equal(findStorageNamespace('phioffice369:vault_scan_source_preference')?.id, 'vault_scan_source_preference');
 });
 
 test('classifyStorageKey marks known PhiOffice namespaces', () => {
@@ -54,6 +55,16 @@ test('classifyStorageKey marks known PhiOffice namespaces', () => {
   assert.equal(classified.adapterStatus, 'routed-through-workspace-storage-access');
 });
 
+test('classifyStorageKey marks vault scan source preference as known control plane namespace', () => {
+  const classified = classifyStorageKey('phioffice369:vault_scan_source_preference');
+
+  assert.equal(classified.known, true);
+  assert.equal(classified.namespaceId, 'vault_scan_source_preference');
+  assert.equal(classified.app, 'PhiVault');
+  assert.equal(classified.kind, 'scan_source_preference');
+  assert.equal(classified.sourceOfTruth, 'localStorage-control-plane');
+});
+
 test('classifyStorageKey marks unknown PhiOffice and external namespaces', () => {
   assert.equal(classifyStorageKey('phioffice369:unknown:test').namespaceId, 'unknown_phioffice_namespace');
   assert.equal(classifyStorageKey('external:key').namespaceId, 'external_namespace');
@@ -63,9 +74,9 @@ test('summarizeStorageCatalog counts namespaces and routed workspace access', ()
   const summary = summarizeStorageCatalog();
 
   assert.equal(summary.totalNamespaces, STORAGE_NAMESPACE_CATALOG.length);
-  assert.equal(summary.byBackend['localStorage-via-workspaceStorageAccess'], 5);
+  assert.equal(summary.byBackend['localStorage-via-workspaceStorageAccess'], 6);
   assert.equal(summary.byBackend.localStorage, 2);
-  assert.equal(summary.routedThroughWorkspaceAccess, 5);
+  assert.equal(summary.routedThroughWorkspaceAccess, 6);
   assert.equal(summary.pendingAdapterRefactor, 0);
 });
 
@@ -73,14 +84,15 @@ test('getAdapterRefactorBacklog is clear after first workspace access routing pa
   assert.deepEqual(getAdapterRefactorBacklog(), []);
 });
 
-test('getWorkspaceAccessRoutedNamespaces returns routed app and vault data namespaces', () => {
+test('getWorkspaceAccessRoutedNamespaces returns routed app vault data and scan preference namespaces', () => {
   const routed = getWorkspaceAccessRoutedNamespaces();
   const ids = routed.map((entry) => entry.id);
 
-  assert.equal(routed.length, 5);
+  assert.equal(routed.length, 6);
   assert.ok(ids.includes('phiwrite_drafts'));
   assert.ok(ids.includes('phigrid_tables'));
   assert.ok(ids.includes('phideck_decks'));
   assert.ok(ids.includes('export_receipts'));
   assert.ok(ids.includes('artifact_metadata'));
+  assert.ok(ids.includes('vault_scan_source_preference'));
 });

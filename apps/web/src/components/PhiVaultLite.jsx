@@ -17,6 +17,7 @@ import {
   getArtifactRegistryParityProblemIds,
   summarizeArtifactRegistryParity,
 } from '../lib/artifactRegistryParity.js';
+import { createVaultScanSwitchReport, summarizeVaultScanSwitchReport } from '../lib/vaultScanSwitchGate.js';
 import { getStorageStatus, getStorageStatusMessage } from '../lib/storageDiagnostics.js';
 import { createBrowserStorageAdapter } from '../lib/storageAdapters.js';
 import { createStorageMigrationPlan, migrateStorage, summarizeMigrationPlan } from '../lib/storageMigration.js';
@@ -95,6 +96,16 @@ export default function PhiVaultLite() {
   ), [artifacts, asyncArtifacts, asyncRegistryStatus, workspaceAsyncStatus]);
   const registryParitySummary = useMemo(() => (registryParityReport ? summarizeArtifactRegistryParity(registryParityReport) : null), [registryParityReport]);
   const registryParityProblemIds = useMemo(() => getArtifactRegistryParityProblemIds(registryParityReport, 5), [registryParityReport]);
+  const vaultScanSwitchReport = useMemo(() => (
+    registryParityReport
+      ? createVaultScanSwitchReport({
+        workspaceAsyncStatus,
+        registryParityReport,
+        storagePreferenceStatus,
+      })
+      : null
+  ), [workspaceAsyncStatus, registryParityReport, storagePreferenceStatus]);
+  const vaultScanSwitchSummary = useMemo(() => (vaultScanSwitchReport ? summarizeVaultScanSwitchReport(vaultScanSwitchReport) : null), [vaultScanSwitchReport]);
 
   const manifest = useMemo(() => createProjectManifest({
     projectId: 'local_phioffice369_project',
@@ -393,6 +404,14 @@ export default function PhiVaultLite() {
     copyJson(registryParityReport, 'Artifact registry parity report');
   }
 
+  function copyVaultScanSwitchReport() {
+    if (!vaultScanSwitchReport) {
+      setStatus('Vault scan switch gate report is not available yet');
+      return;
+    }
+    copyJson(vaultScanSwitchReport, 'Vault scan switch gate report');
+  }
+
   function copySelectedArtifact() {
     if (!selectedArtifact) return;
     copyJson(selectedArtifact, 'Artifact JSON');
@@ -573,6 +592,26 @@ export default function PhiVaultLite() {
                     )}
                     <div className="storage-migration-actions preference-actions">
                       <button type="button" onClick={copyRegistryParityReport}>Copy parity report</button>
+                    </div>
+                  </div>
+                )}
+                {vaultScanSwitchSummary && (
+                  <div className={`storage-preference-card ${vaultScanSwitchSummary.canUseAsyncVaultScan ? 'matched' : 'mismatch'}`}>
+                    <h4>{vaultScanSwitchSummary.canUseAsyncVaultScan ? 'Async vault scan allowed' : 'Sync vault scan still recommended'}</h4>
+                    <p>The visible vault stays on the safest scan source until async runtime, registry parity, and preference matching all pass.</p>
+                    <div className="storage-readiness-grid">
+                      <span>Recommended: {vaultScanSwitchSummary.recommendedSource}</span>
+                      <span>Async adapter: {vaultScanSwitchSummary.asyncAdapterId}</span>
+                      <span>Blockers: {vaultScanSwitchSummary.blockerCount}</span>
+                      <span>Sync/Async: {vaultScanSwitchSummary.syncCount}/{vaultScanSwitchSummary.asyncCount}</span>
+                    </div>
+                    {vaultScanSwitchReport.blockers.length > 0 && (
+                      <div className="storage-blocker-list">
+                        {vaultScanSwitchReport.blockers.map((blocker) => <code key={blocker}>{blocker}</code>)}
+                      </div>
+                    )}
+                    <div className="storage-migration-actions preference-actions">
+                      <button type="button" onClick={copyVaultScanSwitchReport}>Copy scan gate</button>
                     </div>
                   </div>
                 )}

@@ -18,6 +18,19 @@ import {
   summarizeArtifactRegistryParity,
 } from '../lib/artifactRegistryParity.js';
 import { createVaultScanSwitchReport, summarizeVaultScanSwitchReport } from '../lib/vaultScanSwitchGate.js';
+import {
+  createVaultVisibleScanPolicy,
+  selectVisibleVaultArtifacts,
+  summarizeVaultVisibleScanPolicy,
+  VAULT_SCAN_SOURCE_ASYNC,
+  VAULT_SCAN_SOURCE_SYNC,
+} from '../lib/vaultVisibleScanPolicy.js';
+import {
+  createVaultScanSourcePreference,
+  getRequestedVaultScanSource,
+  resetVaultScanSourcePreference,
+  storeVaultScanSourcePreference,
+} from '../lib/vaultScanSourcePreference.js';
 import { getStorageStatus, getStorageStatusMessage } from '../lib/storageDiagnostics.js';
 import { createBrowserStorageAdapter } from '../lib/storageAdapters.js';
 import { createStorageMigrationPlan, migrateStorage, summarizeMigrationPlan } from '../lib/storageMigration.js';
@@ -56,15 +69,21 @@ function updateArtifactInList(artifacts, artifactId, updater) {
   return artifacts.map((artifact) => (artifact.artifactId === artifactId ? updater(artifact) : artifact));
 }
 
+function getInitialVaultScanSource() {
+  if (typeof window === 'undefined') return VAULT_SCAN_SOURCE_SYNC;
+  return getRequestedVaultScanSource(window.localStorage);
+}
+
 export default function PhiVaultLite() {
   const fileInputRef = useRef(null);
-  const [artifacts, setArtifacts] = useState(() => scanContinuityArtifacts());
+  const [syncArtifacts, setSyncArtifacts] = useState(() => scanContinuityArtifacts());
   const [status, setStatus] = useState('Local manifest ready');
   const [copyStatus, setCopyStatus] = useState('');
   const [storageStatus, setStorageStatus] = useState(null);
   const [workspaceAsyncStatus, setWorkspaceAsyncStatus] = useState(null);
   const [asyncRegistryStatus, setAsyncRegistryStatus] = useState(null);
   const [asyncArtifacts, setAsyncArtifacts] = useState([]);
+  const [requestedVaultScanSource, setRequestedVaultScanSource] = useState(getInitialVaultScanSource);
   const [storagePreferenceStatus, setStoragePreferenceStatus] = useState(null);
   const [migrationPlan, setMigrationPlan] = useState(null);
   const [migrationResult, setMigrationResult] = useState(null);
@@ -79,7 +98,6 @@ export default function PhiVaultLite() {
   const [tagInput, setTagInput] = useState('');
   const [projectInput, setProjectInput] = useState('');
 
-  const filteredArtifacts = useMemo(() => filterArtifacts(artifacts, query, appFilter, kindFilter, projectFilter), [appFilter, artifacts, kindFilter, projectFilter, query]);
   const migrationSummary = useMemo(() => (migrationPlan ? summarizeMigrationPlan(migrationPlan) : null), [migrationPlan]);
   const migrationReport = useMemo(() => (migrationPlan ? createStorageMigrationReport({ plan: migrationPlan, result: migrationResult }) : null), [migrationPlan, migrationResult]);
   const migrationConflictKeys = useMemo(() => getMigrationConflictKeys(migrationPlan, 5), [migrationPlan]);
@@ -88,12 +106,12 @@ export default function PhiVaultLite() {
   const registryParityReport = useMemo(() => (
     asyncRegistryStatus
       ? createArtifactRegistryParityReport({
-        syncArtifacts: artifacts,
+        syncArtifacts,
         asyncArtifacts,
         asyncAdapterId: workspaceAsyncStatus?.adapterId ?? 'unknown',
       })
       : null
-  ), [artifacts, asyncArtifacts, asyncRegistryStatus, workspaceAsyncStatus]);
+  ), [syncArtifacts, asyncArtifacts, asyncRegistryStatus, workspaceAsyncStatus]);
   const registryParitySummary = useMemo(() => (registryParityReport ? summarizeArtifactRegistryParity(registryParityReport) : null), [registryParityReport]);
   const registryParityProblemIds = useMemo(() => getArtifactRegistryParityProblemIds(registryParityReport, 5), [registryParityReport]);
   const vaultScanSwitchReport = useMemo(() => (
@@ -106,6 +124,19 @@ export default function PhiVaultLite() {
       : null
   ), [workspaceAsyncStatus, registryParityReport, storagePreferenceStatus]);
   const vaultScanSwitchSummary = useMemo(() => (vaultScanSwitchReport ? summarizeVaultScanSwitchReport(vaultScanSwitchReport) : null), [vaultScanSwitchReport]);
+  const vaultVisibleScanPolicy = useMemo(() => createVaultVisibleScanPolicy({
+    requestedSource: requestedVaultScanSource,
+    vaultScanSwitchReport,
+  }), [requestedVaultScanSource, vaultScanSwitchReport]);
+  const vaultVisibleScanSummary = useMemo(() => summarizeVaultVisibleScanPolicy(vaultVisibleScanPolicy), [vaultVisibleScanPolicy]);
+  const artifacts = useMemo(() => selectVisibleVaultArtifacts({
+    syncArtifacts,
+    asyncArtifacts,
+    policy: vaultVisibleScanPolicy,
+  }), [syncArtifacts, asyncArtifacts, vaultVisibleScanPolicy]);
+  const visibleScanSourceLabel = vaultVisibleScanSummary.activeSource === VAULT_SCAN_SOURCE_ASYNC ? 'Async adapter scan' : 'Sync localStorage scan';
+
+  const filteredArtifacts = useMemo(() => filterArtifacts(artifacts, query, appFilter, kindFilter, projectFilter), [appFilter, artifacts, kindFilter, projectFilter, query]);
 
   const manifest = useMemo(() => createProjectManifest({
     projectId: 'local_phioffice369_project',
@@ -135,6 +166,7 @@ export default function PhiVaultLite() {
   async function refreshStorageStatus() {
     const nextStatus = await getStorageStatus(window);
     setStorageStatus(nextStatus);
+    setRequestedVaultScanSource(getRequestedVaultScanSource(window.localStorage));
 
     try {
       const [nextAsyncStatus, nextAsyncRegistryStatus, nextAsyncArtifacts] = await Promise.all([
@@ -173,12 +205,12 @@ export default function PhiVaultLite() {
 
   function refreshArtifacts() {
     const nextArtifacts = scanContinuityArtifacts();
-    setArtifacts(nextArtifacts);
+    setSyncArtifacts(nextArtifacts);
     setSelectedArtifact(null);
     setTagInput('');
     setProjectInput('');
     refreshStorageStatus();
-    setStatus(`Scanned ${nextArtifacts.length} continuity item${nextArtifacts.length === 1 ? '' : 's'}`);
+    setStatus(`Scanned ${nextArtifacts.length} sync continuity item${nextArtifacts.length === 1 ? '' : 's'}; visible source: ${visibleScanSourceLabel}`);
   }
 
   function resetFilters() {
@@ -318,6 +350,26 @@ export default function PhiVaultLite() {
     setStatus('Storage preference reset. PhiOffice will use default localStorage mode after refresh.');
   }
 
+  function saveVaultScanSource(requestedSource) {
+    const preference = createVaultScanSourcePreference({
+      requestedSource,
+      reason: requestedSource === VAULT_SCAN_SOURCE_ASYNC ? 'operator_async_scan_opt_in' : 'operator_sync_scan_preference',
+    });
+    storeVaultScanSourcePreference(window.localStorage, preference);
+    setRequestedVaultScanSource(preference.requestedSource);
+    setSelectedArtifact(null);
+    refreshStorageStatus();
+    setStatus(preference.requestedSource === VAULT_SCAN_SOURCE_ASYNC ? 'Async vault scan requested. It becomes visible only while the scan gate passes.' : 'Sync vault scan preference saved.');
+  }
+
+  function resetVaultScanSource() {
+    resetVaultScanSourcePreference(window.localStorage);
+    setRequestedVaultScanSource(VAULT_SCAN_SOURCE_SYNC);
+    setSelectedArtifact(null);
+    refreshStorageStatus();
+    setStatus('Visible vault scan preference reset to sync default.');
+  }
+
   function restoreImportedBackup() {
     if (!importedBackup) return;
     const result = restoreWorkspaceBackupPayload(importedBackup, window.localStorage);
@@ -327,7 +379,7 @@ export default function PhiVaultLite() {
     }
 
     const nextArtifacts = scanContinuityArtifacts();
-    setArtifacts(nextArtifacts);
+    setSyncArtifacts(nextArtifacts);
     setSelectedArtifact(null);
     setTagInput('');
     setProjectInput('');
@@ -412,6 +464,14 @@ export default function PhiVaultLite() {
     copyJson(vaultScanSwitchReport, 'Vault scan switch gate report');
   }
 
+  function copyVaultVisibleScanPolicy() {
+    if (!vaultVisibleScanPolicy) {
+      setStatus('Visible vault scan policy is not available yet');
+      return;
+    }
+    copyJson(vaultVisibleScanPolicy, 'Visible vault scan policy');
+  }
+
   function copySelectedArtifact() {
     if (!selectedArtifact) return;
     copyJson(selectedArtifact, 'Artifact JSON');
@@ -437,7 +497,8 @@ export default function PhiVaultLite() {
       },
     });
 
-    setArtifacts((currentArtifacts) => updateArtifactInList(currentArtifacts, selectedArtifact.artifactId, updateWithMetadata));
+    setSyncArtifacts((currentArtifacts) => updateArtifactInList(currentArtifacts, selectedArtifact.artifactId, updateWithMetadata));
+    setAsyncArtifacts((currentArtifacts) => updateArtifactInList(currentArtifacts, selectedArtifact.artifactId, updateWithMetadata));
     setSelectedArtifact((currentSelected) => (currentSelected ? updateWithMetadata(currentSelected) : currentSelected));
     setTagInput(nextMetadata.tags.join(', '));
     setProjectInput(nextMetadata.projectFolder ?? '');
@@ -528,12 +589,12 @@ export default function PhiVaultLite() {
           <h3>Manifest envelope</h3>
           <code>{manifest.schema}</code>
           <div className="vault-stat-grid">
-            <div><strong>{artifacts.length}</strong><span>items</span></div>
+            <div><strong>{artifacts.length}</strong><span>visible items</span></div>
             <div><strong>{filteredArtifacts.length}</strong><span>shown</span></div>
             <div><strong>{exportReceiptCount}</strong><span>exports</span></div>
             <div><strong>{projectFolderCount}</strong><span>folders</span></div>
           </div>
-          <p>Nothing is uploaded. This view only reads local browser storage created by the prototype and imported JSON files you select.</p>
+          <p>Visible source: {visibleScanSourceLabel}. Nothing is uploaded; this view only reads browser-local storage and imported JSON files you select.</p>
 
           {storageStatus && (
             <div className="storage-status-card">
@@ -612,6 +673,24 @@ export default function PhiVaultLite() {
                     )}
                     <div className="storage-migration-actions preference-actions">
                       <button type="button" onClick={copyVaultScanSwitchReport}>Copy scan gate</button>
+                    </div>
+                  </div>
+                )}
+                {vaultVisibleScanSummary && (
+                  <div className={`storage-preference-card ${vaultVisibleScanSummary.activeSource === VAULT_SCAN_SOURCE_ASYNC ? 'matched' : 'mismatch'}`}>
+                    <h4>Visible vault scan policy</h4>
+                    <p>Sync scan is the default. Async scan becomes visible only after the operator asks for it and the scan gate allows it.</p>
+                    <div className="storage-readiness-grid">
+                      <span>Requested: {vaultVisibleScanSummary.requestedSource}</span>
+                      <span>Active: {vaultVisibleScanSummary.activeSource}</span>
+                      <span>Async allowed: {vaultVisibleScanSummary.asyncAllowed ? 'yes' : 'no'}</span>
+                      <span>Fallback: {vaultVisibleScanSummary.usedFallback ? 'yes' : 'no'}</span>
+                    </div>
+                    <div className="storage-migration-actions preference-actions">
+                      <button type="button" onClick={() => saveVaultScanSource(VAULT_SCAN_SOURCE_SYNC)}>Use sync scan</button>
+                      <button type="button" onClick={() => saveVaultScanSource(VAULT_SCAN_SOURCE_ASYNC)} disabled={!vaultScanSwitchSummary?.canUseAsyncVaultScan}>Use async scan</button>
+                      <button type="button" onClick={resetVaultScanSource}>Reset scan preference</button>
+                      <button type="button" onClick={copyVaultVisibleScanPolicy}>Copy visible policy</button>
                     </div>
                   </div>
                 )}
@@ -725,7 +804,7 @@ export default function PhiVaultLite() {
           <div className="vault-section-heading">
             <div>
               <p className="eyebrow">Local continuity</p>
-              <h2>Detected drafts, grids, decks, and exports</h2>
+              <h2>{visibleScanSourceLabel}: detected drafts, grids, decks, and exports</h2>
             </div>
           </div>
 
@@ -762,7 +841,7 @@ export default function PhiVaultLite() {
               <div className="receipt-timeline-heading">
                 <div>
                   <p className="eyebrow">Export receipt timeline</p>
-                  <h3>Recent local exports</h3>
+                  <h3>Recent visible exports</h3>
                 </div>
                 <span>{exportTimeline.length} receipt{exportTimeline.length === 1 ? '' : 's'}</span>
               </div>
@@ -862,8 +941,8 @@ export default function PhiVaultLite() {
           {artifacts.length === 0 ? (
             <div className="empty-vault">
               <Sparkles aria-hidden="true" />
-              <h3>No local continuity items yet</h3>
-              <p>Open a template, make a small edit, export a file, and return here to refresh the vault scan.</p>
+              <h3>No visible continuity items yet</h3>
+              <p>Open a template, make a small edit, export a file, and return here to refresh the vault scan. If async scan is active, switch back to sync scan if expected items are missing.</p>
             </div>
           ) : filteredArtifacts.length === 0 ? (
             <div className="empty-vault">

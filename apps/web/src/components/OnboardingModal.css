@@ -1,0 +1,109 @@
+.onboarding-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(8, 6, 18, 0.72);
+  backdrop-filter: blur(14px);
+}
+
+.onboarding-modal {
+  position: relative;
+  width: min(760px, 100%);
+  border: 1px solid rgba(248, 214, 109, 0.26);
+  border-radius: 1.6rem;
+  padding: 1.5rem;
+  background: linear-gradient(145deg, rgba(35, 27, 58, 0.96), rgba(18, 14, 34, 0.96));
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.42);
+}
+
+.onboarding-close {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.82);
+  background: rgba(255, 255, 255, 0.08);
+  cursor: pointer;
+}
+
+.onboarding-close svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+.onboarding-modal h2 {
+  margin: 0.25rem 0 0.6rem;
+  font-size: clamp(2rem, 5vw, 3.4rem);
+}
+
+.onboarding-lead {
+  max-width: 62ch;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.65;
+}
+
+.onboarding-points {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+  margin: 1.1rem 0;
+}
+
+.onboarding-points article {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1.1rem;
+  padding: 0.9rem;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.onboarding-points svg {
+  width: 1.4rem;
+  height: 1.4rem;
+  color: #f8d66d;
+}
+
+.onboarding-points h3 {
+  margin: 0.55rem 0 0.35rem;
+}
+
+.onboarding-points p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.onboarding-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+}
+
+.onboarding-actions button {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.75rem 1rem;
+  color: #20142d;
+  background: linear-gradient(135deg, #f8d66d, #ffb15c);
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.onboarding-actions .secondary {
+  color: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+@media (max-width: 760px) {
+  .onboarding-points {
+    grid-template-columns: 1fr;
+  }
+}

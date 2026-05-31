@@ -1,0 +1,45 @@
+.storage-migration-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.storage-migration-actions button {
+  border: 1px solid rgba(94, 164, 255, 0.34);
+  border-radius: 999px;
+  padding: 9px 11px;
+  color: #e5f0ff;
+  background: rgba(94, 164, 255, 0.1);
+  font-size: 0.78rem;
+  font-weight: 850;
+}
+
+.storage-migration-actions button:last-child {
+  border-color: rgba(78, 216, 137, 0.34);
+  color: #d7ffe8;
+  background: rgba(78, 216, 137, 0.1);
+}
+
+.storage-migration-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.storage-migration-summary span {
+  border: 1px solid rgba(214, 168, 61, 0.26);
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: #fff8dc;
+  background: rgba(214, 168, 61, 0.08);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+.storage-migration-result {
+  margin-top: 12px;
+  color: #d7ffe8 !important;
+  font-weight: 800;
+}

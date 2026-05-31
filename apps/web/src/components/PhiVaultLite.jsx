@@ -11,7 +11,12 @@ import {
   scanContinuityArtifacts,
   uniqueArtifactValues,
 } from '../lib/localArtifactRegistry.js';
-import { createAsyncArtifactRegistryStatus } from '../lib/localArtifactRegistryAsync.js';
+import { createAsyncArtifactRegistryStatus, scanContinuityArtifactsAsync } from '../lib/localArtifactRegistryAsync.js';
+import {
+  createArtifactRegistryParityReport,
+  getArtifactRegistryParityProblemIds,
+  summarizeArtifactRegistryParity,
+} from '../lib/artifactRegistryParity.js';
 import { getStorageStatus, getStorageStatusMessage } from '../lib/storageDiagnostics.js';
 import { createBrowserStorageAdapter } from '../lib/storageAdapters.js';
 import { createStorageMigrationPlan, migrateStorage, summarizeMigrationPlan } from '../lib/storageMigration.js';
@@ -58,6 +63,7 @@ export default function PhiVaultLite() {
   const [storageStatus, setStorageStatus] = useState(null);
   const [workspaceAsyncStatus, setWorkspaceAsyncStatus] = useState(null);
   const [asyncRegistryStatus, setAsyncRegistryStatus] = useState(null);
+  const [asyncArtifacts, setAsyncArtifacts] = useState([]);
   const [storagePreferenceStatus, setStoragePreferenceStatus] = useState(null);
   const [migrationPlan, setMigrationPlan] = useState(null);
   const [migrationResult, setMigrationResult] = useState(null);
@@ -78,6 +84,17 @@ export default function PhiVaultLite() {
   const migrationConflictKeys = useMemo(() => getMigrationConflictKeys(migrationPlan, 5), [migrationPlan]);
   const verificationProblemKeys = useMemo(() => getVerificationProblemKeys(verificationReport, 5), [verificationReport]);
   const readinessReport = useMemo(() => (storageStatus ? createStorageReadinessReport({ storageStatus, verificationReport }) : null), [storageStatus, verificationReport]);
+  const registryParityReport = useMemo(() => (
+    asyncRegistryStatus
+      ? createArtifactRegistryParityReport({
+        syncArtifacts: artifacts,
+        asyncArtifacts,
+        asyncAdapterId: workspaceAsyncStatus?.adapterId ?? 'unknown',
+      })
+      : null
+  ), [artifacts, asyncArtifacts, asyncRegistryStatus, workspaceAsyncStatus]);
+  const registryParitySummary = useMemo(() => (registryParityReport ? summarizeArtifactRegistryParity(registryParityReport) : null), [registryParityReport]);
+  const registryParityProblemIds = useMemo(() => getArtifactRegistryParityProblemIds(registryParityReport, 5), [registryParityReport]);
 
   const manifest = useMemo(() => createProjectManifest({
     projectId: 'local_phioffice369_project',
@@ -109,12 +126,14 @@ export default function PhiVaultLite() {
     setStorageStatus(nextStatus);
 
     try {
-      const [nextAsyncStatus, nextAsyncRegistryStatus] = await Promise.all([
+      const [nextAsyncStatus, nextAsyncRegistryStatus, nextAsyncArtifacts] = await Promise.all([
         createWorkspaceAsyncStatus({ environment: window }),
         createAsyncArtifactRegistryStatus({ environment: window }),
+        scanContinuityArtifactsAsync({ environment: window }),
       ]);
       setWorkspaceAsyncStatus(nextAsyncStatus);
       setAsyncRegistryStatus(nextAsyncRegistryStatus);
+      setAsyncArtifacts(nextAsyncArtifacts);
       setStoragePreferenceStatus(createStoragePreferenceStatus({
         storage: window.localStorage,
         activeAdapterId: nextAsyncStatus.adapterId,
@@ -129,6 +148,7 @@ export default function PhiVaultLite() {
         error: error?.message ?? 'unknown error',
       });
       setAsyncRegistryStatus(null);
+      setAsyncArtifacts([]);
       setStoragePreferenceStatus(createStoragePreferenceStatus({
         storage: window.localStorage,
         activeAdapterId: nextStatus.activeAdapterId,
@@ -365,6 +385,14 @@ export default function PhiVaultLite() {
     copyJson(asyncRegistryStatus, 'Async artifact registry status');
   }
 
+  function copyRegistryParityReport() {
+    if (!registryParityReport) {
+      setStatus('Registry parity report is not available yet');
+      return;
+    }
+    copyJson(registryParityReport, 'Artifact registry parity report');
+  }
+
   function copySelectedArtifact() {
     if (!selectedArtifact) return;
     copyJson(selectedArtifact, 'Artifact JSON');
@@ -525,6 +553,26 @@ export default function PhiVaultLite() {
                     </div>
                     <div className="storage-migration-actions preference-actions">
                       <button type="button" onClick={copyAsyncRegistryStatus}>Copy registry status</button>
+                    </div>
+                  </div>
+                )}
+                {registryParitySummary && (
+                  <div className={`storage-preference-card ${registryParitySummary.parity ? 'matched' : 'mismatch'}`}>
+                    <h4>{registryParitySummary.parity ? 'Registry parity passed' : 'Registry parity needs review'}</h4>
+                    <p>This compares the current visible sync vault scan against the async preference-aware registry scan.</p>
+                    <div className="storage-readiness-grid">
+                      <span>Sync: {registryParitySummary.syncCount}</span>
+                      <span>Async: {registryParitySummary.asyncCount}</span>
+                      <span>Missing async: {registryParitySummary.missingInAsyncCount}</span>
+                      <span>Extra async: {registryParitySummary.extraInAsyncCount}</span>
+                    </div>
+                    {registryParityProblemIds.length > 0 && (
+                      <div className="storage-blocker-list">
+                        {registryParityProblemIds.map((id) => <code key={id}>{id}</code>)}
+                      </div>
+                    )}
+                    <div className="storage-migration-actions preference-actions">
+                      <button type="button" onClick={copyRegistryParityReport}>Copy parity report</button>
                     </div>
                   </div>
                 )}

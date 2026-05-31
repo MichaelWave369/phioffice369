@@ -45,6 +45,16 @@ export function createEmergencyBackupPayload({ error, errorInfo, storage, source
   };
 }
 
+export function createWorkspaceBackupPayload({ storage, manifest = null, source = 'PhiVault-lite manual export' }) {
+  return {
+    schema: 'phioffice369.workspace_backup.v0.1',
+    source,
+    createdAt: new Date().toISOString(),
+    manifest,
+    storageSnapshot: collectPhiOfficeStorageSnapshot(storage),
+  };
+}
+
 export function writeEmergencyBackup({ error, errorInfo, source = 'AppErrorBoundary' }) {
   if (!canUseEmergencyStorage()) {
     return { ok: false, key: null, payload: null, reason: 'localStorage unavailable' };

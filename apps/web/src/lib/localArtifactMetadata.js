@@ -1,4 +1,8 @@
-import { canUseBrowserLocalStorage } from './localReceipts.js';
+import {
+  canUseBrowserLocalStorage,
+  readStorageJson,
+  writeStorageJson,
+} from './workspaceStorageAccess.js';
 
 export const ARTIFACT_METADATA_PREFIX = 'phioffice369:artifact_metadata:';
 
@@ -42,13 +46,7 @@ export function normalizeMetadata(metadata = {}) {
 export function readArtifactMetadata(artifactId) {
   if (!canUseBrowserLocalStorage()) return normalizeMetadata();
 
-  try {
-    const raw = window.localStorage.getItem(createArtifactMetadataKey(artifactId));
-    if (!raw) return normalizeMetadata();
-    return normalizeMetadata(JSON.parse(raw));
-  } catch {
-    return normalizeMetadata();
-  }
+  return normalizeMetadata(readStorageJson(createArtifactMetadataKey(artifactId)) ?? {});
 }
 
 export function writeArtifactMetadata(artifactId, metadata) {
@@ -62,7 +60,7 @@ export function writeArtifactMetadata(artifactId, metadata) {
   });
 
   if (canUseBrowserLocalStorage()) {
-    window.localStorage.setItem(createArtifactMetadataKey(artifactId), JSON.stringify(nextMetadata));
+    writeStorageJson(createArtifactMetadataKey(artifactId), nextMetadata);
   }
 
   return nextMetadata;

@@ -78,6 +78,17 @@ export const STORAGE_NAMESPACE_CATALOG = [
     adapterStatus: 'must-remain-readable-before-adapter-selection',
     sourceOfTruth: 'localStorage-control-plane',
   },
+  {
+    id: 'vault_scan_source_preference',
+    prefix: 'phioffice369:vault_scan_source_preference',
+    app: 'PhiVault',
+    kind: 'scan_source_preference',
+    purpose: 'Local operator preference for the visible PhiVault scan source.',
+    currentBackend: 'localStorage-via-workspaceStorageAccess',
+    migrationTarget: 'localStorage-control-key',
+    adapterStatus: 'routed-through-workspace-storage-access',
+    sourceOfTruth: 'localStorage-control-plane',
+  },
 ];
 
 export function getStorageKeyCatalog() {

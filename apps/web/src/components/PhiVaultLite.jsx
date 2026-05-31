@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { ClipboardCopy, Download, FolderLock, RefreshCw, Search, ShieldCheck, Sparkles, Upload, X } from 'lucide-react';
 import { createProjectManifest } from '@phioffice369/core';
-import { parseTagInput, writeArtifactMetadata } from '../lib/localArtifactMetadata.js';
+import { normalizeProjectFolder, parseTagInput, writeArtifactMetadata } from '../lib/localArtifactMetadata.js';
 import {
   buildExportTimeline,
   filterArtifacts,
@@ -42,10 +42,12 @@ export default function PhiVaultLite() {
   const [query, setQuery] = useState('');
   const [appFilter, setAppFilter] = useState('all');
   const [kindFilter, setKindFilter] = useState('all');
+  const [projectFilter, setProjectFilter] = useState('all');
   const [selectedArtifact, setSelectedArtifact] = useState(null);
   const [tagInput, setTagInput] = useState('');
+  const [projectInput, setProjectInput] = useState('');
 
-  const filteredArtifacts = useMemo(() => filterArtifacts(artifacts, query, appFilter, kindFilter), [appFilter, artifacts, kindFilter, query]);
+  const filteredArtifacts = useMemo(() => filterArtifacts(artifacts, query, appFilter, kindFilter, projectFilter), [appFilter, artifacts, kindFilter, projectFilter, query]);
 
   const manifest = useMemo(() => createProjectManifest({
     projectId: 'local_phioffice369_project',
@@ -62,13 +64,16 @@ export default function PhiVaultLite() {
   const exportReceiptCount = exportTimeline.length;
   const appOptions = useMemo(() => uniqueArtifactValues(artifacts, 'app'), [artifacts]);
   const kindOptions = useMemo(() => uniqueArtifactValues(artifacts, 'kind'), [artifacts]);
+  const projectOptions = useMemo(() => uniqueArtifactValues(artifacts, 'projectFolder'), [artifacts]);
   const selectedReceipt = selectedArtifact?.receipts?.[0] ?? null;
+  const projectFolderCount = projectOptions.filter((option) => option !== 'all').length;
 
   function refreshArtifacts() {
     const nextArtifacts = scanContinuityArtifacts();
     setArtifacts(nextArtifacts);
     setSelectedArtifact(null);
     setTagInput('');
+    setProjectInput('');
     setStatus(`Scanned ${nextArtifacts.length} continuity item${nextArtifacts.length === 1 ? '' : 's'}`);
   }
 
@@ -76,12 +81,14 @@ export default function PhiVaultLite() {
     setQuery('');
     setAppFilter('all');
     setKindFilter('all');
+    setProjectFilter('all');
     setStatus('Vault filters reset');
   }
 
   function selectArtifact(artifact) {
     setSelectedArtifact(artifact);
     setTagInput((artifact.tags ?? []).join(', '));
+    setProjectInput(artifact.projectFolder ?? '');
   }
 
   function exportManifest() {
@@ -112,28 +119,44 @@ export default function PhiVaultLite() {
     copyJson(selectedReceipt, 'Receipt JSON');
   }
 
-  function saveSelectedTags() {
+  function updateSelectedMetadata(metadata, statusMessage) {
     if (!selectedArtifact) return;
-    const tags = parseTagInput(tagInput);
-    const metadata = writeArtifactMetadata(selectedArtifact.artifactId, { tags });
+    const nextMetadata = writeArtifactMetadata(selectedArtifact.artifactId, metadata);
     const updateWithMetadata = (artifact) => ({
       ...artifact,
-      tags,
+      tags: nextMetadata.tags,
+      projectFolder: nextMetadata.projectFolder,
       metadata: {
         ...(artifact.metadata ?? {}),
-        tags,
-        metadataUpdatedAt: metadata.updatedAt,
+        tags: nextMetadata.tags,
+        projectFolder: nextMetadata.projectFolder,
+        metadataUpdatedAt: nextMetadata.updatedAt,
       },
     });
 
     setArtifacts((currentArtifacts) => updateArtifactInList(currentArtifacts, selectedArtifact.artifactId, updateWithMetadata));
     setSelectedArtifact((currentSelected) => (currentSelected ? updateWithMetadata(currentSelected) : currentSelected));
-    setTagInput(tags.join(', '));
-    setStatus(`Saved ${tags.length} local tag${tags.length === 1 ? '' : 's'}`);
+    setTagInput(nextMetadata.tags.join(', '));
+    setProjectInput(nextMetadata.projectFolder ?? '');
+    setStatus(statusMessage(nextMetadata));
+  }
+
+  function saveSelectedTags() {
+    const tags = parseTagInput(tagInput);
+    updateSelectedMetadata({ tags }, (metadata) => `Saved ${metadata.tags.length} local tag${metadata.tags.length === 1 ? '' : 's'}`);
+  }
+
+  function saveSelectedProjectFolder() {
+    const projectFolder = normalizeProjectFolder(projectInput);
+    updateSelectedMetadata({ projectFolder }, (metadata) => (metadata.projectFolder ? `Assigned to ${metadata.projectFolder}` : 'Removed project folder assignment'));
   }
 
   function clearSelectedTags() {
     setTagInput('');
+  }
+
+  function clearProjectInput() {
+    setProjectInput('');
   }
 
   function triggerImport() {
@@ -174,7 +197,7 @@ export default function PhiVaultLite() {
         <div>
           <p className="eyebrow">PhiVault-lite</p>
           <h2>Local project continuity</h2>
-          <p>Scan browser-local drafts, grids, and export receipts; preview imported manifests; and export project continuity JSON.</p>
+          <p>Scan browser-local drafts, grids, decks, and export receipts; organize them with local tags and project folders; then export project continuity JSON.</p>
           <p className="vault-status">{status}</p>
           {copyStatus && <p className="vault-copy-status">{copyStatus}</p>}
         </div>
@@ -196,7 +219,7 @@ export default function PhiVaultLite() {
             <div><strong>{artifacts.length}</strong><span>items</span></div>
             <div><strong>{filteredArtifacts.length}</strong><span>shown</span></div>
             <div><strong>{exportReceiptCount}</strong><span>exports</span></div>
-            <div><strong>{appGroupCount}</strong><span>app groups</span></div>
+            <div><strong>{projectFolderCount}</strong><span>folders</span></div>
           </div>
           <p>Nothing is uploaded. This view only reads local browser storage created by the prototype and imported JSON files you select.</p>
 
@@ -214,16 +237,16 @@ export default function PhiVaultLite() {
           <div className="vault-section-heading">
             <div>
               <p className="eyebrow">Local continuity</p>
-              <h2>Detected drafts, grids, and exports</h2>
+              <h2>Detected drafts, grids, decks, and exports</h2>
             </div>
           </div>
 
           <div className="vault-filter-panel">
             <label className="vault-search-box">
               <Search aria-hidden="true" />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title, app, kind, label, tag, path, status..." />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title, app, kind, label, tag, folder, path, status..." />
             </label>
-            <div className="vault-select-row">
+            <div className="vault-select-row three-selects">
               <label>
                 <span>App</span>
                 <select value={appFilter} onChange={(event) => setAppFilter(event.target.value)}>
@@ -234,6 +257,12 @@ export default function PhiVaultLite() {
                 <span>Kind</span>
                 <select value={kindFilter} onChange={(event) => setKindFilter(event.target.value)}>
                   {kindOptions.map((option) => <option key={option} value={option}>{option === 'all' ? 'All kinds' : option}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>Project</span>
+                <select value={projectFilter} onChange={(event) => setProjectFilter(event.target.value)}>
+                  {projectOptions.map((option) => <option key={option} value={option}>{option === 'all' ? 'All folders' : option}</option>)}
                 </select>
               </label>
               <button type="button" onClick={resetFilters}>Reset filters</button>
@@ -278,9 +307,9 @@ export default function PhiVaultLite() {
                 <div><span>App</span><strong>{detailValue(selectedArtifact.app)}</strong></div>
                 <div><span>Kind</span><strong>{detailValue(selectedArtifact.kind)}</strong></div>
                 <div><span>Status</span><strong>{detailValue(selectedArtifact.status)}</strong></div>
+                <div><span>Project folder</span><strong>{detailValue(selectedArtifact.projectFolder)}</strong></div>
                 <div><span>Source template</span><strong>{detailValue(selectedArtifact.sourceTemplateId)}</strong></div>
-                <div><span>Created</span><strong>{detailValue(selectedArtifact.createdAt)}</strong></div>
-                <div><span>Updated</span><strong>{detailValue(selectedArtifact.updatedAt)}</strong></div>
+                <div><span>Updated</span><strong>{detailValue(selectedArtifact.metadata?.metadataUpdatedAt ?? selectedArtifact.updatedAt)}</strong></div>
               </div>
 
               <div className="detail-path-box">
@@ -304,8 +333,21 @@ export default function PhiVaultLite() {
                 </div>
               </div>
 
+              <div className="detail-tag-editor project-editor">
+                <label>
+                  <span>Project folder</span>
+                  <input value={projectInput} onChange={(event) => setProjectInput(event.target.value)} placeholder="Client Launch, Home Ops, PHI369 Docs" />
+                </label>
+                <p>Project folders are local organization metadata. They are searchable, filterable, and included in exported manifests.</p>
+                <div className="detail-tag-actions">
+                  <button type="button" onClick={saveSelectedProjectFolder}>Save folder</button>
+                  <button type="button" onClick={clearProjectInput}>Clear input</button>
+                </div>
+              </div>
+
               <div className="detail-label-row tag-row">
                 {(selectedArtifact.tags?.length ? selectedArtifact.tags : ['no_tags']).map((tag) => <span key={tag}>{tag}</span>)}
+                {selectedArtifact.projectFolder && <span>{selectedArtifact.projectFolder}</span>}
               </div>
 
               {selectedReceipt && (
@@ -339,7 +381,7 @@ export default function PhiVaultLite() {
             <div className="empty-vault">
               <Sparkles aria-hidden="true" />
               <h3>No matching continuity items</h3>
-              <p>Try clearing the search or changing the app/kind filters.</p>
+              <p>Try clearing the search or changing the app/kind/project filters.</p>
             </div>
           ) : (
             <div className="artifact-groups">
@@ -366,6 +408,7 @@ export default function PhiVaultLite() {
                         </div>
                         <div className="artifact-badges">
                           <span>{artifact.status}</span>
+                          {artifact.projectFolder && <span>{artifact.projectFolder}</span>}
                           {artifact.receipts?.[0]?.format && <span>{artifact.receipts[0].format}</span>}
                           {artifact.labels.map((label) => <span key={label}>{label}</span>)}
                           {artifact.tags?.map((tag) => <span key={tag}>{tag}</span>)}

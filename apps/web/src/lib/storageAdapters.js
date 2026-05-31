@@ -1,3 +1,5 @@
+import { createIndexedDbStorageAdapter, isIndexedDbAvailable } from './indexedDbStorageAdapter.js';
+
 export const PHIOFFICE_STORAGE_PREFIX = 'phioffice369:';
 export const EMERGENCY_BACKUP_PREFIX = 'phioffice369:emergency_backup:';
 
@@ -106,17 +108,20 @@ export function createMemoryStorageAdapter(seed = {}) {
 }
 
 export function detectStorageBackend(environment = globalThis) {
-  if (environment?.indexedDB) return 'indexedDB';
+  if (isIndexedDbAvailable(environment)) return 'indexedDB';
   if (environment?.localStorage) return 'localStorage';
   return 'memory';
 }
 
-export function createBrowserStorageAdapter(environment = globalThis) {
+export function createBrowserStorageAdapter(environment = globalThis, options = {}) {
   const backend = detectStorageBackend(environment);
+  const preferredBackend = options.preferredBackend ?? 'localStorage';
 
-  if (backend === 'localStorage' || backend === 'indexedDB') {
-    // IndexedDB is the next durable target, but this adapter keeps the current
-    // app behavior stable until the async IndexedDB driver lands.
+  if (preferredBackend === 'indexedDB' && backend === 'indexedDB') {
+    return createIndexedDbStorageAdapter(environment);
+  }
+
+  if (environment?.localStorage) {
     return createLocalStorageAdapter(environment.localStorage);
   }
 

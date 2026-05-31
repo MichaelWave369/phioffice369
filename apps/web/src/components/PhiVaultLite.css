@@ -37,7 +37,8 @@
 .vault-actions button,
 .vault-select-row button,
 .detail-close-button,
-.detail-copy-actions button {
+.detail-copy-actions button,
+.detail-tag-actions button {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -51,7 +52,8 @@
 }
 
 .vault-actions button:nth-child(4),
-.detail-copy-actions button:first-child {
+.detail-copy-actions button:first-child,
+.detail-tag-actions button:first-child {
   background: rgba(214, 168, 61, 0.22);
 }
 
@@ -107,7 +109,8 @@
 .artifact-row p,
 .empty-vault p,
 .import-preview p,
-.receipt-timeline-item p {
+.receipt-timeline-item p,
+.detail-tag-editor p {
   color: #c9d2e3;
 }
 
@@ -278,7 +281,8 @@
 
 .detail-metadata-grid div,
 .detail-path-box,
-.detail-receipt-card {
+.detail-receipt-card,
+.detail-tag-editor {
   border: 1px solid rgba(214, 168, 61, 0.24);
   border-radius: 18px;
   padding: 13px;
@@ -286,7 +290,8 @@
 }
 
 .detail-metadata-grid span,
-.detail-path-box span {
+.detail-path-box span,
+.detail-tag-editor label span {
   display: block;
   margin-bottom: 7px;
   color: #f1e2b8;
@@ -302,6 +307,27 @@
   overflow-wrap: anywhere;
 }
 
+.detail-tag-editor {
+  display: grid;
+  gap: 10px;
+}
+
+.detail-tag-editor input {
+  width: 100%;
+  border: 1px solid rgba(214, 168, 61, 0.28);
+  border-radius: 999px;
+  padding: 12px 14px;
+  color: #f8fafc;
+  background: rgba(2, 7, 16, 0.52);
+  outline: none;
+}
+
+.detail-tag-editor input:focus {
+  border-color: rgba(214, 168, 61, 0.78);
+  box-shadow: 0 0 0 3px rgba(214, 168, 61, 0.12);
+}
+
+.detail-tag-actions,
 .detail-label-row,
 .detail-copy-actions {
   display: flex;
@@ -317,6 +343,12 @@
   background: rgba(214, 168, 61, 0.08);
   font-size: 0.82rem;
   font-weight: 800;
+}
+
+.detail-label-row.tag-row span,
+.artifact-badges span:nth-child(n + 3) {
+  border-color: rgba(78, 216, 137, 0.28);
+  background: rgba(78, 216, 137, 0.08);
 }
 
 .detail-receipt-card {
@@ -450,7 +482,8 @@
   .artifact-group-heading,
   .receipt-timeline-heading,
   .artifact-detail-heading,
-  .detail-copy-actions {
+  .detail-copy-actions,
+  .detail-tag-actions {
     justify-content: flex-start;
   }
 

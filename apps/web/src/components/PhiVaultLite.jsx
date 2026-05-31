@@ -1,7 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { ClipboardCopy, Download, FolderLock, RefreshCw, Search, ShieldCheck, Sparkles, Upload, X } from 'lucide-react';
 import { createProjectManifest } from '@phioffice369/core';
-import { createWorkspaceBackupPayload } from '../lib/emergencyBackups.js';
+import { createWorkspaceBackupPayload, isWorkspaceBackupPayload, restoreWorkspaceBackupPayload } from '../lib/emergencyBackups.js';
 import { normalizeProjectFolder, parseTagInput, writeArtifactMetadata } from '../lib/localArtifactMetadata.js';
 import {
   buildExportTimeline,
@@ -40,6 +40,7 @@ export default function PhiVaultLite() {
   const [status, setStatus] = useState('Local manifest ready');
   const [copyStatus, setCopyStatus] = useState('');
   const [importedManifest, setImportedManifest] = useState(null);
+  const [importedBackup, setImportedBackup] = useState(null);
   const [query, setQuery] = useState('');
   const [appFilter, setAppFilter] = useState('all');
   const [kindFilter, setKindFilter] = useState('all');
@@ -101,6 +102,22 @@ export default function PhiVaultLite() {
     const safeTimestamp = payload.createdAt.replace(/[:.]/g, '-');
     downloadJson(`phioffice369-workspace-backup-${safeTimestamp}.json`, payload);
     setStatus(`Workspace backup exported with ${payload.storageSnapshot.length} local item${payload.storageSnapshot.length === 1 ? '' : 's'}`);
+  }
+
+  function restoreImportedBackup() {
+    if (!importedBackup) return;
+    const result = restoreWorkspaceBackupPayload(importedBackup, window.localStorage);
+    if (!result.ok) {
+      setStatus(`Backup restore failed: ${result.reason}`);
+      return;
+    }
+
+    const nextArtifacts = scanContinuityArtifacts();
+    setArtifacts(nextArtifacts);
+    setSelectedArtifact(null);
+    setTagInput('');
+    setProjectInput('');
+    setStatus(`Restored ${result.restored} local item${result.restored === 1 ? '' : 's'} from workspace backup`);
   }
 
   async function copyJson(payload, label) {
@@ -177,14 +194,21 @@ export default function PhiVaultLite() {
     try {
       const text = await file.text();
       const parsed = JSON.parse(text);
+      if (isWorkspaceBackupPayload(parsed)) {
+        setImportedBackup(parsed);
+        setImportedManifest(parsed.manifest ?? null);
+        setStatus(`Workspace backup preview loaded: ${parsed.storageSnapshot.length} local item${parsed.storageSnapshot.length === 1 ? '' : 's'}`);
+        return;
+      }
       if (!parsed.schema?.startsWith('phioffice369.project_manifest.')) {
-        setStatus('Imported file is not a PhiOffice369 project manifest');
+        setStatus('Imported file is not a PhiOffice369 project manifest or workspace backup');
         return;
       }
       setImportedManifest(parsed);
+      setImportedBackup(null);
       setStatus(`Imported preview: ${parsed.title ?? 'Untitled manifest'}`);
     } catch {
-      setStatus('Could not read that manifest JSON');
+      setStatus('Could not read that manifest or backup JSON');
     } finally {
       event.target.value = '';
     }
@@ -230,6 +254,16 @@ export default function PhiVaultLite() {
             <div><strong>{projectFolderCount}</strong><span>folders</span></div>
           </div>
           <p>Nothing is uploaded. This view only reads local browser storage created by the prototype and imported JSON files you select.</p>
+
+          {importedBackup && (
+            <div className="import-preview backup-preview">
+              <h3>Workspace backup preview</h3>
+              <p>{importedBackup.source}</p>
+              <code>{importedBackup.schema}</code>
+              <span>{importedBackup.storageSnapshot.length} local items</span>
+              <button type="button" onClick={restoreImportedBackup}>Restore backup into browser storage</button>
+            </div>
+          )}
 
           {importedManifest && (
             <div className="import-preview">

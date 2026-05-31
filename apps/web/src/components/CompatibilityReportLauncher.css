@@ -1,0 +1,39 @@
+.compat-report-launcher {
+  position: fixed;
+  right: 1rem;
+  bottom: 6.25rem;
+  z-index: 45;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid rgba(248, 214, 109, 0.28);
+  border-radius: 999px;
+  padding: 0.6rem 0.82rem;
+  color: rgba(255, 255, 255, 0.9);
+  background: rgba(35, 27, 58, 0.9);
+  box-shadow: 0 14px 38px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(14px);
+  font-size: 0.82rem;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.compat-report-launcher:hover {
+  transform: translateY(-1px);
+  border-color: rgba(248, 214, 109, 0.48);
+}
+
+.compat-report-launcher svg {
+  width: 1rem;
+  height: 1rem;
+  color: #f8d66d;
+}
+
+@media (max-width: 840px) {
+  .compat-report-launcher {
+    position: static;
+    justify-content: center;
+    margin: 1rem auto 0;
+    width: min(100%, 22rem);
+  }
+}

@@ -8,46 +8,34 @@ PhiOffice369 is a local-first, browser-based productivity prototype. Dependency 
 - Internal packages use `file:` workspace references for GitHub Actions compatibility.
 - Avoid `workspace:*` until the deployment workflow is confirmed to support it safely.
 - Avoid hidden install steps that require private credentials.
-- Keep CI install simple: `npm install --prefer-offline --no-audit`.
+- Keep CI install simple: `npm install --prefer-offline --no-audit` until a lockfile is committed.
+- External runtime/build dependencies should use explicit semver ranges, not `latest`.
 
-## Temporary state
+## Current external ranges
 
-The web app currently uses `latest` for external dependencies while the prototype is moving quickly:
-
-- React
-- React DOM
-- Vite
-- Vite React plugin
-- lucide-react
-
-This is acceptable for the early prototype, but it should not remain the long-term release strategy.
-
-## v0.2 hardening target
-
-Before closing the dependency hardening issue, do the following:
-
-1. Replace `latest` with explicit compatible semver ranges.
-2. Run `npm install` from the repository root.
-3. Commit the generated `package-lock.json`.
-4. Switch CI from `npm install` to `npm ci`.
-5. Use `actions/setup-node` cache once the lockfile exists.
-6. Keep the explicit cache fallback only if it still improves workflow speed.
-
-## Recommended version strategy
-
-Use conservative compatible ranges instead of chasing newest releases:
+The web app currently pins external dependency ranges instead of using `latest`:
 
 ```json
 {
-  "react": "^19.x",
-  "react-dom": "^19.x",
-  "vite": "^7.x",
-  "@vitejs/plugin-react": "^5.x",
-  "lucide-react": "^0.x"
+  "react": "^19.0.0",
+  "react-dom": "^19.0.0",
+  "vite": "^7.0.0",
+  "@vitejs/plugin-react": "^5.0.0",
+  "lucide-react": "^0.468.0"
 }
 ```
 
-Exact version selection should happen in a real local install or a workflow-generated lockfile pass, not by guessing.
+These ranges are intended to reduce surprise breakage while still allowing compatible patch/minor updates.
+
+## Remaining v0.2 hardening target
+
+Before closing the dependency hardening issue, do the following:
+
+1. Run `npm install` from the repository root.
+2. Commit the generated `package-lock.json`.
+3. Switch CI from `npm install` to `npm ci`.
+4. Use `actions/setup-node` cache once the lockfile exists.
+5. Keep the explicit cache fallback only if it still improves workflow speed.
 
 ## Local-first dependency rules
 

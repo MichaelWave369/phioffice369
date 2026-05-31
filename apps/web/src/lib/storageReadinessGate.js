@@ -64,6 +64,45 @@ export function writeStorageBackendPreference(storage, preference) {
   return true;
 }
 
+export function clearStorageBackendPreference(storage) {
+  if (!storage?.removeItem) return false;
+  storage.removeItem(STORAGE_BACKEND_PREFERENCE_KEY);
+  return true;
+}
+
+export function getStoragePreferenceLabel(preference) {
+  if (!preference) return 'Default localStorage mode';
+  if (preference.backend === 'indexedDB-pilot') return 'IndexedDB pilot preference saved';
+  if (preference.backend === 'localStorage') return 'LocalStorage preference saved';
+  return `Unknown storage preference: ${preference.backend}`;
+}
+
+export function getStoragePreferenceMessage(preference) {
+  if (!preference) return 'No explicit storage preference is saved. PhiOffice stays on localStorage by default.';
+  if (preference.backend === 'indexedDB-pilot') return 'IndexedDB pilot is requested. PhiOffice will use the pilot adapter where preference-aware storage is enabled.';
+  if (preference.backend === 'localStorage') return 'LocalStorage is explicitly requested. This is the safest fallback mode.';
+  return 'The saved storage preference is not recognized. PhiOffice should fall back to localStorage.';
+}
+
+export function createStoragePreferenceStatus({ storage, activeAdapterId = 'unknown' }) {
+  const preference = readStorageBackendPreference(storage);
+  const requestedBackend = preference?.backend ?? 'localStorage-default';
+  const activeMatchesPreference = preference?.backend === 'indexedDB-pilot'
+    ? activeAdapterId === 'indexedDB'
+    : activeAdapterId === 'localStorage';
+
+  return {
+    schema: 'phioffice369.storage_preference_status.v0.1',
+    createdAt: new Date().toISOString(),
+    preference,
+    requestedBackend,
+    activeAdapterId,
+    activeMatchesPreference,
+    label: getStoragePreferenceLabel(preference),
+    message: getStoragePreferenceMessage(preference),
+  };
+}
+
 export function createIndexedDbPilotPreference(readinessReport) {
   if (!readinessReport?.canEnableIndexedDbPilot) {
     return createStorageBackendPreference({

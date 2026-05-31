@@ -87,7 +87,66 @@ export function getTrustLabelById(id) {
   return trustLabels.find((label) => label.id === id) ?? null;
 }
 
+export function assertNonEmptyString(value, fieldName) {
+  if (typeof value !== 'string' || value.trim().length === 0) {
+    throw new TypeError(`${fieldName} must be a non-empty string`);
+  }
+}
+
+export function assertKnownSuiteApp(app, fieldName = 'app') {
+  assertNonEmptyString(app, fieldName);
+  if (!suiteApps.includes(app)) {
+    throw new TypeError(`Invalid ${fieldName}: ${app}`);
+  }
+}
+
+export function assertKnownArtifactKind(kind) {
+  assertNonEmptyString(kind, 'kind');
+  if (!artifactKinds.includes(kind)) {
+    throw new TypeError(`Invalid artifact kind: ${kind}`);
+  }
+}
+
+export function assertStringArray(value, fieldName) {
+  if (!Array.isArray(value) || value.some((item) => typeof item !== 'string')) {
+    throw new TypeError(`${fieldName} must be an array of strings`);
+  }
+}
+
+export function assertKnownTrustLabels(labels = []) {
+  assertStringArray(labels, 'labels');
+  const invalidLabels = labels.filter((label) => !getTrustLabelById(label));
+  if (invalidLabels.length > 0) {
+    throw new TypeError(`Invalid trust labels: ${invalidLabels.join(', ')}`);
+  }
+}
+
+export function assertUniqueArtifactIds(artifacts = []) {
+  if (!Array.isArray(artifacts)) {
+    throw new TypeError('artifacts must be an array');
+  }
+
+  const seen = new Set();
+  const duplicates = new Set();
+  artifacts.forEach((artifact) => {
+    const artifactId = artifact?.artifactId;
+    assertNonEmptyString(artifactId, 'artifact.artifactId');
+    if (seen.has(artifactId)) duplicates.add(artifactId);
+    seen.add(artifactId);
+  });
+
+  if (duplicates.size > 0) {
+    throw new TypeError(`Duplicate artifact ids: ${Array.from(duplicates).join(', ')}`);
+  }
+}
+
 export function createArtifactReceipt({ artifactId, title, app, labels = [], transformations = [] }) {
+  assertNonEmptyString(artifactId, 'artifactId');
+  assertNonEmptyString(title, 'title');
+  assertKnownSuiteApp(app);
+  assertKnownTrustLabels(labels);
+  assertStringArray(transformations, 'transformations');
+
   return {
     artifactId,
     title,
@@ -107,6 +166,13 @@ export function createProjectManifest({
   tags = [],
   owner = 'local-user',
 }) {
+  assertNonEmptyString(projectId, 'projectId');
+  assertNonEmptyString(title, 'title');
+  assertNonEmptyString(owner, 'owner');
+  if (typeof description !== 'string') throw new TypeError('description must be a string');
+  assertStringArray(tags, 'tags');
+  assertUniqueArtifactIds(artifacts);
+
   return {
     schema: 'phioffice369.project_manifest.v0.1',
     projectId,
@@ -131,6 +197,16 @@ export function createArtifactManifestEntry({
   sourceTemplateId = null,
   status = 'draft',
 }) {
+  assertNonEmptyString(artifactId, 'artifactId');
+  assertNonEmptyString(title, 'title');
+  assertKnownArtifactKind(kind);
+  assertKnownSuiteApp(app);
+  if (typeof path !== 'string') throw new TypeError('path must be a string');
+  assertKnownTrustLabels(labels);
+  if (!Array.isArray(receipts)) throw new TypeError('receipts must be an array');
+  if (sourceTemplateId !== null && typeof sourceTemplateId !== 'string') throw new TypeError('sourceTemplateId must be null or a string');
+  assertNonEmptyString(status, 'status');
+
   return {
     artifactId,
     title,
@@ -147,6 +223,11 @@ export function createArtifactManifestEntry({
 }
 
 export function addArtifactToProjectManifest(manifest, artifact) {
+  if (!manifest || typeof manifest !== 'object') throw new TypeError('manifest must be an object');
+  if (!artifact || typeof artifact !== 'object') throw new TypeError('artifact must be an object');
+  assertNonEmptyString(artifact.artifactId, 'artifact.artifactId');
+  assertUniqueArtifactIds([...(manifest.artifacts ?? []), artifact]);
+
   return {
     ...manifest,
     artifacts: [...(manifest.artifacts ?? []), artifact],
@@ -162,6 +243,13 @@ export function createExportReceipt({
   warnings = [],
   compatibility = 'native',
 }) {
+  assertNonEmptyString(artifactId, 'artifactId');
+  assertNonEmptyString(format, 'format');
+  assertNonEmptyString(filename, 'filename');
+  assertKnownSuiteApp(sourceApp, 'sourceApp');
+  assertStringArray(warnings, 'warnings');
+  assertNonEmptyString(compatibility, 'compatibility');
+
   return {
     schema: 'phioffice369.export_receipt.v0.1',
     artifactId,
@@ -175,5 +263,10 @@ export function createExportReceipt({
 }
 
 export function createLocalStorageExportReceiptKey({ sourceApp, artifactId, format, exportedAt = new Date().toISOString() }) {
+  assertKnownSuiteApp(sourceApp, 'sourceApp');
+  assertNonEmptyString(artifactId, 'artifactId');
+  assertNonEmptyString(format, 'format');
+  assertNonEmptyString(exportedAt, 'exportedAt');
+
   return `phioffice369:export_receipt:${sourceApp}:${artifactId}:${format}:${exportedAt}`;
 }

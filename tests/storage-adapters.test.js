@@ -87,7 +87,7 @@ test('localStorage adapter filters emergency backups from workspace snapshots', 
   assert.deepEqual(await adapter.entries({ prefix: 'phioffice369:', includeEmergencyBackups: false }), [['phioffice369:phiwrite:test', 'doc']]);
 });
 
-test('browser adapter falls back from future indexedDB detection to localStorage adapter for now', async () => {
+test('browser adapter keeps localStorage compatibility by default while IndexedDB scaffold exists', async () => {
   const storage = createFakeStorage({ 'phioffice369:phigrid:test': 'grid' });
 
   assert.equal(detectStorageBackend({ indexedDB: {}, localStorage: storage }), 'indexedDB');
@@ -97,6 +97,12 @@ test('browser adapter falls back from future indexedDB detection to localStorage
   const adapter = createBrowserStorageAdapter({ indexedDB: {}, localStorage: storage });
   assert.equal(adapter.id, 'localStorage');
   assert.deepEqual(await adapter.workspaceSnapshot(), [['phioffice369:phigrid:test', 'grid']]);
+});
+
+test('browser adapter can explicitly select IndexedDB adapter when preferred', () => {
+  const adapter = createBrowserStorageAdapter({ indexedDB: {}, localStorage: createFakeStorage() }, { preferredBackend: 'indexedDB' });
+
+  assert.equal(adapter.id, 'indexedDB');
 });
 
 test('workspace backups can use async storage adapters', async () => {

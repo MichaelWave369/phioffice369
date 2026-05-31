@@ -6,6 +6,15 @@ import {
   scanStorageEntries,
 } from './workspaceStorageAccess.js';
 
+export const CONTROL_PLANE_STORAGE_KEYS = [
+  'phioffice369:storage_backend_preference',
+  'phioffice369:vault_scan_source_preference',
+];
+
+export function isControlPlaneStorageKey(key) {
+  return CONTROL_PLANE_STORAGE_KEYS.some((controlKey) => key.startsWith(controlKey));
+}
+
 export function parseStoredJsonValue(key) {
   if (!canUseBrowserLocalStorage()) return null;
   return readStorageJson(key);
@@ -48,6 +57,8 @@ export function scanLocalDraftArtifacts() {
     .map(([key]) => key)
     .filter((key) => !key.startsWith('phioffice369:export_receipt:'))
     .filter((key) => !key.startsWith(ARTIFACT_METADATA_PREFIX))
+    .filter((key) => !key.startsWith('phioffice369:emergency_backup:'))
+    .filter((key) => !isControlPlaneStorageKey(key))
     .map((key) => {
       const storedValue = parseStoredJsonValue(key);
       const { kind, app } = getArtifactKindAndAppFromStorageKey(key);

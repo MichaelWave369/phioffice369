@@ -59,6 +59,14 @@ test('createArtifactReceipt produces a v0.1 receipt envelope', () => {
   assert.match(receipt.createdAt, /^\d{4}-\d{2}-\d{2}T/);
 });
 
+test('createArtifactReceipt rejects invalid core fields', () => {
+  assert.throws(() => createArtifactReceipt({ artifactId: '', title: 'Test', app: 'PhiWrite' }), /artifactId/);
+  assert.throws(() => createArtifactReceipt({ artifactId: 'artifact_001', title: '', app: 'PhiWrite' }), /title/);
+  assert.throws(() => createArtifactReceipt({ artifactId: 'artifact_001', title: 'Test', app: 'BadApp' }), /Invalid app/);
+  assert.throws(() => createArtifactReceipt({ artifactId: 'artifact_001', title: 'Test', app: 'PhiWrite', labels: ['bad_label'] }), /Invalid trust labels/);
+  assert.throws(() => createArtifactReceipt({ artifactId: 'artifact_001', title: 'Test', app: 'PhiWrite', transformations: [123] }), /transformations/);
+});
+
 test('project manifest can receive artifact manifest entries', () => {
   const project = createProjectManifest({
     projectId: 'project_001',
@@ -83,6 +91,30 @@ test('project manifest can receive artifact manifest entries', () => {
   assert.equal(nextProject.artifacts[0].status, 'draft');
 });
 
+test('project manifest and addArtifactToProjectManifest reject duplicate artifact ids', () => {
+  const artifact = createArtifactManifestEntry({
+    artifactId: 'artifact_001',
+    title: 'Test Artifact',
+    kind: 'document',
+    app: 'PhiWrite',
+  });
+
+  assert.throws(() => createProjectManifest({
+    projectId: 'project_001',
+    title: 'Test Project',
+    artifacts: [artifact, artifact],
+  }), /Duplicate artifact ids/);
+
+  const project = createProjectManifest({ projectId: 'project_001', title: 'Test Project', artifacts: [artifact] });
+  assert.throws(() => addArtifactToProjectManifest(project, artifact), /Duplicate artifact ids/);
+});
+
+test('createArtifactManifestEntry rejects invalid kind app and labels', () => {
+  assert.throws(() => createArtifactManifestEntry({ artifactId: 'artifact_001', title: 'Test', kind: 'bad_kind', app: 'PhiWrite' }), /Invalid artifact kind/);
+  assert.throws(() => createArtifactManifestEntry({ artifactId: 'artifact_001', title: 'Test', kind: 'document', app: 'BadApp' }), /Invalid app/);
+  assert.throws(() => createArtifactManifestEntry({ artifactId: 'artifact_001', title: 'Test', kind: 'document', app: 'PhiWrite', labels: ['bad_label'] }), /Invalid trust labels/);
+});
+
 test('export receipts capture format, filename, and compatibility status', () => {
   const receipt = createExportReceipt({
     artifactId: 'artifact_001',
@@ -99,6 +131,11 @@ test('export receipts capture format, filename, and compatibility status', () =>
   assert.deepEqual(receipt.warnings, []);
 });
 
+test('export receipts reject invalid source apps and warnings', () => {
+  assert.throws(() => createExportReceipt({ artifactId: 'artifact_001', format: 'markdown', filename: 'test.md', sourceApp: 'BadApp' }), /Invalid sourceApp/);
+  assert.throws(() => createExportReceipt({ artifactId: 'artifact_001', format: 'markdown', filename: 'test.md', sourceApp: 'PhiWrite', warnings: ['ok', 123] }), /warnings/);
+});
+
 test('export receipt local storage keys are namespaced and scan-friendly', () => {
   const key = createLocalStorageExportReceiptKey({
     sourceApp: 'PhiWrite',
@@ -108,4 +145,9 @@ test('export receipt local storage keys are namespaced and scan-friendly', () =>
   });
 
   assert.equal(key, 'phioffice369:export_receipt:PhiWrite:draft_basic_project_spec:markdown:2026-05-30T00:00:00.000Z');
+});
+
+test('export receipt key rejects invalid input before writing storage keys', () => {
+  assert.throws(() => createLocalStorageExportReceiptKey({ sourceApp: 'BadApp', artifactId: 'artifact_001', format: 'markdown' }), /Invalid sourceApp/);
+  assert.throws(() => createLocalStorageExportReceiptKey({ sourceApp: 'PhiWrite', artifactId: '', format: 'markdown' }), /artifactId/);
 });

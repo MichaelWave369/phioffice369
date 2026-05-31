@@ -100,6 +100,17 @@ function getOpenButtonLabel(template) {
   return 'Open in PhiWrite-lite';
 }
 
+function createBridgeDeckTemplate(deckPayload) {
+  return {
+    id: `bridge_${deckPayload.sourceTemplateId ?? 'phiwrite'}_deck`,
+    title: deckPayload.title ?? 'PhiWrite Deck',
+    app: 'PhiDeck',
+    purpose: `Generated from ${deckPayload.sourceTemplateTitle ?? 'PhiWrite-lite draft'}.`,
+    trustDefaults: deckPayload.trustDefaults ?? ['ai_assisted', 'needs_citation'],
+    sections: deckPayload.slides?.map((slide) => slide.title) ?? ['Opening', 'Core Idea', 'Next Step'],
+  };
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState('Suite');
   const [query, setQuery] = useState('');
@@ -130,14 +141,22 @@ export default function App() {
     transformations: ['template_to_artifact_preview'],
   }), [selectedTemplate]);
 
+  function openBridgeDeck(deckPayload) {
+    setActiveWorkspace({
+      kind: 'deck',
+      template: createBridgeDeckTemplate(deckPayload),
+      initialDeck: deckPayload,
+    });
+  }
+
   if (activeWorkspace) {
     return (
       <main className="shell">
         {activeWorkspace.kind === 'grid'
           ? <PhiGridLite template={activeWorkspace.template} onBack={() => setActiveWorkspace(null)} />
           : activeWorkspace.kind === 'deck'
-            ? <PhiDeckLite template={activeWorkspace.template} onBack={() => setActiveWorkspace(null)} />
-            : <PhiWriteLite template={activeWorkspace.template} onBack={() => setActiveWorkspace(null)} />}
+            ? <PhiDeckLite template={activeWorkspace.template} initialDeck={activeWorkspace.initialDeck} onBack={() => setActiveWorkspace(null)} />
+            : <PhiWriteLite template={activeWorkspace.template} onOpenDeck={openBridgeDeck} onBack={() => setActiveWorkspace(null)} />}
       </main>
     );
   }

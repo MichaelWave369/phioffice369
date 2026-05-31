@@ -14,6 +14,7 @@ import {
 import { getStorageStatus, getStorageStatusMessage } from '../lib/storageDiagnostics.js';
 import { createBrowserStorageAdapter } from '../lib/storageAdapters.js';
 import { createStorageMigrationPlan, migrateStorage, summarizeMigrationPlan } from '../lib/storageMigration.js';
+import { createStorageMigrationReport, getMigrationConflictKeys } from '../lib/storageMigrationReports.js';
 import './PhiVaultLite.css';
 import './PhiVaultMigration.css';
 
@@ -58,6 +59,8 @@ export default function PhiVaultLite() {
 
   const filteredArtifacts = useMemo(() => filterArtifacts(artifacts, query, appFilter, kindFilter, projectFilter), [appFilter, artifacts, kindFilter, projectFilter, query]);
   const migrationSummary = useMemo(() => (migrationPlan ? summarizeMigrationPlan(migrationPlan) : null), [migrationPlan]);
+  const migrationReport = useMemo(() => (migrationPlan ? createStorageMigrationReport({ plan: migrationPlan, result: migrationResult }) : null), [migrationPlan, migrationResult]);
+  const migrationConflictKeys = useMemo(() => getMigrationConflictKeys(migrationPlan, 5), [migrationPlan]);
 
   const manifest = useMemo(() => createProjectManifest({
     projectId: 'local_phioffice369_project',
@@ -129,6 +132,17 @@ export default function PhiVaultLite() {
     setStatus(`Workspace backup exported with ${payload.storageSnapshot.length} local item${payload.storageSnapshot.length === 1 ? '' : 's'}`);
   }
 
+  function exportMigrationReport() {
+    if (!migrationReport) {
+      setStatus('Create a migration plan before exporting a report');
+      return;
+    }
+
+    const safeTimestamp = migrationReport.createdAt.replace(/[:.]/g, '-');
+    downloadJson(`phioffice369-storage-migration-report-${safeTimestamp}.json`, migrationReport);
+    setStatus('Redacted storage migration report exported');
+  }
+
   async function planIndexedDbMigration() {
     if (!window.indexedDB) {
       setStatus('IndexedDB is not available in this browser');
@@ -192,6 +206,14 @@ export default function PhiVaultLite() {
 
   function copyManifest() {
     copyJson(manifest, 'Manifest JSON');
+  }
+
+  function copyMigrationReport() {
+    if (!migrationReport) {
+      setStatus('Create a migration plan before copying a report');
+      return;
+    }
+    copyJson(migrationReport, 'Redacted migration report');
   }
 
   function copySelectedArtifact() {
@@ -332,6 +354,8 @@ export default function PhiVaultLite() {
                 <div className="storage-migration-actions">
                   <button type="button" onClick={planIndexedDbMigration}>Plan IndexedDB migration</button>
                   <button type="button" onClick={copyMissingToIndexedDb}>Copy missing safely</button>
+                  <button type="button" onClick={copyMigrationReport}>Copy report</button>
+                  <button type="button" onClick={exportMigrationReport}>Export report</button>
                 </div>
                 {migrationSummary && (
                   <div className="storage-migration-summary">
@@ -340,6 +364,12 @@ export default function PhiVaultLite() {
                     <span>Synced: {migrationSummary.alreadySyncedCount}</span>
                     <span>Conflicts: {migrationSummary.conflictCount}</span>
                     <span>{migrationSummary.safeToCopyWithoutOverwrite ? 'Safe copy path clear' : 'Conflicts require review'}</span>
+                  </div>
+                )}
+                {migrationConflictKeys.length > 0 && (
+                  <div className="storage-conflict-preview">
+                    <h4>Conflict keys</h4>
+                    {migrationConflictKeys.map((key) => <code key={key}>{key}</code>)}
                   </div>
                 )}
                 {migrationResult && (

@@ -6,8 +6,11 @@ import {
   createWorkspaceBackupPayload,
   EMERGENCY_BACKUP_PREFIX,
   errorToPlainObject,
+  isWorkspaceBackupPayload,
   restoreEmergencyBackupPayload,
+  restoreWorkspaceBackupPayload,
   storageKeys,
+  WORKSPACE_BACKUP_SCHEMA,
 } from '../apps/web/src/lib/emergencyBackups.js';
 
 function createFakeStorage(seed = {}) {
@@ -81,13 +84,20 @@ test('createWorkspaceBackupPayload creates manual backups with manifest context'
   const manifest = { schema: 'phioffice369.project_manifest.v0.1', artifacts: [] };
   const payload = createWorkspaceBackupPayload({ storage, manifest, source: 'manual-test' });
 
-  assert.equal(payload.schema, 'phioffice369.workspace_backup.v0.1');
+  assert.equal(WORKSPACE_BACKUP_SCHEMA, 'phioffice369.workspace_backup.v0.1');
+  assert.equal(payload.schema, WORKSPACE_BACKUP_SCHEMA);
   assert.equal(payload.source, 'manual-test');
   assert.deepEqual(payload.manifest, manifest);
   assert.deepEqual(payload.storageSnapshot, [
     ['phioffice369:phiwrite:test', '{"title":"Doc"}'],
     ['phioffice369:phideck:test', '{"slides":[]}'],
   ]);
+});
+
+test('isWorkspaceBackupPayload validates backup payload shape', () => {
+  assert.equal(isWorkspaceBackupPayload({ schema: WORKSPACE_BACKUP_SCHEMA, storageSnapshot: [] }), true);
+  assert.equal(isWorkspaceBackupPayload({ schema: WORKSPACE_BACKUP_SCHEMA }), false);
+  assert.equal(isWorkspaceBackupPayload({ schema: 'other', storageSnapshot: [] }), false);
 });
 
 test('restoreEmergencyBackupPayload writes captured keys back to storage', () => {
@@ -103,5 +113,24 @@ test('restoreEmergencyBackupPayload writes captured keys back to storage', () =>
   assert.deepEqual(storage.toObject(), {
     'phioffice369:phiwrite:test': '{"title":"Recovered"}',
     'phioffice369:phideck:test': '{"slides":[]}',
+  });
+});
+
+test('restoreWorkspaceBackupPayload validates and restores workspace backup payloads', () => {
+  const storage = createFakeStorage();
+  const ok = restoreWorkspaceBackupPayload({
+    schema: WORKSPACE_BACKUP_SCHEMA,
+    storageSnapshot: [
+      ['phioffice369:phiwrite:test', '{"title":"Recovered"}'],
+      ['phioffice369:phigrid:test', '{"rows":[]}'],
+    ],
+  }, storage);
+  const invalid = restoreWorkspaceBackupPayload({ schema: 'other', storageSnapshot: [] }, storage);
+
+  assert.deepEqual(ok, { ok: true, restored: 2, reason: null });
+  assert.equal(invalid.ok, false);
+  assert.deepEqual(storage.toObject(), {
+    'phioffice369:phiwrite:test': '{"title":"Recovered"}',
+    'phioffice369:phigrid:test': '{"rows":[]}',
   });
 });

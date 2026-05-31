@@ -19,22 +19,16 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version-file: .nvmrc
-
-      - name: Restore npm cache
-        uses: actions/cache@v4
-        with:
-          path: ~/.npm
-          key: ${{ runner.os }}-npm-${{ hashFiles('package.json', 'apps/web/package.json', 'packages/*/package.json') }}
-          restore-keys: |
-            ${{ runner.os }}-npm-
+          cache: npm
+          cache-dependency-path: package-lock.json
 
       - name: Show tool versions
         run: |
           node --version
           npm --version
 
-      - name: Install dependencies
-        run: npm install --prefer-offline --no-audit
+      - name: Install dependencies from lockfile
+        run: npm ci --no-audit
 
       - name: Run tests
         run: npm test

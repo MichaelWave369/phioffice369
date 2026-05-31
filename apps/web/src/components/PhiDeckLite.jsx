@@ -54,15 +54,42 @@ function bulletTextToArray(value) {
   return value.split('\n').map((line) => line.trim()).filter(Boolean);
 }
 
-export default function PhiDeckLite({ template, onBack }) {
+function resolveInitialDeck(template, initialDeck) {
+  if (initialDeck?.slides?.length) {
+    return {
+      title: initialDeck.title ?? template.title,
+      slides: initialDeck.slides,
+      activeLabelId: initialDeck.trustDefaults?.[0] ?? template.trustDefaults[0] ?? 'ai_assisted',
+      status: `Opened from ${initialDeck.sourceTemplateTitle ?? 'PhiWrite'} bridge`,
+    };
+  }
+
+  const savedDeck = loadDeck(template);
+  if (savedDeck?.slides?.length) {
+    return {
+      title: savedDeck.title ?? template.title,
+      slides: savedDeck.slides,
+      activeLabelId: savedDeck.activeLabelId ?? template.trustDefaults[0] ?? 'ai_assisted',
+      status: 'Restored local deck',
+    };
+  }
+
+  return {
+    title: template.title,
+    slides: makeStarterSlides(template),
+    activeLabelId: template.trustDefaults[0] ?? 'ai_assisted',
+    status: 'New local deck',
+  };
+}
+
+export default function PhiDeckLite({ template, onBack, initialDeck = null }) {
   const importInputRef = useRef(null);
-  const savedDeck = useMemo(() => loadDeck(template), [template]);
-  const starterSlides = useMemo(() => makeStarterSlides(template), [template]);
-  const [title, setTitle] = useState(savedDeck?.title ?? template.title);
-  const [slides, setSlides] = useState(savedDeck?.slides ?? starterSlides);
-  const [activeSlideId, setActiveSlideId] = useState((savedDeck?.slides ?? starterSlides)[0]?.id ?? 'slide-1');
-  const [activeLabelId, setActiveLabelId] = useState(savedDeck?.activeLabelId ?? template.trustDefaults[0] ?? 'ai_assisted');
-  const [saveStatus, setSaveStatus] = useState(savedDeck ? 'Restored local deck' : 'New local deck');
+  const initialState = useMemo(() => resolveInitialDeck(template, initialDeck), [initialDeck, template]);
+  const [title, setTitle] = useState(initialState.title);
+  const [slides, setSlides] = useState(initialState.slides);
+  const [activeSlideId, setActiveSlideId] = useState(initialState.slides[0]?.id ?? 'slide-1');
+  const [activeLabelId, setActiveLabelId] = useState(initialState.activeLabelId);
+  const [saveStatus, setSaveStatus] = useState(initialState.status);
   const [copyStatus, setCopyStatus] = useState('');
 
   const activeSlide = slides.find((slide) => slide.id === activeSlideId) ?? slides[0];
@@ -73,8 +100,8 @@ export default function PhiDeckLite({ template, onBack }) {
     title,
     app: 'PhiDeck',
     labels: Array.from(new Set([...template.trustDefaults, activeLabelId])),
-    transformations: ['template_to_phideck_lite_deck'],
-  }), [activeLabelId, template, title]);
+    transformations: initialDeck ? ['phiwrite_to_phideck_lite_workspace'] : ['template_to_phideck_lite_deck'],
+  }), [activeLabelId, initialDeck, template, title]);
 
   useEffect(() => {
     if (!canUseLocalStorage()) return undefined;

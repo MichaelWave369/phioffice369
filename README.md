@@ -16,7 +16,7 @@ https://michaelwave369.github.io/phioffice369/
 ## Run locally
 
 ```bash
-npm install
+npm ci --no-audit
 npm run dev
 ```
 

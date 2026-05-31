@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createArtifactManifestEntry, createProjectManifest } from '../packages/core/src/index.js';
 import {
+  applyVaultImportPreviewState,
+  createVaultImportPreviewFromFile,
   createVaultImportPreviewState,
   parseAndValidateVaultImportText,
   validateProjectManifestImport,
@@ -109,4 +111,42 @@ test('parseAndValidateVaultImportText parses valid JSON and rejects invalid JSON
   assert.equal(invalid.validation.ok, false);
   assert.equal(invalid.previewState.importedManifest, null);
   assert.match(invalid.previewState.status, /Could not read/);
+});
+
+test('createVaultImportPreviewFromFile validates file text before creating preview state', async () => {
+  const file = {
+    name: 'manifest.json',
+    async text() {
+      return JSON.stringify(createValidManifest());
+    },
+  };
+
+  const result = await createVaultImportPreviewFromFile(file);
+
+  assert.equal(result.fileName, 'manifest.json');
+  assert.equal(result.validation.ok, true);
+  assert.equal(result.previewState.importedManifest.projectId, 'project_001');
+});
+
+test('createVaultImportPreviewFromFile rejects missing files safely', async () => {
+  const result = await createVaultImportPreviewFromFile(null);
+
+  assert.equal(result.validation.ok, false);
+  assert.equal(result.previewState.importedManifest, null);
+  assert.match(result.previewState.status, /No import file selected/);
+});
+
+test('applyVaultImportPreviewState calls supplied component setters', () => {
+  const calls = [];
+  const previewState = createVaultImportPreviewState(validateProjectManifestImport(createValidManifest()));
+
+  const applied = applyVaultImportPreviewState(previewState, {
+    setImportedBackup: (value) => calls.push(['backup', value]),
+    setImportedManifest: (value) => calls.push(['manifest', value?.projectId]),
+    setStatus: (value) => calls.push(['status', value]),
+    setImportErrors: (value) => calls.push(['errors', value.length]),
+  });
+
+  assert.equal(applied.importedManifest.projectId, 'project_001');
+  assert.deepEqual(calls.map(([name]) => name), ['backup', 'manifest', 'status', 'errors']);
 });

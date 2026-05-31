@@ -17,6 +17,12 @@ import { createArtifactReceipt, trustLabels } from '@phioffice369/core';
 import { parseMarkdownImport } from '../lib/localImporters.js';
 import { saveLocalExportReceipt } from '../lib/localReceipts.js';
 import { createPhiWriteToPhiDeckPayload, getTransformIds } from '../lib/transformRegistry.js';
+import {
+  canUseBrowserLocalStorage,
+  readStorageJson,
+  removeStorageValue,
+  writeStorageJson,
+} from '../lib/workspaceStorageAccess.js';
 import './PhiWriteLite.css';
 
 function makeStarterContent(template) {
@@ -27,22 +33,13 @@ function slugify(value) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'phioffice369-draft';
 }
 
-function canUseLocalStorage() {
-  try {
-    return typeof window !== 'undefined' && 'localStorage' in window;
-  } catch {
-    return false;
-  }
+function createPhiWriteStorageKey(templateId) {
+  return `phioffice369:phiwrite:${templateId}`;
 }
 
 function loadDraft(template) {
-  if (!canUseLocalStorage()) return null;
-  try {
-    const raw = window.localStorage.getItem(`phioffice369:phiwrite:${template.id}`);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
+  if (!canUseBrowserLocalStorage()) return null;
+  return readStorageJson(createPhiWriteStorageKey(template.id));
 }
 
 function cleanSentences(value) {
@@ -138,10 +135,16 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   }), [activeLabelId, template, title]);
 
   useEffect(() => {
-    if (!canUseLocalStorage()) return undefined;
+    if (!canUseBrowserLocalStorage()) return undefined;
     setSaveStatus('Unsaved changes...');
     const timeout = window.setTimeout(() => {
-      window.localStorage.setItem(`phioffice369:phiwrite:${template.id}`, JSON.stringify({ templateId: template.id, title, content, activeLabelId, updatedAt: new Date().toISOString() }));
+      writeStorageJson(createPhiWriteStorageKey(template.id), {
+        templateId: template.id,
+        title,
+        content,
+        activeLabelId,
+        updatedAt: new Date().toISOString(),
+      });
       setSaveStatus('Autosaved locally');
     }, 450);
     return () => window.clearTimeout(timeout);
@@ -161,7 +164,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
     setContent(makeStarterContent(template));
     setDeckSlides([]);
     setActiveLabelId(template.trustDefaults[0] ?? 'human_written');
-    if (canUseLocalStorage()) window.localStorage.removeItem(`phioffice369:phiwrite:${template.id}`);
+    if (canUseBrowserLocalStorage()) removeStorageValue(createPhiWriteStorageKey(template.id));
     setSaveStatus('Reset to template');
     setAssistantStatus('Local mock assistant ready');
   }

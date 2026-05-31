@@ -16,6 +16,12 @@ import { createBrowserStorageAdapter } from '../lib/storageAdapters.js';
 import { createStorageMigrationPlan, migrateStorage, summarizeMigrationPlan } from '../lib/storageMigration.js';
 import { createStorageMigrationReport, getMigrationConflictKeys } from '../lib/storageMigrationReports.js';
 import { getVerificationProblemKeys, verifyStorageMigration } from '../lib/storageMigrationVerify.js';
+import {
+  createIndexedDbPilotPreference,
+  createStorageBackendPreference,
+  createStorageReadinessReport,
+  writeStorageBackendPreference,
+} from '../lib/storageReadinessGate.js';
 import './PhiVaultLite.css';
 import './PhiVaultMigration.css';
 
@@ -64,6 +70,7 @@ export default function PhiVaultLite() {
   const migrationReport = useMemo(() => (migrationPlan ? createStorageMigrationReport({ plan: migrationPlan, result: migrationResult }) : null), [migrationPlan, migrationResult]);
   const migrationConflictKeys = useMemo(() => getMigrationConflictKeys(migrationPlan, 5), [migrationPlan]);
   const verificationProblemKeys = useMemo(() => getVerificationProblemKeys(verificationReport, 5), [verificationReport]);
+  const readinessReport = useMemo(() => (storageStatus ? createStorageReadinessReport({ storageStatus, verificationReport }) : null), [storageStatus, verificationReport]);
 
   const manifest = useMemo(() => createProjectManifest({
     projectId: 'local_phioffice369_project',
@@ -157,6 +164,17 @@ export default function PhiVaultLite() {
     setStatus('Redacted storage verification report exported');
   }
 
+  function exportReadinessReport() {
+    if (!readinessReport) {
+      setStatus('Storage readiness report is not available yet');
+      return;
+    }
+
+    const safeTimestamp = readinessReport.createdAt.replace(/[:.]/g, '-');
+    downloadJson(`phioffice369-storage-readiness-report-${safeTimestamp}.json`, readinessReport);
+    setStatus('Storage readiness report exported');
+  }
+
   async function planIndexedDbMigration() {
     if (!window.indexedDB) {
       setStatus('IndexedDB is not available in this browser');
@@ -210,6 +228,25 @@ export default function PhiVaultLite() {
     }
   }
 
+  async function enableIndexedDbPilot() {
+    if (!readinessReport) {
+      setStatus('Run storage verification before enabling IndexedDB pilot mode');
+      return;
+    }
+
+    const preference = createIndexedDbPilotPreference(readinessReport);
+    writeStorageBackendPreference(window.localStorage, preference);
+    await refreshStorageStatus();
+    setStatus(readinessReport.canEnableIndexedDbPilot ? 'IndexedDB pilot preference saved. Refresh the app to use pilot storage.' : `IndexedDB pilot blocked: ${readinessReport.blockers.join(', ')}`);
+  }
+
+  async function keepLocalStorageMode() {
+    const preference = createStorageBackendPreference({ backend: 'localStorage', reason: 'manual_localstorage_preference', readinessReport });
+    writeStorageBackendPreference(window.localStorage, preference);
+    await refreshStorageStatus();
+    setStatus('LocalStorage preference saved. PhiOffice will stay on localStorage mode.');
+  }
+
   function restoreImportedBackup() {
     if (!importedBackup) return;
     const result = restoreWorkspaceBackupPayload(importedBackup, window.localStorage);
@@ -254,6 +291,14 @@ export default function PhiVaultLite() {
       return;
     }
     copyJson(verificationReport, 'Redacted verification report');
+  }
+
+  function copyReadinessReport() {
+    if (!readinessReport) {
+      setStatus('Storage readiness report is not available yet');
+      return;
+    }
+    copyJson(readinessReport, 'Storage readiness report');
   }
 
   function copySelectedArtifact() {
@@ -432,6 +477,29 @@ export default function PhiVaultLite() {
                   <div className="storage-conflict-preview">
                     <h4>Verification problem keys</h4>
                     {verificationProblemKeys.map((key) => <code key={key}>{key}</code>)}
+                  </div>
+                )}
+                {readinessReport && (
+                  <div className={`storage-readiness-card ${readinessReport.canEnableIndexedDbPilot ? 'ready' : 'blocked'}`}>
+                    <h4>{readinessReport.canEnableIndexedDbPilot ? 'IndexedDB pilot ready' : 'IndexedDB pilot blocked'}</h4>
+                    <p>{readinessReport.canEnableIndexedDbPilot ? 'Verification passed. You can save a pilot preference, then refresh to test IndexedDB-backed storage.' : 'PhiOffice will stay on localStorage until blockers are cleared.'}</p>
+                    <div className="storage-readiness-grid">
+                      <span>Verified: {readinessReport.verificationVerified ? 'yes' : 'no'}</span>
+                      <span>Missing: {readinessReport.verificationMissingCount}</span>
+                      <span>Mismatched: {readinessReport.verificationMismatchedCount}</span>
+                      <span>Can pilot: {readinessReport.canEnableIndexedDbPilot ? 'yes' : 'no'}</span>
+                    </div>
+                    {readinessReport.blockers.length > 0 && (
+                      <div className="storage-blocker-list">
+                        {readinessReport.blockers.map((blocker) => <code key={blocker}>{blocker}</code>)}
+                      </div>
+                    )}
+                    <div className="storage-migration-actions readiness-actions">
+                      <button type="button" onClick={enableIndexedDbPilot} disabled={!readinessReport.canEnableIndexedDbPilot}>Enable IndexedDB pilot</button>
+                      <button type="button" onClick={keepLocalStorageMode}>Keep localStorage mode</button>
+                      <button type="button" onClick={copyReadinessReport}>Copy readiness</button>
+                      <button type="button" onClick={exportReadinessReport}>Export readiness</button>
+                    </div>
                   </div>
                 )}
               </div>

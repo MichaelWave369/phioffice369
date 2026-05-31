@@ -16,6 +16,7 @@ import { createBrowserStorageAdapter } from '../lib/storageAdapters.js';
 import { createStorageMigrationPlan, migrateStorage, summarizeMigrationPlan } from '../lib/storageMigration.js';
 import { createStorageMigrationReport, getMigrationConflictKeys } from '../lib/storageMigrationReports.js';
 import { getVerificationProblemKeys, verifyStorageMigration } from '../lib/storageMigrationVerify.js';
+import { createWorkspaceAsyncStatus } from '../lib/workspaceStorageAsync.js';
 import {
   clearStorageBackendPreference,
   createIndexedDbPilotPreference,
@@ -54,6 +55,7 @@ export default function PhiVaultLite() {
   const [status, setStatus] = useState('Local manifest ready');
   const [copyStatus, setCopyStatus] = useState('');
   const [storageStatus, setStorageStatus] = useState(null);
+  const [workspaceAsyncStatus, setWorkspaceAsyncStatus] = useState(null);
   const [storagePreferenceStatus, setStoragePreferenceStatus] = useState(null);
   const [migrationPlan, setMigrationPlan] = useState(null);
   const [migrationResult, setMigrationResult] = useState(null);
@@ -102,10 +104,12 @@ export default function PhiVaultLite() {
 
   async function refreshStorageStatus() {
     const nextStatus = await getStorageStatus(window);
+    const nextAsyncStatus = await createWorkspaceAsyncStatus({ environment: window });
     setStorageStatus(nextStatus);
+    setWorkspaceAsyncStatus(nextAsyncStatus);
     setStoragePreferenceStatus(createStoragePreferenceStatus({
       storage: window.localStorage,
-      activeAdapterId: nextStatus.activeAdapterId,
+      activeAdapterId: nextAsyncStatus.adapterId,
     }));
   }
 
@@ -322,6 +326,14 @@ export default function PhiVaultLite() {
     copyJson(storagePreferenceStatus, 'Storage preference status');
   }
 
+  function copyAsyncStatus() {
+    if (!workspaceAsyncStatus) {
+      setStatus('Workspace async storage status is not available yet');
+      return;
+    }
+    copyJson(workspaceAsyncStatus, 'Workspace async storage status');
+  }
+
   function copySelectedArtifact() {
     if (!selectedArtifact) return;
     copyJson(selectedArtifact, 'Artifact JSON');
@@ -457,6 +469,20 @@ export default function PhiVaultLite() {
                   <span>Snapshot items: {storageStatus.snapshotCount}</span>
                   <span>IndexedDB ready: {storageStatus.readyForIndexedDbMigration ? 'yes' : 'no'}</span>
                 </div>
+                {workspaceAsyncStatus && (
+                  <div className="storage-async-card">
+                    <h4>Async workspace runtime</h4>
+                    <p>This reports the preference-aware async storage path that future app autosave will use.</p>
+                    <div className="storage-readiness-grid">
+                      <span>Adapter: {workspaceAsyncStatus.adapterId}</span>
+                      <span>Available: {workspaceAsyncStatus.available ? 'yes' : 'no'}</span>
+                      <span>Snapshot: {workspaceAsyncStatus.snapshotCount}</span>
+                    </div>
+                    <div className="storage-migration-actions preference-actions">
+                      <button type="button" onClick={copyAsyncStatus}>Copy async status</button>
+                    </div>
+                  </div>
+                )}
                 {storagePreferenceStatus && (
                   <div className={`storage-preference-card ${storagePreferenceStatus.activeMatchesPreference ? 'matched' : 'mismatch'}`}>
                     <h4>{storagePreferenceStatus.label}</h4>

@@ -26,6 +26,7 @@ import PhiDeckLite from './components/PhiDeckLite.jsx';
 import PhiVaultLite from './components/PhiVaultLite.jsx';
 import ShortcutHelpOverlay from './components/ShortcutHelpOverlay.jsx';
 import DataSovereigntyStatusBar from './components/DataSovereigntyStatusBar.jsx';
+import ProfessorPhiPanel from './components/ProfessorPhiPanel.jsx';
 import {
   getTabShortcutIndex,
   shouldCloseOverlay,
@@ -259,7 +260,12 @@ export default function App() {
       )}
 
       {activeTab === 'Professor Phi' && (
-        <section className="section-block two-column fade-in"><div className="panel"><p className="eyebrow">Professor Phi modes</p><h2>Assistant behavior with boundaries.</h2><div className="mode-list">{professorPhiModes.map((mode) => <button key={mode.id} type="button" className={`mode-card ${selectedMode.id === mode.id ? 'selected' : ''}`} onClick={() => setSelectedMode(mode)}><strong>{mode.label}</strong><span>{mode.description}</span></button>)}</div></div><div className="panel professor-panel"><p className="eyebrow">Selected mode</p><h2>{selectedMode.label}</h2><p>{selectedMode.description}</p><div className="professor-note-box"><Bot aria-hidden="true" /><p>Professor Phi helps create, transform, explain, and verify — while keeping the user sovereign over final choices.</p></div><ul className="system-notes">{professorPhiSystemNotes.map((note) => <li key={note}>{note}</li>)}</ul></div></section>
+        <ProfessorPhiPanel
+          modes={professorPhiModes}
+          systemNotes={professorPhiSystemNotes}
+          selectedMode={selectedMode}
+          onSelectMode={setSelectedMode}
+        />
       )}
 
       {activeTab === 'Transform' && (

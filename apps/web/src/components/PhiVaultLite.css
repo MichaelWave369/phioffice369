@@ -110,16 +110,53 @@
 .empty-vault p,
 .import-preview p,
 .receipt-timeline-item p,
-.detail-tag-editor p {
+.detail-tag-editor p,
+.storage-status-card p {
   color: #c9d2e3;
 }
 
-.import-preview {
+.import-preview,
+.storage-status-card {
   margin-top: 18px;
   border: 1px solid rgba(214, 168, 61, 0.28);
   border-radius: 20px;
   padding: 16px;
   background: rgba(214, 168, 61, 0.07);
+}
+
+.storage-status-card {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 12px;
+  align-items: start;
+  border-color: rgba(94, 164, 255, 0.34);
+  background: rgba(94, 164, 255, 0.07);
+}
+
+.storage-status-card > svg {
+  color: #8ab9ff;
+}
+
+.storage-status-card h3 {
+  margin: 0 0 8px;
+  color: #fff8dc;
+}
+
+.storage-status-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.storage-status-grid span {
+  border: 1px solid rgba(94, 164, 255, 0.28);
+  border-radius: 999px;
+  padding: 7px 10px;
+  color: #e5f0ff;
+  background: rgba(94, 164, 255, 0.08);
+  font-size: 0.78rem;
+  font-weight: 800;
 }
 
 .import-preview span {
@@ -130,6 +167,17 @@
   color: #fff8dc;
   background: rgba(2, 7, 16, 0.32);
   font-weight: 750;
+}
+
+.import-preview button {
+  width: 100%;
+  margin-top: 12px;
+  border: 1px solid rgba(214, 168, 61, 0.46);
+  border-radius: 999px;
+  padding: 10px 12px;
+  color: #fff8dc;
+  background: rgba(214, 168, 61, 0.16);
+  font-weight: 850;
 }
 
 .vault-section-heading {
@@ -186,6 +234,10 @@
   grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
   gap: 12px;
   align-items: end;
+}
+
+.vault-select-row.three-selects {
+  grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
 }
 
 .vault-select-row label {
@@ -471,9 +523,11 @@
   .vault-grid,
   .artifact-row,
   .vault-select-row,
+  .vault-select-row.three-selects,
   .receipt-timeline-item,
   .detail-metadata-grid,
-  .detail-metadata-grid.compact {
+  .detail-metadata-grid.compact,
+  .storage-status-card {
     grid-template-columns: 1fr;
   }
 

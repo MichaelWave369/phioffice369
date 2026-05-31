@@ -6,7 +6,7 @@ export const LOCAL_STORAGE_BOUNDARY_FILES = [
   {
     path: 'apps/web/src/lib/workspaceStorageAccess.js',
     boundary: 'primary-sync-access-layer',
-    migrationAction: 'keep-as-localStorage-compatibility-boundary',
+    migrationAction: 'keep-as-localStorage-compatibility-boundary-until-async-adapter-access-lands',
   },
   {
     path: 'apps/web/src/lib/storageAdapters.js',
@@ -32,21 +32,6 @@ export const LOCAL_STORAGE_BOUNDARY_FILES = [
     path: 'apps/web/src/components/AppErrorBoundary.jsx',
     boundary: 'crash-recovery-ui',
     migrationAction: 'keep-until-emergency-backup-writer-is-fully-adapter-aware',
-  },
-  {
-    path: 'apps/web/src/components/PhiWriteLite.jsx',
-    boundary: 'app-data-module',
-    migrationAction: 'migrate-phiwrite-drafts-to-workspace-storage-access-next',
-  },
-  {
-    path: 'apps/web/src/components/PhiGridLite.jsx',
-    boundary: 'app-data-module',
-    migrationAction: 'migrate-phigrid-tables-after-phiwrite',
-  },
-  {
-    path: 'apps/web/src/components/PhiDeckLite.jsx',
-    boundary: 'app-data-module',
-    migrationAction: 'migrate-phideck-decks-after-phigrid',
   },
 ];
 

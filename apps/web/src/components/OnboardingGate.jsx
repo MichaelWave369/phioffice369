@@ -3,6 +3,27 @@ import OnboardingModal from './OnboardingModal.jsx';
 import { scanContinuityArtifacts } from '../lib/localArtifactRegistry.js';
 import { shouldShowOnboarding, writeOnboardingSeen } from '../lib/onboardingState.js';
 
+export function clickTabByLabel(label) {
+  const buttons = Array.from(document.querySelectorAll('.tabs button'));
+  const target = buttons.find((button) => button.textContent?.trim() === label);
+  target?.click();
+  return Boolean(target);
+}
+
+export function clickFirstTemplateOpenButton() {
+  const button = document.querySelector('.open-workspace-button');
+  button?.click();
+  return Boolean(button);
+}
+
+export function guideToStarterTemplate() {
+  const clickedTemplates = clickTabByLabel('Templates');
+  window.setTimeout(() => {
+    clickFirstTemplateOpenButton();
+  }, 80);
+  return clickedTemplates;
+}
+
 export default function OnboardingGate({ children }) {
   const [isOpen, setIsOpen] = useState(false);
 
@@ -21,7 +42,9 @@ export default function OnboardingGate({ children }) {
 
   function startTemplateFlow() {
     closeOnboarding();
-    window.dispatchEvent(new CustomEvent('phioffice369:onboarding_start_template'));
+    window.setTimeout(() => {
+      guideToStarterTemplate();
+    }, 0);
   }
 
   return (

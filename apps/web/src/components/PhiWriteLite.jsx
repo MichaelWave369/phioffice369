@@ -16,6 +16,7 @@ import {
 import { createArtifactReceipt, trustLabels } from '@phioffice369/core';
 import { parseMarkdownImport } from '../lib/localImporters.js';
 import { saveLocalExportReceipt } from '../lib/localReceipts.js';
+import { createPhiWriteToPhiDeckPayload, getTransformIds } from '../lib/transformRegistry.js';
 import './PhiWriteLite.css';
 
 function makeStarterContent(template) {
@@ -133,7 +134,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
     title,
     app: template.app,
     labels: Array.from(new Set([...template.trustDefaults, activeLabelId])),
-    transformations: ['template_to_phiwrite_lite_draft'],
+    transformations: getTransformIds(['template_to_phiwrite_lite_draft']),
   }), [activeLabelId, template, title]);
 
   useEffect(() => {
@@ -178,7 +179,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
 
   function handleExportDeckJson() {
     const filename = `${slugify(title)}-phideck-lite.json`;
-    const payload = { schema: 'phioffice369.phideck_lite.v0.1', title, sourceTemplate: template.id, generatedAt: new Date().toISOString(), slides: deckSlides };
+    const payload = { schema: 'phioffice369.phideck_lite.v0.1', title, sourceTemplate: template.id, generatedAt: new Date().toISOString(), transformId: 'phiwrite_to_phideck_lite_workspace', slides: deckSlides };
     downloadTextFile(filename, JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
     saveLocalExportReceipt({ artifactId: `deck_${template.id}`, format: 'json', filename, sourceApp: 'PhiDeck' });
     setAssistantStatus('PhiDeck-lite JSON exported + receipt saved');
@@ -191,13 +192,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
       setAssistantStatus('PhiDeck-lite workspace bridge is unavailable');
       return;
     }
-    onOpenDeck({
-      title,
-      sourceTemplateId: template.id,
-      sourceTemplateTitle: template.title,
-      trustDefaults: Array.from(new Set([...template.trustDefaults, 'ai_assisted', 'needs_citation'])),
-      slides,
-    });
+    onOpenDeck(createPhiWriteToPhiDeckPayload({ title, template, slides }));
   }
 
   function triggerMarkdownImport() {

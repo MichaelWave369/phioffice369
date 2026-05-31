@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { ClipboardCopy, Download, FolderLock, RefreshCw, Search, ShieldCheck, Sparkles, Upload, X } from 'lucide-react';
 import { createProjectManifest } from '@phioffice369/core';
+import { createWorkspaceBackupPayload } from '../lib/emergencyBackups.js';
 import { normalizeProjectFolder, parseTagInput, writeArtifactMetadata } from '../lib/localArtifactMetadata.js';
 import {
   buildExportTimeline,
@@ -60,7 +61,6 @@ export default function PhiVaultLite() {
 
   const groupedArtifacts = useMemo(() => groupArtifactsByApp(filteredArtifacts), [filteredArtifacts]);
   const exportTimeline = useMemo(() => buildExportTimeline(artifacts), [artifacts]);
-  const appGroupCount = Object.keys(groupedArtifacts).length;
   const exportReceiptCount = exportTimeline.length;
   const appOptions = useMemo(() => uniqueArtifactValues(artifacts, 'app'), [artifacts]);
   const kindOptions = useMemo(() => uniqueArtifactValues(artifacts, 'kind'), [artifacts]);
@@ -94,6 +94,13 @@ export default function PhiVaultLite() {
   function exportManifest() {
     downloadJson('phioffice369-local-project-manifest.json', manifest);
     setStatus('Project manifest exported');
+  }
+
+  function exportWorkspaceBackup() {
+    const payload = createWorkspaceBackupPayload({ storage: window.localStorage, manifest });
+    const safeTimestamp = payload.createdAt.replace(/[:.]/g, '-');
+    downloadJson(`phioffice369-workspace-backup-${safeTimestamp}.json`, payload);
+    setStatus(`Workspace backup exported with ${payload.storageSnapshot.length} local item${payload.storageSnapshot.length === 1 ? '' : 's'}`);
   }
 
   async function copyJson(payload, label) {
@@ -206,6 +213,7 @@ export default function PhiVaultLite() {
           <button type="button" onClick={copyManifest}><ClipboardCopy aria-hidden="true" /> Copy manifest</button>
           <button type="button" onClick={triggerImport}><Upload aria-hidden="true" /> Import preview</button>
           <button type="button" onClick={exportManifest}><Download aria-hidden="true" /> Export manifest</button>
+          <button type="button" onClick={exportWorkspaceBackup}><Download aria-hidden="true" /> Backup workspace</button>
           <input ref={fileInputRef} className="vault-file-input" type="file" accept="application/json,.json" onChange={importManifest} />
         </div>
       </div>

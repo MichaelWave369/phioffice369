@@ -12,7 +12,10 @@ import {
   uniqueArtifactValues,
 } from '../lib/localArtifactRegistry.js';
 import { getStorageStatus, getStorageStatusMessage } from '../lib/storageDiagnostics.js';
+import { createBrowserStorageAdapter } from '../lib/storageAdapters.js';
+import { createStorageMigrationPlan, migrateStorage, summarizeMigrationPlan } from '../lib/storageMigration.js';
 import './PhiVaultLite.css';
+import './PhiVaultMigration.css';
 
 function downloadJson(filename, payload) {
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
@@ -41,6 +44,8 @@ export default function PhiVaultLite() {
   const [status, setStatus] = useState('Local manifest ready');
   const [copyStatus, setCopyStatus] = useState('');
   const [storageStatus, setStorageStatus] = useState(null);
+  const [migrationPlan, setMigrationPlan] = useState(null);
+  const [migrationResult, setMigrationResult] = useState(null);
   const [importedManifest, setImportedManifest] = useState(null);
   const [importedBackup, setImportedBackup] = useState(null);
   const [query, setQuery] = useState('');
@@ -52,6 +57,7 @@ export default function PhiVaultLite() {
   const [projectInput, setProjectInput] = useState('');
 
   const filteredArtifacts = useMemo(() => filterArtifacts(artifacts, query, appFilter, kindFilter, projectFilter), [appFilter, artifacts, kindFilter, projectFilter, query]);
+  const migrationSummary = useMemo(() => (migrationPlan ? summarizeMigrationPlan(migrationPlan) : null), [migrationPlan]);
 
   const manifest = useMemo(() => createProjectManifest({
     projectId: 'local_phioffice369_project',
@@ -70,6 +76,13 @@ export default function PhiVaultLite() {
   const projectOptions = useMemo(() => uniqueArtifactValues(artifacts, 'projectFolder'), [artifacts]);
   const selectedReceipt = selectedArtifact?.receipts?.[0] ?? null;
   const projectFolderCount = projectOptions.filter((option) => option !== 'all').length;
+
+  function createMigrationAdapters() {
+    return {
+      sourceAdapter: createBrowserStorageAdapter(window, { preferredBackend: 'localStorage' }),
+      targetAdapter: createBrowserStorageAdapter(window, { preferredBackend: 'indexedDB' }),
+    };
+  }
 
   async function refreshStorageStatus() {
     const nextStatus = await getStorageStatus(window);
@@ -114,6 +127,41 @@ export default function PhiVaultLite() {
     const safeTimestamp = payload.createdAt.replace(/[:.]/g, '-');
     downloadJson(`phioffice369-workspace-backup-${safeTimestamp}.json`, payload);
     setStatus(`Workspace backup exported with ${payload.storageSnapshot.length} local item${payload.storageSnapshot.length === 1 ? '' : 's'}`);
+  }
+
+  async function planIndexedDbMigration() {
+    if (!window.indexedDB) {
+      setStatus('IndexedDB is not available in this browser');
+      return;
+    }
+
+    try {
+      const { sourceAdapter, targetAdapter } = createMigrationAdapters();
+      const plan = await createStorageMigrationPlan({ sourceAdapter, targetAdapter });
+      setMigrationPlan(plan);
+      setMigrationResult(null);
+      setStatus(`Migration plan ready: ${plan.missingInTargetCount} missing, ${plan.alreadySyncedCount} synced, ${plan.conflictCount} conflicts`);
+    } catch (error) {
+      setStatus(`Could not create migration plan: ${error?.message ?? 'unknown error'}`);
+    }
+  }
+
+  async function copyMissingToIndexedDb() {
+    if (!window.indexedDB) {
+      setStatus('IndexedDB is not available in this browser');
+      return;
+    }
+
+    try {
+      const { sourceAdapter, targetAdapter } = createMigrationAdapters();
+      const { plan, result } = await migrateStorage({ sourceAdapter, targetAdapter, dryRun: false, overwrite: false });
+      setMigrationPlan(plan);
+      setMigrationResult(result);
+      await refreshStorageStatus();
+      setStatus(`IndexedDB safe copy complete: ${result.appliedCount} copied, ${result.skippedCount} skipped, ${result.conflictCount} conflicts`);
+    } catch (error) {
+      setStatus(`Could not copy to IndexedDB: ${error?.message ?? 'unknown error'}`);
+    }
   }
 
   function restoreImportedBackup() {
@@ -281,6 +329,22 @@ export default function PhiVaultLite() {
                   <span>Snapshot items: {storageStatus.snapshotCount}</span>
                   <span>IndexedDB ready: {storageStatus.readyForIndexedDbMigration ? 'yes' : 'no'}</span>
                 </div>
+                <div className="storage-migration-actions">
+                  <button type="button" onClick={planIndexedDbMigration}>Plan IndexedDB migration</button>
+                  <button type="button" onClick={copyMissingToIndexedDb}>Copy missing safely</button>
+                </div>
+                {migrationSummary && (
+                  <div className="storage-migration-summary">
+                    <span>Source: {migrationSummary.sourceCount}</span>
+                    <span>Missing: {migrationSummary.missingInTargetCount}</span>
+                    <span>Synced: {migrationSummary.alreadySyncedCount}</span>
+                    <span>Conflicts: {migrationSummary.conflictCount}</span>
+                    <span>{migrationSummary.safeToCopyWithoutOverwrite ? 'Safe copy path clear' : 'Conflicts require review'}</span>
+                  </div>
+                )}
+                {migrationResult && (
+                  <p className="storage-migration-result">Last copy: {migrationResult.appliedCount} copied · {migrationResult.skippedCount} skipped · {migrationResult.conflictCount} conflicts</p>
+                )}
               </div>
             </div>
           )}

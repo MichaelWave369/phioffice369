@@ -29,7 +29,7 @@ npm test
 npm run build
 ```
 
-Dependency notes live in [`docs/dependency-policy.md`](docs/dependency-policy.md). Short version: npm workspaces are used, internal packages currently use `file:` references for GitHub Actions compatibility, and `latest` dependency ranges are temporary until the v0.2 lockfile hardening pass.
+Dependency notes live in [`docs/dependency-policy.md`](docs/dependency-policy.md). The repo now uses a committed `package-lock.json`, CI installs with `npm ci --no-audit`, and dependency policy tests prevent `latest` and `workspace:*` from sneaking back into the prototype.
 
 ## Core idea
 
@@ -62,8 +62,29 @@ PhiOffice369 aims to provide a free core suite with:
 - PhiWrite-lite Markdown writing, import, export, local autosave, trust labels, mock assistant actions, and PhiWrite → PhiDeck bridge.
 - PhiGrid-lite editable local table, CSV import/export, JSON export, local totals, trust labels, and local autosave.
 - PhiDeck-lite standalone slide editor, deck JSON import/export, local autosave, trust labels, and receipt generation.
-- PhiVault-lite local continuity scan, search, filters, manifest export, imported manifest preview, and export receipt timeline.
+- PhiVault-lite local continuity scan, search, filters, detail drawer, local tags, project folders, manifest export, workspace backup/restore, imported manifest preview, export receipt timeline, and redacted storage migration reports.
+- Storage adapter foundation with localStorage default, IndexedDB pilot path, safe migration planning, safe copy, verification reports, readiness gate, and resettable storage preference.
 - Shared local artifact registry for drafts, grids, decks, and export receipts.
+
+## Storage pilot guide
+
+PhiOffice369 currently keeps localStorage as the safe default. IndexedDB support is being introduced through a gated pilot path.
+
+Read the operator guide before testing IndexedDB pilot mode:
+
+[`docs/storage-pilot-guide.md`](docs/storage-pilot-guide.md)
+
+Safe sequence:
+
+```text
+Backup workspace
+→ Plan IndexedDB migration
+→ Copy missing safely
+→ Verify copy
+→ Review readiness gate
+→ Enable IndexedDB pilot
+→ Refresh app
+```
 
 ## MVP v0.1 target
 

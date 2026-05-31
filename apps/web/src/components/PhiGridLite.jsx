@@ -3,18 +3,20 @@ import { ArrowLeft, ClipboardCopy, Download, Grid3X3, Plus, RotateCcw, ShieldChe
 import { createArtifactReceipt, trustLabels } from '@phioffice369/core';
 import { parseCsvImport } from '../lib/localImporters.js';
 import { saveLocalExportReceipt } from '../lib/localReceipts.js';
+import {
+  canUseBrowserLocalStorage,
+  readStorageJson,
+  removeStorageValue,
+  writeStorageJson,
+} from '../lib/workspaceStorageAccess.js';
 import './PhiGridLite.css';
 
 function slugify(value) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'phioffice369-grid';
 }
 
-function canUseLocalStorage() {
-  try {
-    return typeof window !== 'undefined' && Boolean(window.localStorage);
-  } catch {
-    return false;
-  }
+function createPhiGridStorageKey(templateId) {
+  return `phioffice369:phigrid:${templateId}`;
 }
 
 function getColumns(template) {
@@ -42,13 +44,8 @@ function starterRows(template, columns) {
 }
 
 function loadGrid(template) {
-  if (!canUseLocalStorage()) return null;
-  try {
-    const raw = window.localStorage.getItem(`phioffice369:phigrid:${template.id}`);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
+  if (!canUseBrowserLocalStorage()) return null;
+  return readStorageJson(createPhiGridStorageKey(template.id));
 }
 
 function numberValue(value) {
@@ -94,10 +91,17 @@ export default function PhiGridLite({ template, onBack }) {
   }), [activeLabelId, template, title]);
 
   useEffect(() => {
-    if (!canUseLocalStorage()) return undefined;
+    if (!canUseBrowserLocalStorage()) return undefined;
     setSaveStatus('Unsaved changes...');
     const timeout = window.setTimeout(() => {
-      window.localStorage.setItem(`phioffice369:phigrid:${template.id}`, JSON.stringify({ templateId: template.id, title, columns, rows, activeLabelId, updatedAt: new Date().toISOString() }));
+      writeStorageJson(createPhiGridStorageKey(template.id), {
+        templateId: template.id,
+        title,
+        columns,
+        rows,
+        activeLabelId,
+        updatedAt: new Date().toISOString(),
+      });
       setSaveStatus('Autosaved locally');
     }, 450);
     return () => window.clearTimeout(timeout);
@@ -126,7 +130,7 @@ export default function PhiGridLite({ template, onBack }) {
     setColumns(defaultColumns);
     setRows(starterRows(template, defaultColumns));
     setActiveLabelId(template.trustDefaults[0] ?? 'private');
-    if (canUseLocalStorage()) window.localStorage.removeItem(`phioffice369:phigrid:${template.id}`);
+    if (canUseBrowserLocalStorage()) removeStorageValue(createPhiGridStorageKey(template.id));
     setSaveStatus('Reset to template');
   }
 

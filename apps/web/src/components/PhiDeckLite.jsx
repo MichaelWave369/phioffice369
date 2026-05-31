@@ -4,18 +4,20 @@ import { createArtifactReceipt, trustLabels } from '@phioffice369/core';
 import { parsePhiDeckJsonImport } from '../lib/localImporters.js';
 import { saveLocalExportReceipt } from '../lib/localReceipts.js';
 import { getTransformIds } from '../lib/transformRegistry.js';
+import {
+  canUseBrowserLocalStorage,
+  readStorageJson,
+  removeStorageValue,
+  writeStorageJson,
+} from '../lib/workspaceStorageAccess.js';
 import './PhiDeckLite.css';
 
 function slugify(value) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'phioffice369-deck';
 }
 
-function canUseLocalStorage() {
-  try {
-    return typeof window !== 'undefined' && Boolean(window.localStorage);
-  } catch {
-    return false;
-  }
+function createPhiDeckStorageKey(templateId) {
+  return `phioffice369:phideck:${templateId}`;
 }
 
 function makeStarterSlides(template) {
@@ -30,13 +32,8 @@ function makeStarterSlides(template) {
 }
 
 function loadDeck(template) {
-  if (!canUseLocalStorage()) return null;
-  try {
-    const raw = window.localStorage.getItem(`phioffice369:phideck:${template.id}`);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
+  if (!canUseBrowserLocalStorage()) return null;
+  return readStorageJson(createPhiDeckStorageKey(template.id));
 }
 
 function downloadTextFile(filename, body, type) {
@@ -106,10 +103,10 @@ export default function PhiDeckLite({ template, onBack, initialDeck = null }) {
   }), [activeLabelId, template, title, transformId]);
 
   useEffect(() => {
-    if (!canUseLocalStorage()) return undefined;
+    if (!canUseBrowserLocalStorage()) return undefined;
     setSaveStatus('Unsaved changes...');
     const timeout = window.setTimeout(() => {
-      window.localStorage.setItem(`phioffice369:phideck:${template.id}`, JSON.stringify({
+      writeStorageJson(createPhiDeckStorageKey(template.id), {
         templateId: template.id,
         title,
         slides,
@@ -117,7 +114,7 @@ export default function PhiDeckLite({ template, onBack, initialDeck = null }) {
         transformId,
         transformTrace: initialDeck?.trace ?? null,
         updatedAt: new Date().toISOString(),
-      }));
+      });
       setSaveStatus('Autosaved locally');
     }, 450);
     return () => window.clearTimeout(timeout);
@@ -165,7 +162,7 @@ export default function PhiDeckLite({ template, onBack, initialDeck = null }) {
     setSlides(nextStarterSlides);
     setActiveSlideId(nextStarterSlides[0]?.id ?? 'slide-1');
     setActiveLabelId(template.trustDefaults[0] ?? 'ai_assisted');
-    if (canUseLocalStorage()) window.localStorage.removeItem(`phioffice369:phideck:${template.id}`);
+    if (canUseBrowserLocalStorage()) removeStorageValue(createPhiDeckStorageKey(template.id));
     setSaveStatus('Reset to template');
   }
 

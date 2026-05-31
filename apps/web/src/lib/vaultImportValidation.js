@@ -133,3 +133,36 @@ export function parseAndValidateVaultImportText(text) {
     };
   }
 }
+
+export async function createVaultImportPreviewFromFile(file) {
+  if (!file?.text) {
+    const validation = createVaultImportValidationResult({
+      ok: false,
+      kind: 'missing_file',
+      payload: null,
+      errors: ['No import file selected'],
+      summary: 'No import file selected.',
+    });
+    return {
+      fileName: null,
+      ...parseAndValidateVaultImportText('null'),
+      validation,
+      previewState: createVaultImportPreviewState(validation),
+    };
+  }
+
+  const text = await file.text();
+  return {
+    fileName: file.name ?? null,
+    ...parseAndValidateVaultImportText(text),
+  };
+}
+
+export function applyVaultImportPreviewState(previewState, setters = {}) {
+  setters.setImportedBackup?.(previewState.importedBackup);
+  setters.setImportedManifest?.(previewState.importedManifest);
+  setters.setStatus?.(previewState.status);
+  setters.setImportErrors?.(previewState.errors);
+
+  return previewState;
+}

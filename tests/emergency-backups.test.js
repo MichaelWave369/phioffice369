@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   collectPhiOfficeStorageSnapshot,
   createEmergencyBackupPayload,
+  createWorkspaceBackupPayload,
   EMERGENCY_BACKUP_PREFIX,
   errorToPlainObject,
   restoreEmergencyBackupPayload,
@@ -70,6 +71,23 @@ test('createEmergencyBackupPayload creates a versioned local backup snapshot', (
   assert.equal(payload.error.message, 'Crash');
   assert.equal(payload.componentStack, 'Component stack');
   assert.deepEqual(payload.storageSnapshot, [['phioffice369:phigrid:test', '{"rows":[]}']]);
+});
+
+test('createWorkspaceBackupPayload creates manual backups with manifest context', () => {
+  const storage = createFakeStorage({
+    'phioffice369:phiwrite:test': '{"title":"Doc"}',
+    'phioffice369:phideck:test': '{"slides":[]}',
+  });
+  const manifest = { schema: 'phioffice369.project_manifest.v0.1', artifacts: [] };
+  const payload = createWorkspaceBackupPayload({ storage, manifest, source: 'manual-test' });
+
+  assert.equal(payload.schema, 'phioffice369.workspace_backup.v0.1');
+  assert.equal(payload.source, 'manual-test');
+  assert.deepEqual(payload.manifest, manifest);
+  assert.deepEqual(payload.storageSnapshot, [
+    ['phioffice369:phiwrite:test', '{"title":"Doc"}'],
+    ['phioffice369:phideck:test', '{"slides":[]}'],
+  ]);
 });
 
 test('restoreEmergencyBackupPayload writes captured keys back to storage', () => {

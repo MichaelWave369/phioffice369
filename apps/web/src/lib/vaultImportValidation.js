@@ -72,3 +72,64 @@ export function validateVaultImportPayload(payload) {
     summary: 'Imported JSON does not match a supported PhiVault import type.',
   });
 }
+
+export function createVaultImportPreviewState(validationResult) {
+  if (!validationResult?.ok) {
+    return {
+      importedBackup: null,
+      importedManifest: null,
+      status: validationResult?.summary ?? 'Import validation failed.',
+      errors: validationResult?.errors ?? ['Import validation failed'],
+    };
+  }
+
+  if (validationResult.kind === 'workspace_backup') {
+    return {
+      importedBackup: validationResult.payload,
+      importedManifest: validationResult.payload.manifest ?? null,
+      status: validationResult.summary,
+      errors: [],
+    };
+  }
+
+  if (validationResult.kind === 'project_manifest') {
+    return {
+      importedBackup: null,
+      importedManifest: validationResult.payload,
+      status: validationResult.summary,
+      errors: [],
+    };
+  }
+
+  return {
+    importedBackup: null,
+    importedManifest: null,
+    status: 'Unsupported PhiVault import type.',
+    errors: ['Unsupported PhiVault import type'],
+  };
+}
+
+export function parseAndValidateVaultImportText(text) {
+  try {
+    const payload = JSON.parse(text);
+    const validation = validateVaultImportPayload(payload);
+    return {
+      parseOk: true,
+      validation,
+      previewState: createVaultImportPreviewState(validation),
+    };
+  } catch {
+    const validation = createVaultImportValidationResult({
+      ok: false,
+      kind: 'invalid_json',
+      payload: null,
+      errors: ['Could not parse imported JSON'],
+      summary: 'Could not read that manifest or backup JSON.',
+    });
+    return {
+      parseOk: false,
+      validation,
+      previewState: createVaultImportPreviewState(validation),
+    };
+  }
+}

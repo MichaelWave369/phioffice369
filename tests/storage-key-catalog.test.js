@@ -5,6 +5,7 @@ import {
   findStorageNamespace,
   getAdapterRefactorBacklog,
   getStorageKeyCatalog,
+  getWorkspaceAccessRoutedNamespaces,
   normalizeStorageKey,
   STORAGE_KEY_CATALOG_SCHEMA,
   STORAGE_NAMESPACE_CATALOG,
@@ -48,8 +49,9 @@ test('classifyStorageKey marks known PhiOffice namespaces', () => {
   assert.equal(classified.namespaceId, 'phiwrite_drafts');
   assert.equal(classified.app, 'PhiWrite');
   assert.equal(classified.kind, 'document');
-  assert.equal(classified.currentBackend, 'localStorage');
+  assert.equal(classified.currentBackend, 'localStorage-via-workspaceStorageAccess');
   assert.equal(classified.migrationTarget, 'indexedDB');
+  assert.equal(classified.adapterStatus, 'routed-through-workspace-storage-access');
 });
 
 test('classifyStorageKey marks unknown PhiOffice and external namespaces', () => {
@@ -57,20 +59,28 @@ test('classifyStorageKey marks unknown PhiOffice and external namespaces', () =>
   assert.equal(classifyStorageKey('external:key').namespaceId, 'external_namespace');
 });
 
-test('summarizeStorageCatalog counts namespaces and adapter backlog', () => {
+test('summarizeStorageCatalog counts namespaces and routed workspace access', () => {
   const summary = summarizeStorageCatalog();
 
   assert.equal(summary.totalNamespaces, STORAGE_NAMESPACE_CATALOG.length);
-  assert.equal(summary.byBackend.localStorage, STORAGE_NAMESPACE_CATALOG.length);
-  assert.ok(summary.pendingAdapterRefactor >= 5);
+  assert.equal(summary.byBackend['localStorage-via-workspaceStorageAccess'], 5);
+  assert.equal(summary.byBackend.localStorage, 2);
+  assert.equal(summary.routedThroughWorkspaceAccess, 5);
+  assert.equal(summary.pendingAdapterRefactor, 0);
 });
 
-test('getAdapterRefactorBacklog returns only pending app data namespaces', () => {
-  const backlog = getAdapterRefactorBacklog();
-  const ids = backlog.map((entry) => entry.id);
+test('getAdapterRefactorBacklog is clear after first workspace access routing pass', () => {
+  assert.deepEqual(getAdapterRefactorBacklog(), []);
+});
 
-  assert.ok(backlog.every((entry) => entry.adapterStatus === 'pending-adapter-refactor'));
+test('getWorkspaceAccessRoutedNamespaces returns routed app and vault data namespaces', () => {
+  const routed = getWorkspaceAccessRoutedNamespaces();
+  const ids = routed.map((entry) => entry.id);
+
+  assert.equal(routed.length, 5);
   assert.ok(ids.includes('phiwrite_drafts'));
   assert.ok(ids.includes('phigrid_tables'));
   assert.ok(ids.includes('phideck_decks'));
+  assert.ok(ids.includes('export_receipts'));
+  assert.ok(ids.includes('artifact_metadata'));
 });

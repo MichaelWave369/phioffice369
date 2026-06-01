@@ -1,5 +1,7 @@
 import { EMERGENCY_BACKUP_PREFIX, createBrowserStorageAdapter } from './storageAdapters.js';
 
+export { EMERGENCY_BACKUP_PREFIX } from './storageAdapters.js';
+
 export const WORKSPACE_BACKUP_SCHEMA = 'phioffice369.workspace_backup.v0.1';
 
 export function canUseEmergencyStorage() {

@@ -25,6 +25,7 @@ import {
   writeStorageJson,
 } from '../lib/workspaceStorageAccess.js';
 import './PhiWriteLite.css';
+import './PhiWriteTransformPreview.css';
 
 function makeStarterContent(template) {
   return template.sections.map((section) => `## ${section}\n\nWrite your ${section.toLowerCase()} here...`).join('\n\n');

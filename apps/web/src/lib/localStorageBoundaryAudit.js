@@ -24,6 +24,36 @@ export const LOCAL_STORAGE_BOUNDARY_FILES = [
     migrationAction: 'keep-crash-recovery-compatible-then-add-adapter-path',
   },
   {
+    path: 'apps/web/src/lib/localStorageBoundaryAudit.js',
+    boundary: 'storage-boundary-audit-definition',
+    migrationAction: 'keep-as-static-boundary-catalog-source-of-truth',
+  },
+  {
+    path: 'apps/web/src/lib/storageDiagnostics.js',
+    boundary: 'storage-status-diagnostics',
+    migrationAction: 'keep-as-operator-visible-storage-status-layer',
+  },
+  {
+    path: 'apps/web/src/lib/storageKeyCatalog.js',
+    boundary: 'storage-key-namespace-catalog',
+    migrationAction: 'keep-as-known-key-classification-source-of-truth',
+  },
+  {
+    path: 'apps/web/src/lib/artifactRegistryParity.js',
+    boundary: 'registry-parity-audit',
+    migrationAction: 'keep-as-sync-async-comparison-layer',
+  },
+  {
+    path: 'apps/web/src/lib/vaultScanSwitchGate.js',
+    boundary: 'vault-scan-switch-policy-gate',
+    migrationAction: 'keep-as-visible-scan-safety-gate',
+  },
+  {
+    path: 'apps/web/src/lib/vaultVisibleScanPolicy.js',
+    boundary: 'vault-visible-scan-policy',
+    migrationAction: 'keep-as-visible-artifact-source-selector',
+  },
+  {
     path: 'apps/web/src/components/PhiVaultLite.jsx',
     boundary: 'operator-storage-ui',
     migrationAction: 'replace-direct-window-localStorage-calls-after-adapter-backed-ui-state-lands',
@@ -32,6 +62,16 @@ export const LOCAL_STORAGE_BOUNDARY_FILES = [
     path: 'apps/web/src/components/AppErrorBoundary.jsx',
     boundary: 'crash-recovery-ui',
     migrationAction: 'keep-until-emergency-backup-writer-is-fully-adapter-aware',
+  },
+  {
+    path: 'apps/web/src/components/DataSovereigntyStatusBar.jsx',
+    boundary: 'operator-visible-data-sovereignty-ui',
+    migrationAction: 'replace-direct-window-localStorage-calls-after-status-bar-uses-adapter-backed-export',
+  },
+  {
+    path: 'apps/web/src/components/OnboardingGate.jsx',
+    boundary: 'first-run-onboarding-local-flag-ui',
+    migrationAction: 'keep-local-onboarding-flag-small-and-isolated',
   },
 ];
 

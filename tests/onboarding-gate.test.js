@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   clickFirstTemplateOpenButton,
   clickTabByLabel,
-} from '../apps/web/src/components/OnboardingGate.jsx';
+} from '../apps/web/src/lib/onboardingDom.js';
 
 function createButton(label) {
   return {
@@ -16,54 +16,39 @@ function createButton(label) {
 }
 
 test('clickTabByLabel clicks matching tab button', () => {
-  const previousDocument = globalThis.document;
   const suite = createButton('Suite');
   const templates = createButton('Templates');
-  globalThis.document = {
+  const doc = {
     querySelectorAll(selector) {
       assert.equal(selector, '.tabs button');
       return [suite, templates];
     },
   };
 
-  try {
-    assert.equal(clickTabByLabel('Templates'), true);
-    assert.equal(templates.clicked, true);
-    assert.equal(suite.clicked, false);
-  } finally {
-    globalThis.document = previousDocument;
-  }
+  assert.equal(clickTabByLabel('Templates', doc), true);
+  assert.equal(templates.clicked, true);
+  assert.equal(suite.clicked, false);
 });
 
 test('clickTabByLabel returns false when no tab matches', () => {
-  const previousDocument = globalThis.document;
-  globalThis.document = {
+  const doc = {
     querySelectorAll() {
       return [createButton('Suite')];
     },
   };
 
-  try {
-    assert.equal(clickTabByLabel('Missing'), false);
-  } finally {
-    globalThis.document = previousDocument;
-  }
+  assert.equal(clickTabByLabel('Missing', doc), false);
 });
 
 test('clickFirstTemplateOpenButton clicks available open workspace button', () => {
-  const previousDocument = globalThis.document;
   const openButton = createButton('Open in PhiWrite-lite');
-  globalThis.document = {
+  const doc = {
     querySelector(selector) {
       assert.equal(selector, '.open-workspace-button');
       return openButton;
     },
   };
 
-  try {
-    assert.equal(clickFirstTemplateOpenButton(), true);
-    assert.equal(openButton.clicked, true);
-  } finally {
-    globalThis.document = previousDocument;
-  }
+  assert.equal(clickFirstTemplateOpenButton(doc), true);
+  assert.equal(openButton.clicked, true);
 });

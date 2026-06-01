@@ -27,6 +27,11 @@ function dependencyEntries(pkg) {
   ];
 }
 
+function findDependencyVersion(pkg, name) {
+  const match = dependencyEntries(pkg).find(([dependencyName]) => dependencyName === name);
+  return match?.[1];
+}
+
 test('package files are valid JSON and have names', () => {
   packageJsonPaths.forEach((relativePath) => {
     const pkg = readPackageJson(relativePath);
@@ -70,7 +75,7 @@ test('web app external dependency ranges are explicit semver ranges', () => {
   const externalNames = ['@vitejs/plugin-react', 'vite', 'react', 'react-dom', 'lucide-react'];
 
   externalNames.forEach((name) => {
-    const version = webPackage.dependencies[name];
+    const version = findDependencyVersion(webPackage, name);
     assert.match(version, /^\^\d+\.\d+\.\d+$/, `${name} should use an explicit caret semver range`);
   });
 });

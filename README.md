@@ -7,6 +7,14 @@ PhiOffice369 is a PHI369 Labs / Parallax productivity-suite concept for builders
 > Internal codename: **MikeySoft Office**  
 > Public-facing name: **PhiOffice369**
 
+## Current checkpoint
+
+**Known-good foundation:** [`v0.1-greencheck-foundation`](docs/release-checkpoints/v0.1-greencheck-foundation.md)
+
+This repo has a green-check prototype foundation covering the local-first shell, core artifact model, trust labels, PhiWrite/PhiGrid/PhiDeck/PhiVault surfaces, Professor Phi local mock assistant, compatibility honesty report, onboarding, storage hardening, GitHub Pages deployment, and contributor/architecture docs.
+
+See [`CHANGELOG.md`](CHANGELOG.md) for checkpoint history.
+
 ## Live prototype
 
 After GitHub Pages is enabled for this repo, the interactive prototype is intended to publish here:
@@ -63,6 +71,10 @@ PhiOffice369 aims to provide a free core suite with:
 - PhiGrid-lite editable local table, CSV import/export, JSON export, local totals, trust labels, and local autosave.
 - PhiDeck-lite standalone slide editor, deck JSON import/export, local autosave, trust labels, and receipt generation.
 - PhiVault-lite local continuity scan, search, filters, detail drawer, local tags, project folders, manifest export, workspace backup/restore, imported manifest preview, export receipt timeline, and redacted storage migration reports.
+- Professor Phi local mock assistant panel with mode-aware responses, visible AI-assisted trust metadata, publish risk, and copy flow.
+- Compatibility Honesty Report launcher showing preserved, approximated, lost, and round-trip risk fields.
+- Data Sovereignty status bar with local storage status, artifact count, last emergency backup timestamp, and workspace export.
+- First-run onboarding explaining local-first storage, trust labels, and starter templates.
 - Storage adapter foundation with localStorage default, IndexedDB pilot path, safe migration planning, safe copy, verification reports, readiness gate, and resettable storage preference.
 - Shared local artifact registry for drafts, grids, decks, and export receipts.
 
@@ -121,9 +133,18 @@ templates                 Template pack manifest examples
 tests                     Node test suite for core models and web helpers
 ```
 
+## Key project docs
+
+- [`ARCHITECTURE.md`](ARCHITECTURE.md)
+- [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- [`CHANGELOG.md`](CHANGELOG.md)
+- [`docs/release-checkpoints/`](docs/release-checkpoints/)
+- [`docs/storage-pilot-guide.md`](docs/storage-pilot-guide.md)
+- [`docs/dependency-policy.md`](docs/dependency-policy.md)
+
 ## Repository status
 
-This repository begins as a public planning and prototype home. The first phase should focus on clean documentation, mockups, architecture, and a small working prototype before making large compatibility promises.
+This repository is currently anchored at the `v0.1-greencheck-foundation` checkpoint. The next phase should build from that known-good state with small, tested changes.
 
 ## Trademark and affiliation notice
 

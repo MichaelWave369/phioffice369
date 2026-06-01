@@ -17,6 +17,7 @@ import { createArtifactReceipt, trustLabels } from '@phioffice369/core';
 import { parseMarkdownImport } from '../lib/localImporters.js';
 import { saveLocalExportReceipt } from '../lib/localReceipts.js';
 import { createPhiWriteToPhiDeckPayload, getTransformIds } from '../lib/transformRegistry.js';
+import { createPhiWriteTransformSet } from '../lib/phiwriteTransforms.js';
 import {
   canUseBrowserLocalStorage,
   readStorageJson,
@@ -114,6 +115,21 @@ function downloadTextFile(filename, body, type) {
   URL.revokeObjectURL(url);
 }
 
+function getPacketExportBody(packet) {
+  if (typeof packet.payload === 'string') return packet.payload;
+  return JSON.stringify(packet.payload, null, 2);
+}
+
+function getPacketExportFormat(packet) {
+  if (packet.target.kind === 'deck') return 'json';
+  return 'markdown';
+}
+
+function getPacketExportMime(packet) {
+  if (packet.target.kind === 'deck') return 'application/json;charset=utf-8';
+  return 'text/markdown;charset=utf-8';
+}
+
 export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   const importInputRef = useRef(null);
   const savedDraft = useMemo(() => loadDraft(template), [template]);
@@ -124,6 +140,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   const [copyStatus, setCopyStatus] = useState('');
   const [assistantStatus, setAssistantStatus] = useState('Local mock assistant ready');
   const [deckSlides, setDeckSlides] = useState([]);
+  const [transformSet, setTransformSet] = useState(null);
 
   const activeLabel = trustLabels.find((label) => label.id === activeLabelId) ?? trustLabels[0];
   const receipt = useMemo(() => createArtifactReceipt({
@@ -163,6 +180,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
     setTitle(template.title);
     setContent(makeStarterContent(template));
     setDeckSlides([]);
+    setTransformSet(null);
     setActiveLabelId(template.trustDefaults[0] ?? 'human_written');
     if (canUseBrowserLocalStorage()) removeStorageValue(createPhiWriteStorageKey(template.id));
     setSaveStatus('Reset to template');
@@ -198,6 +216,42 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
     onOpenDeck(createPhiWriteToPhiDeckPayload({ title, template, slides }));
   }
 
+  function handleGenerateTransformPreview() {
+    const markdown = buildMarkdownExport();
+    const nextTransformSet = createPhiWriteTransformSet({ markdown, template, title });
+    setTransformSet(nextTransformSet);
+    const deckPacket = nextTransformSet.packets.find((packet) => packet.transformId === 'phiwrite_to_phideck');
+    if (deckPacket?.payload?.slides) setDeckSlides(deckPacket.payload.slides);
+    setAssistantStatus('v0.2 transform preview generated locally');
+  }
+
+  function handleOpenV02Deck(packet) {
+    const slides = packet?.payload?.slides ?? [];
+    setDeckSlides(slides);
+    if (!onOpenDeck) {
+      setAssistantStatus('PhiDeck-lite workspace bridge is unavailable');
+      return;
+    }
+    onOpenDeck(createPhiWriteToPhiDeckPayload({ title: packet.target.title, template, slides }));
+  }
+
+  async function handleCopyTransformPacket(packet) {
+    try {
+      await navigator.clipboard.writeText(getPacketExportBody(packet));
+      setCopyStatus(`${packet.target.kind} payload copied`);
+    } catch {
+      setCopyStatus('Copy unavailable in this browser');
+    }
+  }
+
+  function handleExportTransformPacket(packet) {
+    const format = getPacketExportFormat(packet);
+    const filename = `${slugify(packet.target.title)}.${format === 'json' ? 'json' : 'md'}`;
+    downloadTextFile(filename, getPacketExportBody(packet), getPacketExportMime(packet));
+    saveLocalExportReceipt({ artifactId: packet.target.artifactId, format, filename, sourceApp: packet.target.app });
+    setAssistantStatus(`${packet.target.kind} exported + receipt saved`);
+  }
+
   function triggerMarkdownImport() {
     importInputRef.current?.click();
   }
@@ -212,6 +266,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
       setTitle(imported.title);
       setContent(imported.content);
       setDeckSlides([]);
+      setTransformSet(null);
       setActiveLabelId('human_written');
       setSaveStatus('Markdown imported locally');
       setAssistantStatus(imported.importNote);
@@ -271,7 +326,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
           <div className="section-stack">{template.sections.map((section) => <span key={section}>{section}</span>)}</div>
           <div className="workspace-stat-grid"><div><strong>{wordCount}</strong><span>words</span></div><div><strong>{sectionCount}</strong><span>sections</span></div><div><strong>{characterCount}</strong><span>characters</span></div><div><strong>{receipt.labels.length}</strong><span>labels</span></div></div>
           <div className="assistant-card"><Bot aria-hidden="true" /><div><h3>Professor Phi</h3><p>This is a local mock assistant for the prototype. No text leaves the browser.</p><p className="assistant-status">{assistantStatus}</p></div></div>
-          <div className="assistant-actions"><button type="button" onClick={() => handleAssistantAction('draft')}><Sparkles aria-hidden="true" /> Draft Section</button><button type="button" onClick={() => handleAssistantAction('polish')}><Wand2 aria-hidden="true" /> Light Polish</button><button type="button" onClick={() => handleAssistantAction('summary')}><ListChecks aria-hidden="true" /> Summarize</button><button type="button" onClick={() => handleAssistantAction('claim-check')}><ShieldCheck aria-hidden="true" /> Claim-check</button><button type="button" onClick={() => handleAssistantAction('deck')}><FileText aria-hidden="true" /> Deck Outline</button></div>
+          <div className="assistant-actions"><button type="button" onClick={() => handleAssistantAction('draft')}><Sparkles aria-hidden="true" /> Draft Section</button><button type="button" onClick={() => handleAssistantAction('polish')}><Wand2 aria-hidden="true" /> Light Polish</button><button type="button" onClick={() => handleAssistantAction('summary')}><ListChecks aria-hidden="true" /> Summarize</button><button type="button" onClick={() => handleAssistantAction('claim-check')}><ShieldCheck aria-hidden="true" /> Claim-check</button><button type="button" onClick={() => handleAssistantAction('deck')}><FileText aria-hidden="true" /> Deck Outline</button><button type="button" onClick={handleGenerateTransformPreview}><Layers3 aria-hidden="true" /> v0.2 Transform Preview</button></div>
         </aside>
 
         <section className="panel editor-panel"><label className="title-field"><span>Artifact title</span><input value={title} onChange={(event) => setTitle(event.target.value)} /></label><label className="editor-field"><span>Draft content</span><textarea value={content} onChange={(event) => setContent(event.target.value)} spellCheck="true" /></label></section>
@@ -284,6 +339,36 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
           <div className="receipt-mini"><h3>Receipt preview</h3><code>{receipt.schema}</code><p>{receipt.app} · {receipt.labels.length} labels · local draft</p><button className="copy-receipt-button" type="button" onClick={handleCopyReceipt}><ClipboardCopy aria-hidden="true" />Copy receipt JSON</button>{copyStatus && <p className="copy-status">{copyStatus}</p>}</div>
         </aside>
       </div>
+
+      {transformSet && (
+        <section className="transform-preview panel fade-in">
+          <div className="transform-preview-heading">
+            <div><p className="eyebrow">v0.2 Transform Preview</p><h2>Living artifact outputs</h2><p>{transformSet.packets.length} local transform packets generated from this PhiWrite draft. Review before exporting or opening downstream.</p></div>
+            <code>{transformSet.schema}</code>
+          </div>
+          <div className="transform-packet-grid">
+            {transformSet.packets.map((packet) => (
+              <article className="transform-packet-card" key={packet.packetId}>
+                <span className="packet-kind">{packet.target.kind}</span>
+                <h3>{packet.target.title}</h3>
+                <p className="packet-trace">{packet.source.app} → {packet.target.app} · {packet.transformId}</p>
+                <div className="packet-labels">{packet.trustLabels.map((label) => <span key={label}>{label}</span>)}</div>
+                {packet.warnings.length > 0 && <p className="packet-warning">{packet.warnings[0]}</p>}
+                {packet.target.kind === 'deck' ? (
+                  <p>{packet.payload.slides.length} slides generated from headings and draft sections.</p>
+                ) : (
+                  <pre>{String(packet.payload).slice(0, 420)}{String(packet.payload).length > 420 ? '\n…' : ''}</pre>
+                )}
+                <div className="packet-actions">
+                  {packet.target.kind === 'deck' && <button className="ghost-button" type="button" onClick={() => handleOpenV02Deck(packet)}><Layers3 aria-hidden="true" />Open deck</button>}
+                  <button className="ghost-button" type="button" onClick={() => handleCopyTransformPacket(packet)}><ClipboardCopy aria-hidden="true" />Copy</button>
+                  <button className="gold-button" type="button" onClick={() => handleExportTransformPacket(packet)}><Download aria-hidden="true" />Export</button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       {deckSlides.length > 0 && (
         <section className="phideck-preview panel fade-in">

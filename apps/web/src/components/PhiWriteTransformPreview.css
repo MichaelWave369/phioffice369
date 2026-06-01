@@ -1,0 +1,130 @@
+.transform-preview {
+  display: grid;
+  gap: 1rem;
+  border-color: rgba(248, 214, 109, 0.24);
+  background: linear-gradient(145deg, rgba(248, 214, 109, 0.08), rgba(255, 255, 255, 0.05));
+}
+
+.transform-preview-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+}
+
+.transform-preview-heading h2 {
+  margin: 0.15rem 0 0.4rem;
+}
+
+.transform-preview-heading p {
+  max-width: 70ch;
+  color: rgba(255, 255, 255, 0.7);
+  line-height: 1.55;
+}
+
+.transform-preview-heading code {
+  flex: 0 0 auto;
+  border-radius: 999px;
+  padding: 0.45rem 0.65rem;
+  color: #f8d66d;
+  background: rgba(0, 0, 0, 0.22);
+  font-size: 0.76rem;
+}
+
+.transform-packet-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.85rem;
+}
+
+.transform-packet-card {
+  display: grid;
+  gap: 0.65rem;
+  min-width: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 1.25rem;
+  padding: 1rem;
+  background: rgba(18, 14, 34, 0.72);
+  box-shadow: 0 16px 44px rgba(0, 0, 0, 0.18);
+}
+
+.transform-packet-card h3 {
+  margin: 0;
+  font-size: 1.05rem;
+}
+
+.packet-kind {
+  justify-self: start;
+  border-radius: 999px;
+  padding: 0.34rem 0.55rem;
+  color: #20142d;
+  background: linear-gradient(135deg, #f8d66d, #ffb15c);
+  font-size: 0.72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.packet-trace,
+.packet-warning,
+.transform-packet-card p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+.packet-warning {
+  border-left: 3px solid #f8d66d;
+  padding-left: 0.6rem;
+  color: rgba(255, 236, 176, 0.92);
+}
+
+.packet-labels,
+.packet-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.packet-labels span {
+  border-radius: 999px;
+  padding: 0.28rem 0.48rem;
+  color: rgba(255, 255, 255, 0.78);
+  background: rgba(255, 255, 255, 0.08);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.transform-packet-card pre {
+  overflow: auto;
+  max-height: 15rem;
+  margin: 0;
+  border-radius: 0.85rem;
+  padding: 0.75rem;
+  color: rgba(255, 255, 255, 0.82);
+  background: rgba(0, 0, 0, 0.22);
+  font-size: 0.8rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.packet-actions {
+  margin-top: 0.2rem;
+}
+
+.packet-actions button svg {
+  width: 1rem;
+  height: 1rem;
+}
+
+@media (max-width: 1100px) {
+  .transform-packet-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .transform-preview-heading {
+    flex-direction: column;
+  }
+}

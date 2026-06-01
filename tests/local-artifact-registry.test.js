@@ -157,17 +157,18 @@ test('control-plane storage keys are not treated as artifact keys', () => {
 
 test('scanContinuityArtifacts excludes sync control-plane and emergency keys', () => {
   const previousWindow = globalThis.window;
-  globalThis.window = {
-    localStorage: createFakeStorage({
-      'phioffice369:phiwrite:test': '{"title":"Doc","activeLabelId":"private"}',
-      'phioffice369:phigrid:test': '{"title":"Grid","rows":[]}',
-      'phioffice369:export_receipt:test': '{"filename":"doc.md","sourceApp":"PhiWrite","format":"markdown"}',
-      'phioffice369:artifact_metadata:phioffice369_phiwrite_test': '{"tags":["Launch"],"projectFolder":"Client Work","updatedAt":"now"}',
-      'phioffice369:emergency_backup:test': '{"skip":true}',
-      'phioffice369:storage_backend_preference': '{"backend":"localStorage"}',
-      'phioffice369:vault_scan_source_preference': '{"requestedSource":"async-preference-aware-registry"}',
-    }),
-  };
+  const previousLocalStorage = globalThis.localStorage;
+  const localStorage = createFakeStorage({
+    'phioffice369:phiwrite:test': '{"title":"Doc","activeLabelId":"private"}',
+    'phioffice369:phigrid:test': '{"title":"Grid","rows":[]}',
+    'phioffice369:export_receipt:test': '{"filename":"doc.md","sourceApp":"PhiWrite","format":"markdown"}',
+    'phioffice369:artifact_metadata:phioffice369_phiwrite_test': '{"tags":["Launch"],"projectFolder":"Client Work","updatedAt":"now"}',
+    'phioffice369:emergency_backup:test': '{"skip":true}',
+    'phioffice369:storage_backend_preference': '{"backend":"localStorage"}',
+    'phioffice369:vault_scan_source_preference': '{"requestedSource":"async-preference-aware-registry"}',
+  });
+  globalThis.window = { localStorage };
+  globalThis.localStorage = localStorage;
 
   try {
     const artifacts = scanContinuityArtifacts();
@@ -183,6 +184,7 @@ test('scanContinuityArtifacts excludes sync control-plane and emergency keys', (
     assert.equal(artifacts.find((artifact) => artifact.artifactId === 'phioffice369_phiwrite_test').projectFolder, 'Client Work');
   } finally {
     globalThis.window = previousWindow;
+    globalThis.localStorage = previousLocalStorage;
   }
 });
 

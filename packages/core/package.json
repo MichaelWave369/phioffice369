@@ -8,7 +8,8 @@
     ".": "./src/index.js",
     "./schemas": "./src/schemas.js",
     "./transform-packets": "./src/transformPackets.js",
-    "./transform-registry": "./src/transformRegistry.js"
+    "./transform-registry": "./src/transformRegistry.js",
+    "./parallax-interop": "./src/parallaxInterop.js"
   },
   "license": "MIT"
 }

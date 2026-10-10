@@ -171,6 +171,13 @@ async function runDeck() {
     assert(deck?.slides?.[0]?.bullets?.[0] === 'Verified locally', 'PhiDeck bullet missing after refresh');
     assert(document.querySelector('.deck-title-field input')?.value === finalTitle, 'PhiDeck title missing in UI');
     assert(document.querySelector('.deck-slide-editor input')?.value === 'Imported slide', 'PhiDeck imported slide not shown');
+    upload(document.querySelector('.deck-file-input'), 'invalid.json',
+      '{"schema":"unrelated"}', 'application/json');
+    await waitFor(() => document.querySelector('.deck-save-status')?.textContent.includes('not a PhiDeck-lite'),
+      'Invalid native deck rejection after reload');
+    assert(stored(key)?.title === finalTitle, 'Rejected deck import mutated saved title');
+    assert(document.querySelector('.deck-title-field input')?.value === finalTitle,
+      'Rejected deck import mutated visible title');
     sessionStorage.removeItem(phaseKey);
     return 'PhiDeck edit, add, autosave, JSON export, JSON import and reload';
   }
@@ -195,12 +202,6 @@ async function runDeck() {
   const deckJson = JSON.parse(exported.body);
   assert(deckJson.schema === 'phioffice369.phideck_lite.v0.1', 'PhiDeck exported wrong schema');
   assert(deckJson.slides.some((slide) => slide.title === 'Added test slide'), 'PhiDeck export dropped added slide');
-
-  upload(document.querySelector('.deck-file-input'), 'invalid.json',
-    '{"schema":"unrelated"}', 'application/json');
-  await waitFor(() => document.querySelector('.deck-save-status')?.textContent.includes('not a PhiDeck-lite'),
-    'Invalid native deck rejection');
-  assert(stored(key)?.title === 'Deck before import', 'Rejected import mutated saved deck');
 
   const payload = {
     schema: 'phioffice369.phideck_lite.v0.1',

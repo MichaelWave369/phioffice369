@@ -430,7 +430,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
         </section>
       )}
 
-      <p className="phiwrite-docx-export-note" role="note">DOCX export: basic text, headings, lists, quotes and code. Complex Word layout, embedded images and inline Markdown formatting are not preserved. Export a copy and inspect it before sharing.</p>
+      <p className="phiwrite-docx-export-note" role="note">DOCX export: basic text, headings, lists, quotes, code and simple rectangular Markdown tables. Merged/nested Word tables, images, inline formatting and precise layout are not preserved. Inspect the exported copy before sharing.</p>
 
       <div className="workspace-grid">
         <aside className="panel workspace-sidebar">

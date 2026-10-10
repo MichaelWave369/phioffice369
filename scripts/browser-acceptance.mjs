@@ -13,6 +13,7 @@ const acceptanceClients = Object.freeze({
   phiwrite: resolve('scripts/browser-acceptance-client.js'),
   phigrid: resolve('scripts/browser-acceptance-editors-client.js'),
   phideck: resolve('scripts/browser-acceptance-editors-client.js'),
+  docx: resolve('scripts/browser-acceptance-docx-client.js'),
 });
 const scenarios = Object.keys(acceptanceClients);
 const base = '/phioffice369/';

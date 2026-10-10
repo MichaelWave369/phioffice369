@@ -148,11 +148,25 @@ try {
   for (const scenario of scenarios) {
     const profile = await mkdtemp(join(tmpdir(), 'phioffice369-' + scenario + '-'));
     try {
-      const result = await runChrome(browser, url + '?scenario=' + scenario, profile);
-      const marker = result.output.match(/data-phi-acceptance="(PASS|FAIL)"/);
+      let result = await runChrome(browser, url + '?scenario=' + scenario, profile);
+      let marker = result.output.match(/data-phi-acceptance="(PASS|FAIL)"/);
+      // Headless --dump-dom occasionally returns the initial page before the
+      // acceptance module starts. Only retry an indeterminate result, never a
+      // real FAIL marker. The replay gets its own clean browser profile.
+      if (result.code === 0 && !marker) {
+        console.warn('No ' + scenario + ' result marker on first Chrome launch; retrying once with a fresh profile.');
+        const retryProfile = await mkdtemp(join(tmpdir(), 'phioffice369-' + scenario + '-retry-'));
+        try {
+          result = await runChrome(browser, url + '?scenario=' + scenario, retryProfile);
+          marker = result.output.match(/data-phi-acceptance="(PASS|FAIL)"/);
+        } finally {
+          await rm(retryProfile, { recursive: true, force: true });
+        }
+      }
       const detail = result.output.match(/<pre id="phi-browser-acceptance-result">([\s\S]*?)<\/pre>/);
       if (result.code !== 0 || marker?.[1] !== 'PASS') {
         console.error(scenario + ' acceptance failed:', detail?.[1] ?? 'no result marker');
+        console.error('Page output tail:', result.output.slice(-1800));
         console.error('Chrome diagnostics:', result.stderr.slice(-1600));
         throw new Error('PhiOffice369 ' + scenario + ' acceptance failed (Chrome exit ' + result.code + ').');
       }

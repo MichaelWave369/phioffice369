@@ -80,6 +80,7 @@ export default function PhiGridLite({ template, onBack }) {
   const [activeLabelId, setActiveLabelId] = useState(savedGrid?.activeLabelId ?? template.trustDefaults[0] ?? 'private');
   const [saveStatus, setSaveStatus] = useState(savedGrid ? 'Restored local grid' : 'New local grid');
   const [copyStatus, setCopyStatus] = useState('');
+  const [pendingCsvImport, setPendingCsvImport] = useState(null);
 
   const activeLabel = trustLabels.find((label) => label.id === activeLabelId) ?? trustLabels[0];
   const receipt = useMemo(() => createArtifactReceipt({
@@ -126,6 +127,7 @@ export default function PhiGridLite({ template, onBack }) {
   }
 
   function resetGrid() {
+    setPendingCsvImport(null);
     setTitle(template.title);
     setColumns(defaultColumns);
     setRows(starterRows(template, defaultColumns));
@@ -156,19 +158,33 @@ export default function PhiGridLite({ template, onBack }) {
   async function handleImportCsv(event) {
     const file = event.target.files?.[0];
     if (!file) return;
+    setPendingCsvImport(null);
     try {
       const text = await file.text();
       const imported = parseCsvImport(text, file.name.replace(/\.csv$/i, ''));
-      setTitle(imported.title);
-      setColumns(imported.columns);
-      setRows(imported.rows);
-      setActiveLabelId('private');
-      setSaveStatus('CSV imported locally');
-    } catch {
-      setSaveStatus('Could not import CSV');
+      setPendingCsvImport(imported);
+      setSaveStatus('CSV preview ready. Current grid unchanged.');
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : 'Unable to read this file.';
+      setSaveStatus('CSV import rejected: ' + reason + ' Current grid unchanged.');
     } finally {
       event.target.value = '';
     }
+  }
+
+  function confirmCsvImport() {
+    if (!pendingCsvImport) return;
+    setTitle(pendingCsvImport.title);
+    setColumns(pendingCsvImport.columns);
+    setRows(pendingCsvImport.rows);
+    setActiveLabelId('private');
+    setPendingCsvImport(null);
+    setSaveStatus('CSV accepted. Autosaving locally.');
+  }
+
+  function cancelCsvImport() {
+    setPendingCsvImport(null);
+    setSaveStatus('CSV import cancelled. Current grid unchanged.');
   }
 
   async function copyReceipt() {
@@ -187,7 +203,7 @@ export default function PhiGridLite({ template, onBack }) {
         <div>
           <p className="eyebrow">PhiGrid-lite</p>
           <h2>{template.title}</h2>
-          <p className="grid-save-status">{saveStatus}</p>
+          <p className="grid-save-status" role="status" aria-live="polite">{saveStatus}</p>
         </div>
         <div className="grid-actions">
           <button type="button" onClick={resetGrid}><RotateCcw aria-hidden="true" /> Reset</button>
@@ -197,6 +213,34 @@ export default function PhiGridLite({ template, onBack }) {
           <input ref={importInputRef} className="grid-file-input" type="file" accept=".csv,text/csv" onChange={handleImportCsv} />
         </div>
       </div>
+
+      {pendingCsvImport && (
+        <section className="panel grid-import-preview" aria-label="CSV import review">
+          <h3>Review CSV before replacing your current grid</h3>
+          <p>{pendingCsvImport.rows.length} rows and {pendingCsvImport.columns.length} columns. No existing grid content has been changed.</p>
+          {pendingCsvImport.csvWarnings.length > 0 && (
+            <div className="grid-import-warnings" role="note">
+              <strong>Compatibility notes</strong>
+              <ul>{pendingCsvImport.csvWarnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
+            </div>
+          )}
+          <div className="grid-import-table-wrap">
+            <table>
+              <thead><tr>{pendingCsvImport.columns.map((column) => <th key={column}>{column}</th>)}</tr></thead>
+              <tbody>
+                {pendingCsvImport.rows.slice(0, 3).map((row, index) => (
+                  <tr key={index}>{pendingCsvImport.columns.map((column) => <td key={column}>{row[column]}</td>)}</tr>
+                ))}
+              </tbody>
+            </table>
+            {pendingCsvImport.rows.length > 3 && <p>Showing first 3 rows only.</p>}
+          </div>
+          <div className="grid-import-review-actions">
+            <button type="button" onClick={cancelCsvImport}>Cancel import</button>
+            <button type="button" onClick={confirmCsvImport}>Replace current grid with CSV</button>
+          </div>
+        </section>
+      )}
 
       <div className="grid-workspace-layout">
         <aside className="panel grid-side-panel">

@@ -12,7 +12,8 @@ PhiWrite remains a simple local-first Markdown editor. DOCX files use actual ZIP
 | Bullet / numbered lists | Standard Word numbering definitions | Simplified Markdown bullets (numbering distinctions are not guaranteed) |
 | Code blocks | Basic monospace Word paragraph style | Text is extracted; code styling may be lost |
 | Blockquotes | Simple Word Quote style | Text is extracted; quote styling may be lost |
-| Tables | No native Word table export | Flattened to tab-separated text |
+| Simple rectangular tables (2–32 columns; up to 500 rows) | Native Word tables from Markdown pipe tables | Converted to Markdown pipe tables, first row treated as header; text retained | 
+| Complex tables (merged/nested cells, multiple cell paragraphs) | Not supported | Flattened to tab-separated text with warning |
 | Inline bold, italic, hyperlinks | Markdown syntax remains literal text | Inline formatting is lost |
 | Images and rich media | Not exported | Not preserved |
 | Headers, footers, comments, footnotes, fields | Not exported | Not preserved |

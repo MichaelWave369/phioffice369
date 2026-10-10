@@ -67,7 +67,7 @@ PhiOffice369 aims to provide a free core suite with:
 
 ## Current prototype features
 
-- PhiWrite-lite Markdown writing, import/export, standalone offline HTML export, browser Print / Save as PDF, local autosave, trust labels, mock assistant actions, and PhiWrite → PhiDeck bridge. HTML and print cover a basic block-level Markdown subset, not full document format fidelity.
+- PhiWrite-lite Markdown writing, import/export, **read-only local DOCX text preview with explicit confirmation**, standalone offline HTML export, browser Print / Save as PDF, local autosave, trust labels, mock assistant actions, and PhiWrite → PhiDeck bridge. DOCX preview preserves only basic text/headings/lists and flattens tables; Word layout and images are not preserved. HTML and print cover a basic block-level Markdown subset.
 - PhiGrid-lite editable local table, CSV import/export, JSON export, local totals, trust labels, and local autosave.
 - PhiDeck-lite standalone slide editor, deck JSON import/export, local autosave, trust labels, and receipt generation.
 - PhiVault-lite local continuity scan, search, filters, detail drawer, local tags, project folders, manifest export, workspace backup/restore, imported manifest preview, export receipt timeline, and redacted storage migration reports.

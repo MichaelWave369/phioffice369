@@ -106,6 +106,25 @@
     break-inside: avoid;
   }
 
+  .phiwrite-print-page table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    margin: 1rem 0;
+    color: #172031 !important;
+  }
+
+  .phiwrite-print-page th,
+  .phiwrite-print-page td {
+    border: 1px solid #abb7c5;
+    padding: 0.35rem 0.5rem;
+    overflow-wrap: anywhere;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .phiwrite-print-page thead { display: table-header-group; }
+  .phiwrite-print-page tr { break-inside: avoid; }
   .phiwrite-print-page li { margin-bottom: 0.3rem; }
   .phiwrite-print-page p,
   .phiwrite-print-page li { orphans: 2; widows: 2; }

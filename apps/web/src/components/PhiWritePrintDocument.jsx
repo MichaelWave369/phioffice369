@@ -21,6 +21,16 @@ export default function PhiWritePrintDocument({ title, content, trustLabel }) {
             const List = block.listType === 'ol' ? 'ol' : 'ul';
             return <List key={index}>{block.items.map((item, itemIndex) => <li key={itemIndex}>{item}</li>)}</List>;
           }
+          if (block.kind === 'table') {
+            return (
+              <table key={index}>
+                <thead><tr>{block.rows[0].map((cell, cellIndex) => <th key={cellIndex} scope="col">{cell}</th>)}</tr></thead>
+                <tbody>{block.rows.slice(1).map((cells, rowIndex) => (
+                  <tr key={rowIndex}>{cells.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>
+                ))}</tbody>
+              </table>
+            );
+          }
           if (block.kind === 'code') return <pre key={index}><code>{block.text}</code></pre>;
           if (block.kind === 'quote') return <blockquote key={index}>{block.text}</blockquote>;
           return <p key={index}>{block.text}</p>;

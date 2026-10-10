@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { createArtifactReceipt, trustLabels } from '@phioffice369/core';
 import { parseMarkdownImport } from '../lib/localImporters.js';
+import { previewDocxFile } from '../lib/docxImport.js';
 import { buildPhiWriteHtmlDocument } from '../lib/phiwritePrint.js';
 import PhiWritePrintDocument from './PhiWritePrintDocument.jsx';
 import { saveLocalExportReceipt } from '../lib/localReceipts.js';
@@ -136,6 +137,7 @@ function getPacketExportMime(packet) {
 
 export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   const importInputRef = useRef(null);
+  const docxImportRef = useRef(null);
   const savedDraft = useMemo(() => loadDraft(template), [template]);
   const [title, setTitle] = useState(savedDraft?.title ?? template.title);
   const [content, setContent] = useState(savedDraft?.content ?? makeStarterContent(template));
@@ -145,6 +147,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   const [assistantStatus, setAssistantStatus] = useState('Local mock assistant ready');
   const [deckSlides, setDeckSlides] = useState([]);
   const [transformSet, setTransformSet] = useState(null);
+  const [pendingDocxImport, setPendingDocxImport] = useState(null);
 
   const activeLabel = trustLabels.find((label) => label.id === activeLabelId) ?? trustLabels[0];
   const receipt = useMemo(() => createArtifactReceipt({
@@ -181,6 +184,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   }
 
   function handleResetDraft() {
+    setPendingDocxImport(null);
     setTitle(template.title);
     setContent(makeStarterContent(template));
     setDeckSlides([]);
@@ -273,6 +277,42 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
     importInputRef.current?.click();
   }
 
+  function triggerDocxImport() {
+    docxImportRef.current?.click();
+  }
+
+  async function handleDocxImport(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    setPendingDocxImport(null);
+    try {
+      const imported = await previewDocxFile(file);
+      setPendingDocxImport(imported);
+      setSaveStatus('DOCX text preview ready. Existing draft unchanged.');
+    } catch (error) {
+      setSaveStatus(error instanceof Error ? error.message : 'Could not read DOCX.');
+    } finally {
+      event.target.value = '';
+    }
+  }
+
+  function cancelDocxImport() {
+    setPendingDocxImport(null);
+    setSaveStatus('DOCX import cancelled. Original draft unchanged.');
+  }
+
+  function acceptDocxImport() {
+    if (!pendingDocxImport) return;
+    setTitle(pendingDocxImport.title);
+    setContent(pendingDocxImport.content);
+    setDeckSlides([]);
+    setTransformSet(null);
+    setActiveLabelId('needs_citation');
+    setPendingDocxImport(null);
+    setSaveStatus('DOCX text accepted. Autosaving locally.');
+    setAssistantStatus('Imported from local DOCX as simplified text/Markdown. Original Word file unchanged.');
+  }
+
   async function handleImportMarkdown(event) {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -280,6 +320,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
     try {
       const text = await file.text();
       const imported = parseMarkdownImport(text, file.name.replace(/\.(md|markdown)$/i, ''));
+      setPendingDocxImport(null);
       setTitle(imported.title);
       setContent(imported.content);
       setDeckSlides([]);
@@ -331,12 +372,32 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
         <div className="workspace-actions">
           <button className="ghost-button" type="button" onClick={handleResetDraft}><RotateCcw aria-hidden="true" />Reset</button>
           <button className="ghost-button" type="button" onClick={triggerMarkdownImport}><Upload aria-hidden="true" />Import .md</button>
+          <button className="ghost-button" type="button" onClick={triggerDocxImport}><Upload aria-hidden="true" />Preview .docx</button>
           <button className="gold-button" type="button" onClick={handleExportMarkdown}><Download aria-hidden="true" />Export .md</button>
           <button className="ghost-button" type="button" onClick={handleExportHtml}><Download aria-hidden="true" />Export HTML</button>
           <button className="ghost-button" type="button" onClick={handlePrint}><Printer aria-hidden="true" />Print / Save as PDF</button>
           <input ref={importInputRef} className="workspace-file-input" type="file" accept=".md,.markdown,text/markdown,text/plain" onChange={handleImportMarkdown} />
+          <input ref={docxImportRef} className="workspace-file-input" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={handleDocxImport} />
         </div>
       </div>
+
+      {pendingDocxImport && (
+        <section className="panel phiwrite-docx-preview" aria-label="DOCX import review">
+          <p className="eyebrow">DOCX compatibility lab · local-only preview</p>
+          <h3>Review extracted text before replacing your draft</h3>
+          <p><strong>{pendingDocxImport.title}</strong> · {pendingDocxImport.blockCount} text blocks</p>
+          <p>The current draft stays untouched until you explicitly confirm. Download a backup first if this draft matters.</p>
+          <div className="phiwrite-docx-warnings" role="note">
+            <strong>Compatibility limits</strong>
+            <ul>{pendingDocxImport.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
+          </div>
+          <pre className="phiwrite-docx-excerpt">{pendingDocxImport.content.slice(0, 3600)}{pendingDocxImport.content.length > 3600 ? '\n… (preview truncated)' : ''}</pre>
+          <div className="phiwrite-docx-controls">
+            <button type="button" onClick={cancelDocxImport}>Cancel, keep draft</button>
+            <button type="button" onClick={acceptDocxImport}>Replace draft with extracted text</button>
+          </div>
+        </section>
+      )}
 
       <div className="workspace-grid">
         <aside className="panel workspace-sidebar">

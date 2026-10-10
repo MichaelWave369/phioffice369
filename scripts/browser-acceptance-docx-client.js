@@ -43,13 +43,26 @@ function crc32(bytes) {
   }
   return (crc ^ 0xffffffff) >>> 0;
 }
-function createDocxFixture() {
+function createDocxFixture(variant = 'basic') {
   const encoder = new TextEncoder();
-  const manifest = '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>';
+  const manifest = '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
+    (variant === 'external' ? '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' : '') + '</Types>';
   const xml = '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Hello DOCX</w:t></w:r></w:p><w:p><w:r><w:t>Imported locally. No upload.</w:t></w:r></w:p></w:body></w:document>';
+  const externalXml = '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>' +
+    '<w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t>External Meeting Memo</w:t></w:r></w:p>' +
+    '<w:p><w:pPr><w:pStyle w:val="CompanySection"/></w:pPr><w:r><w:t>External Heading</w:t></w:r></w:p>' +
+    '<w:sdt><w:sdtContent><w:p><w:r><w:t>Form control body survives</w:t></w:r></w:p></w:sdtContent></w:sdt>' +
+    '<w:p><w:r><w:t>Special characters: café &amp; résumé</w:t></w:r></w:p>' +
+    '</w:body></w:document>';
+  const externalStyles = '<?xml version="1.0"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+    '<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="CompanySection"><w:name w:val="Company Section"/><w:basedOn w:val="Heading2"/></w:style>' +
+    '</w:styles>';
   const records = [
     ['[Content_Types].xml', manifest],
-    ['word/document.xml', xml],
+    ['word/document.xml', variant === 'external' ? externalXml : xml],
+    ...(variant === 'external' ? [['word/styles.xml', externalStyles]] : []),
   ];
   const localParts = [];
   const centralParts = [];
@@ -116,16 +129,52 @@ function publish(result, detail) {
 }
 async function run() {
   const editor = await openWrite();
+  if (sessionStorage.getItem(phase) === 'external-reload') {
+    assert(document.querySelector('.title-field input')?.value === 'External Meeting Memo',
+      'Word Title style did not survive acceptance/reload');
+    assert(editor.value.includes('## External Heading'),
+      'Custom Word heading style not restored');
+    assert(editor.value.includes('Form control body survives'),
+      'Word content-control text not restored');
+    assert(editor.value.includes('café & résumé'), 'International Word text not restored');
+    assert(!editor.value.startsWith('External Meeting Memo'),
+      'Document title duplicated in body after external import');
+    assert(saved()?.title === 'External Meeting Memo' && saved()?.content === editor.value,
+      'Imported external-style document not persisted');
+    sessionStorage.removeItem(phase);
+    publish('PASS', 'external-style OOXML headings, title, content controls and reload');
+    return;
+  }
   if (sessionStorage.getItem(phase) === 'roundtrip-reload') {
-    assert(document.querySelector('.title-field input')?.value === 'roundtrip-copy',
-      'Reimported PhiWrite DOCX title not restored');
-    assert(editor.value.includes('# Hello DOCX'), 'Exported DOCX heading lost after reimport');
+    assert(document.querySelector('.title-field input')?.value === importedTitle,
+      'DOCX embedded Word Title style not restored');
+    assert(editor.value.startsWith('# Hello DOCX'), 'Exported DOCX heading lost after reimport');
     assert(editor.value.includes('Imported locally. No upload.'),
       'Exported DOCX paragraph lost after reimport');
-    assert(saved()?.title === 'roundtrip-copy' && saved()?.content === editor.value,
+    assert(!editor.value.startsWith(importedTitle), 'DOCX title duplicated inside the body');
+    assert(saved()?.title === importedTitle && saved()?.content === editor.value,
       'Exported DOCX reimport did not persist across reload');
-    sessionStorage.removeItem(phase);
-    publish('PASS', 'genuine Word ZIP import, review/cancel, export, self-reimport and reload');
+
+    upload('independent-word-styles.docx', createDocxFixture('external'));
+    const preview = await waitFor(() => document.querySelector('.phiwrite-docx-preview'),
+      'Word-style external fixture import preview');
+    assert(preview.textContent.includes('External Heading'),
+      'Custom Word style heading missing from preview');
+    assert(preview.textContent.includes('## External Heading'),
+      'Custom heading not resolved from styles.xml');
+    assert(preview.textContent.includes('Form control body survives'),
+      'Word content control text lost');
+    assert(preview.textContent.includes('External Meeting Memo'),
+      'Word Title style ignored');
+    assert(preview.textContent.includes('content control'),
+      'DOCX approximation warnings did not mention content controls');
+    assert(document.querySelector('.title-field input')?.value === importedTitle,
+      'External preview overwrote active PhiWrite title');
+    button('Replace draft with extracted text')?.click();
+    await waitFor(() => saved()?.title === 'External Meeting Memo' &&
+      saved()?.content?.includes('## External Heading'), 'External-style DOCX saved');
+    sessionStorage.setItem(phase, 'external-reload');
+    location.reload();
     return;
   }
   if (sessionStorage.getItem(phase) === 'reload') {
@@ -172,7 +221,7 @@ async function run() {
     assert(editor.value.startsWith('# Hello DOCX'),
       'Preview overwrote the active draft during self-roundtrip');
     button('Replace draft with extracted text')?.click();
-    await waitFor(() => saved()?.title === 'roundtrip-copy' &&
+    await waitFor(() => saved()?.title === importedTitle &&
       saved()?.content?.includes('# Hello DOCX'), 'DOCX self-roundtrip save');
     sessionStorage.setItem(phase, 'roundtrip-reload');
     location.reload();

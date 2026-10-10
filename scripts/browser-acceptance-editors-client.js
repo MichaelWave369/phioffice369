@@ -145,7 +145,7 @@ async function runGrid() {
   assert(document.querySelector('.table-wrap tbody tr input')?.value === 'Fixture category',
     'Malformed import mutated live grid');
 
-  upload(chooser, 'safe-import.csv', validCsv, 'text/csv');
+  upload(chooser, 'verified-final.csv', validCsv, 'text/csv');
   await waitFor(() => document.querySelector('.grid-import-preview'), 'second CSV import preview');
   findButton('Replace current grid with CSV')?.click();
   await waitFor(() => {

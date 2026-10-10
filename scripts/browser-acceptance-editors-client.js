@@ -92,7 +92,7 @@ async function download(label) {
 
 async function runGrid() {
   const key = 'phioffice369:phigrid:simple_family_budget';
-  const finalTitle = 'safe-import';
+  const finalTitle = 'verified-final';
   const finalCell = 'Line one,\nLine two';
   if (sessionStorage.getItem(phaseKey) === 'reload') {
     await openTemplate('Simple Family Budget', 'Open in PhiGrid-lite', '.grid-title-field input');

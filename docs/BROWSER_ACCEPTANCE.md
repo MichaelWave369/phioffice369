@@ -46,6 +46,14 @@ Each scenario runs against the compiled Vite app with a **separate disposable Ch
 - Rejects an unrelated JSON schema without replacing existing deck state.
 - Imports a valid native PhiDeck JSON fixture; reloads and verifies imported title, slide title and bullet text.
 
+### DOCX preview lab (#20)
+
+- Builds a minimal real OOXML ZIP package within the disposable browser.
+- Rejects an invalid ZIP without altering the active PhiWrite draft.
+- Reviews a valid DOCX text/heading extraction without replacing active content.
+- Cancels the preview, checks preserved local data, then confirms a second preview.
+- Reloads the page and verifies converted Markdown content and source filename title persisted.
+
 The disposable profiles are removed after each scenario. Nothing is sent to an external endpoint.
 
 ## Deliberate limitations

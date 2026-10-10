@@ -331,3 +331,44 @@
     justify-content: flex-start;
   }
 }
+
+/* Compatibility previews never edit or print the active PhiWrite document. */
+.phiwrite-docx-preview {
+  margin: 18px 0;
+  padding: 24px;
+  border-radius: 24px;
+  border: 1px solid rgba(214, 168, 61, 0.55);
+}
+.phiwrite-docx-preview h3 { color: #fff8dc; }
+.phiwrite-docx-preview p { color: #d4dbea; }
+.phiwrite-docx-warnings {
+  padding: 14px 18px;
+  margin: 14px 0;
+  background: rgba(255, 168, 72, 0.08);
+  border: 1px solid rgba(255, 168, 72, 0.42);
+  border-radius: 14px;
+  color: #ffdfa1;
+}
+.phiwrite-docx-warnings ul { margin: 8px 0 0; padding-left: 22px; }
+.phiwrite-docx-excerpt {
+  background: rgba(2, 7, 16, 0.65);
+  border: 1px solid rgba(214, 168, 61, 0.26);
+  border-radius: 14px;
+  color: #fff8dc;
+  padding: 16px;
+  max-height: 320px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.phiwrite-docx-controls { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 12px; }
+.phiwrite-docx-controls button {
+  padding: 11px 16px;
+  border: 1px solid rgba(214, 168, 61, 0.54);
+  border-radius: 999px;
+  color: #fff8dc;
+  background: rgba(214, 168, 61, 0.1);
+  font-weight: 800;
+}
+.phiwrite-docx-controls button:last-child { background: rgba(214, 168, 61, 0.3); }
+@media print { .phiwrite-docx-preview { display: none !important; } }

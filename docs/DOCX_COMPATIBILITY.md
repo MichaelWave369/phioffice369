@@ -1,6 +1,6 @@
 # PhiWrite DOCX text interoperability
 
-**Status:** DOCX import preview (PR #20) and basic DOCX export (PR #21 candidate).
+**Status:** DOCX import preview (#20), basic DOCX export (#21), and a custom-style/content-control interoperability lab (#22 candidate).
 
 PhiWrite remains a simple local-first Markdown editor. DOCX files use actual ZIP/Office Open XML packaging so compatible word processors can open them. These features are a **text-level conversion path**, not a complete Word document editor or layout-preserving converter.
 

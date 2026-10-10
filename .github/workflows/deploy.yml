@@ -2,8 +2,7 @@ name: Deploy PhiOffice369 Pages
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -12,35 +11,27 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: phioffice369-pages
   cancel-in-progress: false
 
 jobs:
   build:
-    name: Build and test
+    name: Test and package Pages
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version-file: .nvmrc
           cache: npm
-
-      - name: Install dependencies
+      - name: Install from committed lockfile
         run: npm ci --no-audit
-
       - name: Run tests
         run: npm test
-
       - name: Build web app
         run: npm run build
-
       - name: Configure Pages
         uses: actions/configure-pages@v5
-
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:

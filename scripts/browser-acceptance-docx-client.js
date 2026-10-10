@@ -53,6 +53,10 @@ function createDocxFixture(variant = 'basic') {
     '<w:p><w:pPr><w:pStyle w:val="CompanySection"/></w:pPr><w:r><w:t>External Heading</w:t></w:r></w:p>' +
     '<w:sdt><w:sdtContent><w:p><w:r><w:t>Form control body survives</w:t></w:r></w:p></w:sdtContent></w:sdt>' +
     '<w:p><w:r><w:t>Special characters: café &amp; résumé</w:t></w:r></w:p>' +
+    '<w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="4600"/><w:gridCol w:w="4600"/></w:tblGrid>' +
+    '<w:tr><w:tc><w:p><w:r><w:t>Product</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Price</w:t></w:r></w:p></w:tc></w:tr>' +
+    '<w:tr><w:tc><w:p><w:r><w:t>Tea &amp; biscuits</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>12</w:t></w:r></w:p></w:tc></w:tr>' +
+    '</w:tbl>' +
     '</w:body></w:document>';
   const externalStyles = '<?xml version="1.0"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
     '<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/></w:style>' +
@@ -137,6 +141,10 @@ async function run() {
     assert(editor.value.includes('Form control body survives'),
       'Word content-control text not restored');
     assert(editor.value.includes('café & résumé'), 'International Word text not restored');
+    assert(editor.value.includes('| Product | Price |'), 'External table header missing');
+    assert(editor.value.includes('| Tea & biscuits | 12 |'), 'External table row missing');
+    assert(document.querySelector('.phiwrite-print-body table')?.textContent.includes('Tea & biscuits'),
+      'Printable PhiWrite table not rendered from imported Word data');
     assert(!editor.value.startsWith('External Meeting Memo'),
       'Document title duplicated in body after external import');
     assert(saved()?.title === 'External Meeting Memo' && saved()?.content === editor.value,
@@ -168,6 +176,10 @@ async function run() {
       'Word Title style ignored');
     assert(preview.textContent.includes('content control'),
       'DOCX approximation warnings did not mention content controls');
+    assert(preview.textContent.includes('| Product | Price |'),
+      'External Word table was not converted to Markdown');
+    assert(preview.textContent.includes('Markdown pipe tables'),
+      'Table compatibility notice missing');
     assert(document.querySelector('.title-field input')?.value === importedTitle,
       'External preview overwrote active PhiWrite title');
     button('Replace draft with extracted text')?.click();

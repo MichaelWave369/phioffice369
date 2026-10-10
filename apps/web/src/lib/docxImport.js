@@ -1,4 +1,5 @@
 import { DOCX_MAX_FILE_BYTES, extractDocxPackage } from './docxZip.js';
+import { renderPipeTable } from './simpleTables.js';
 
 const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 
@@ -97,11 +98,12 @@ function markdownSafeText(value) {
 }
 
 export function renderDocxBlocksAsMarkdown(blocks = []) {
-  return blocks.filter((block) => block.text?.length > 0).map((block) => {
+  return blocks.filter((block) => block.kind === 'simple-table' ? block.rows?.length : block.text?.length > 0).map((block) => {
     if (block.kind === 'heading') {
       return '#'.repeat(Math.max(1, Math.min(6, block.level ?? 1))) + ' ' + markdownSafeText(block.text);
     }
     if (block.kind === 'list') return '- ' + markdownSafeText(block.text);
+    if (block.kind === 'simple-table') return renderPipeTable(block.rows);
     if (block.kind === 'table') return block.text.split('\n').map((row) => '    ' + row).join('\n');
     return markdownSafeText(block.text);
   }).join('\n\n');
@@ -122,6 +124,7 @@ export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Docum
   if (!body) throw new Error('DOCX import: Document body missing.');
   const blocks = [];
   let flattenedTables = 0;
+  let structuredTables = 0;
   let documentTitle = null;
   let contentControlCount = 0;
   function addParagraph(paragraph) {
@@ -152,13 +155,39 @@ export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Docum
     if (child.localName === 'p') {
       addParagraph(child);
     } else if (child.localName === 'tbl') {
-      flattenedTables += 1;
-      const lines = wordElements(child, 'tr').map((row) =>
-        wordElements(row, 'tc').map((cell) =>
-          wordElements(cell, 'p').map(collectParagraphText).filter(Boolean).join(' / ')
-        ).join('\t')
-      ).filter(Boolean);
-      if (lines.length) blocks.push({ kind: 'table', text: lines.join('\n') });
+      const directChildren = (node, localName) =>
+        [...node.children].filter((element) =>
+          element.namespaceURI === WORD_NS && element.localName === localName);
+      const rowNodes = directChildren(child, 'tr');
+      const cells = rowNodes.map((row) => directChildren(row, 'tc'));
+      const width = cells[0]?.length ?? 0;
+      const simple = width >= 2 && width <= 32 && rowNodes.length <= 500 &&
+        rowNodes.length > 0 &&
+        cells.every((row) => row.length === width && row.every((cell) => {
+          const directParagraphs = directChildren(cell, 'p');
+          return directParagraphs.length === 1 &&
+            !wordElements(cell, 'tbl').length &&
+            !wordElements(cell, 'gridSpan').length &&
+            !wordElements(cell, 'vMerge').length &&
+            !wordElements(cell, 'hMerge').length &&
+            !wordElements(cell, 'br').length;
+        }));
+      if (simple) {
+        structuredTables += 1;
+        blocks.push({ kind: 'simple-table', rows: cells.map((row) =>
+          row.map((cell) => collectParagraphText(directChildren(cell, 'p')[0]))
+        ) });
+      } else {
+        flattenedTables += 1;
+        // Keep all readable cell text, including unsupported merged or nested
+        // tables, rather than claiming a faithful rectangular grid.
+        const lines = wordElements(child, 'tr').map((row) =>
+          wordElements(row, 'tc').map((cell) =>
+            wordElements(cell, 'p').map(collectParagraphText).filter(Boolean).join(' / ')
+          ).join('\t')
+        ).filter(Boolean);
+        if (lines.length) blocks.push({ kind: 'table', text: lines.join('\n') });
+      }
     } else if (child.localName === 'sdt') {
       contentControlCount += 1;
       const content = wordElements(child, 'sdtContent')[0];
@@ -175,7 +204,8 @@ export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Docum
     'Preview extracts text and basic headings/lists only. Exact Word formatting and pagination are not preserved.',
     'Images, comments, fields, tracked edits, footnotes, headers and footers are not carried into PhiWrite.',
   ];
-  if (flattenedTables) warnings.push(flattenedTables + ' table(s) flattened to tab-separated text.');
+  if (structuredTables) warnings.push(structuredTables + ' simple rectangular Word table(s) converted to Markdown pipe tables; styling and header semantics may change.');
+  if (flattenedTables) warnings.push(flattenedTables + ' complex Word table(s) flattened to tab-separated text because merged, nested, or multi-paragraph cells cannot round-trip faithfully.');
   if (contentControlCount) warnings.push(contentControlCount + ' Word content control(s) read as plain text; form behavior was not preserved.');
   if (documentTitle) warnings.push('Document Title style was extracted into the PhiWrite title field rather than duplicated in the body.');
   const title = documentTitle ?? fallbackTitle ?? 'Imported Word Document';

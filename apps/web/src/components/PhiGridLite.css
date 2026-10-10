@@ -306,3 +306,85 @@
     justify-content: flex-start;
   }
 }
+
+/* Import review is intentionally separate from the editable workspace:
+   cancel leaves the current grid and its local storage untouched. */
+.grid-import-preview {
+  margin-top: 18px;
+  padding: 22px;
+  border: 1px solid rgba(214, 168, 61, 0.55);
+  border-radius: 24px;
+}
+
+.grid-import-preview h3 {
+  color: #fff8dc;
+  margin-bottom: 8px;
+}
+
+.grid-import-preview p {
+  color: #d4dbea;
+}
+
+.grid-import-warnings {
+  border: 1px solid rgba(255, 168, 72, 0.42);
+  border-radius: 14px;
+  padding: 14px 18px;
+  margin: 12px 0;
+  color: #ffdfa1;
+  background: rgba(255, 168, 72, 0.08);
+}
+
+.grid-import-warnings ul {
+  padding-left: 22px;
+  margin: 8px 0 0;
+}
+
+.grid-import-table-wrap {
+  overflow-x: auto;
+  margin: 14px 0;
+  border: 1px solid rgba(214, 168, 61, 0.28);
+  border-radius: 14px;
+}
+
+.grid-import-table-wrap table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.grid-import-table-wrap th,
+.grid-import-table-wrap td {
+  border-bottom: 1px solid rgba(214, 168, 61, 0.16);
+  padding: 10px;
+  text-align: left;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  min-width: 100px;
+}
+
+.grid-import-table-wrap th {
+  color: #fff8dc;
+}
+
+.grid-import-table-wrap > p {
+  margin: 10px 14px;
+}
+
+.grid-import-review-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.grid-import-review-actions button {
+  border: 1px solid rgba(214, 168, 61, 0.6);
+  border-radius: 999px;
+  padding: 11px 16px;
+  background: rgba(214, 168, 61, 0.12);
+  color: #fff8dc;
+  font-weight: 800;
+}
+
+.grid-import-review-actions button:last-child {
+  background: rgba(214, 168, 61, 0.28);
+}

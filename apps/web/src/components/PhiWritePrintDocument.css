@@ -1,0 +1,112 @@
+/* Only the printable document is shown in the browser print dialog. */
+.phiwrite-print-page {
+  display: none;
+}
+
+@media print {
+  @page { margin: 18mm; }
+
+  html, body, #root {
+    margin: 0 !important;
+    padding: 0 !important;
+    width: auto !important;
+    min-height: 0 !important;
+    background: #ffffff !important;
+    color: #172031 !important;
+    color-scheme: light !important;
+  }
+
+  body::before { display: none !important; }
+
+  .shell {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  .shell > :not(.phiwrite-workspace) {
+    display: none !important;
+  }
+
+  .shell > .phiwrite-workspace {
+    display: block !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    animation: none !important;
+  }
+
+  .phiwrite-workspace > :not(.phiwrite-print-page) {
+    display: none !important;
+  }
+
+  .phiwrite-print-page {
+    display: block !important;
+    box-sizing: border-box;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    color: #172031 !important;
+    font: 11pt/1.55 Georgia, 'Times New Roman', serif !important;
+  }
+
+  .phiwrite-print-page .phiwrite-print-header {
+    border-bottom: 1px solid #ccd2dc;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.7rem;
+  }
+
+  .phiwrite-print-page h1 {
+    color: #172031 !important;
+    font-size: 24pt !important;
+    font-weight: 700;
+    line-height: 1.25;
+    margin-bottom: 0.5rem;
+    overflow-wrap: anywhere;
+  }
+
+  .phiwrite-print-page h2,
+  .phiwrite-print-page h3,
+  .phiwrite-print-page h4,
+  .phiwrite-print-page h5,
+  .phiwrite-print-page h6 {
+    color: #172031 !important;
+    font-size: 16pt !important;
+    line-height: 1.3;
+    margin: 1.2em 0 0.55em;
+    break-after: avoid;
+    overflow-wrap: anywhere;
+  }
+
+  .phiwrite-print-page p,
+  .phiwrite-print-page blockquote,
+  .phiwrite-print-page li {
+    color: #172031 !important;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  .phiwrite-print-page .phiwrite-print-header p {
+    font-size: 9pt;
+    color: #44546a !important;
+    margin: 0;
+  }
+
+  .phiwrite-print-page blockquote {
+    border-left: 3px solid #88919f;
+    padding-left: 1rem;
+    margin-left: 0;
+  }
+
+  .phiwrite-print-page pre {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    background: #f1f3f5 !important;
+    color: #172031 !important;
+    padding: 1rem;
+    break-inside: avoid;
+  }
+
+  .phiwrite-print-page li { margin-bottom: 0.3rem; }
+  .phiwrite-print-page p,
+  .phiwrite-print-page li { orphans: 2; widows: 2; }
+}

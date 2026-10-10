@@ -6,6 +6,7 @@ import {
   Download,
   FileText,
   Layers3,
+  Printer,
   ListChecks,
   RotateCcw,
   ShieldCheck,
@@ -15,6 +16,8 @@ import {
 } from 'lucide-react';
 import { createArtifactReceipt, trustLabels } from '@phioffice369/core';
 import { parseMarkdownImport } from '../lib/localImporters.js';
+import { buildPhiWriteHtmlDocument } from '../lib/phiwritePrint.js';
+import PhiWritePrintDocument from './PhiWritePrintDocument.jsx';
 import { saveLocalExportReceipt } from '../lib/localReceipts.js';
 import { createPhiWriteToPhiDeckPayload, getTransformIds } from '../lib/transformRegistry.js';
 import { createPhiWriteTransformSet } from '../lib/phiwriteTransforms.js';
@@ -199,6 +202,19 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
     setSaveStatus('Markdown exported + receipt saved');
   }
 
+  function handleExportHtml() {
+    const filename = slugify(title) + '.html';
+    const body = buildPhiWriteHtmlDocument({ title, content, trustLabel: activeLabel.label });
+    downloadTextFile(filename, body, 'text/html;charset=utf-8');
+    saveLocalExportReceipt({ artifactId: 'draft_' + template.id, format: 'html', filename, sourceApp: 'PhiWrite' });
+    setSaveStatus('Standalone HTML exported + receipt saved');
+  }
+
+  function handlePrint() {
+    setSaveStatus('Browser print dialog requested. Choose Save as PDF to create a PDF.');
+    window.print();
+  }
+
   function handleExportDeckJson() {
     const filename = `${slugify(title)}-phideck-lite.json`;
     const payload = { schema: 'phioffice369.phideck_lite.v0.1', title, sourceTemplate: template.id, generatedAt: new Date().toISOString(), transformId: 'phiwrite_to_phideck_lite_workspace', slides: deckSlides };
@@ -316,6 +332,8 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
           <button className="ghost-button" type="button" onClick={handleResetDraft}><RotateCcw aria-hidden="true" />Reset</button>
           <button className="ghost-button" type="button" onClick={triggerMarkdownImport}><Upload aria-hidden="true" />Import .md</button>
           <button className="gold-button" type="button" onClick={handleExportMarkdown}><Download aria-hidden="true" />Export .md</button>
+          <button className="ghost-button" type="button" onClick={handleExportHtml}><Download aria-hidden="true" />Export HTML</button>
+          <button className="ghost-button" type="button" onClick={handlePrint}><Printer aria-hidden="true" />Print / Save as PDF</button>
           <input ref={importInputRef} className="workspace-file-input" type="file" accept=".md,.markdown,text/markdown,text/plain" onChange={handleImportMarkdown} />
         </div>
       </div>
@@ -377,6 +395,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
           <div className="slide-grid">{deckSlides.map((slide, index) => <article className="slide-card" key={slide.id}><span>Slide {index + 1}</span><h3>{slide.title}</h3><ul>{slide.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}</ul></article>)}</div>
         </section>
       )}
+      <PhiWritePrintDocument title={title} content={content} trustLabel={activeLabel.label} />
     </section>
   );
 }

@@ -35,3 +35,6 @@ jobs:
 
       - name: Build web app
         run: npm run build
+
+      - name: Smoke-check GitHub Pages output
+        run: npm run smoke:pages

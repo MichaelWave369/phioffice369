@@ -1,63 +1,50 @@
-# PhiOffice369 Status
+# PhiOffice369 launch status
 
-## Current project status
+Last source audit: October 9, 2026. This is a source-level audit, not a verified browser walkthrough.
 
-**Phase:** v0.1 prototype foundation  
-**Repo state:** public planning + interactive prototype  
-**Primary app:** `apps/web` React/Vite prototype  
-**Deploy target:** GitHub Pages
+## Overall maturity
 
-## What is working
+**Tested prototype foundation. Not yet a production Office replacement.**
 
-- Public README and roadmap
-- GitHub Pages deployment workflow
-- Standalone CI build workflow
-- Node 20 version pin through `.nvmrc`
-- Shared package structure
-- Interactive suite shell
-- Templates tab
-- Trust panel model
-- Professor Phi mode definitions
-- PhiWrite-lite workspace
-- Local autosave for PhiWrite-lite
-- Markdown export from PhiWrite-lite
-- Receipt JSON preview/copy in PhiWrite-lite
-- Local mock Professor Phi actions
-- PhiDeck-lite preview from PhiWrite-lite draft
-- PhiDeck-lite JSON export
+### Currently implemented (lite versions)
 
-## In progress
+- **PhiWrite:** Markdown editor, local autosave, Markdown import/export, trust labels, and document-to-deck transformations.
+- **PhiGrid:** editable tables, CSV import/export, JSON export, simple numeric totals and local autosave. Not an Excel calculation engine.
+- **PhiDeck:** standalone slide title/bullet editor, slide management, native deck JSON import/export and local autosave.
+- **PhiVault:** local artifact search, tags, project folders, backup/restore, receipt timeline, and guarded storage migration tooling.
+- **Professor Phi:** browser-local **mock** responses. No production AI connection.
+- **Core packages:** native artifact schemas, receipts, transformation packets, trust metadata and starter templates.
 
-- PhiGrid-lite local spreadsheet workspace
-- Template launcher routing for PhiGrid templates
-- More durable local artifact model
-- Better export/import consistency
+### Planned, not yet implemented as full apps
 
-## Known limitations
+PhiNotes, PhiMap, PhiPress, PhiBase, PhiFlow, and desktop installation.
 
-- No real DOCX/XLSX/PPTX compatibility yet
-- No cloud sync
-- No real AI API integration yet
-- Professor Phi actions are local mock helpers in the browser
-- PhiGrid-lite is tracked as an MVP issue and not fully wired yet
-- No package lockfile is committed yet
+### Compatibility boundaries
 
-## Build notes
+- Native lite flows: Markdown, CSV, JSON, local workspace backup and restore.
+- Not yet supported: faithful DOCX/XLSX/PPTX import/export, Microsoft macro support, Excel formula parity, enterprise collaboration or cloud sync.
+- LocalStorage is the default. IndexedDB is a **gated pilot**, not a general replacement.
+- GitHub Pages hosts the app, **not** your personal files. Back up the workspace before clearing site storage or switching browsers.
 
-Run locally from the repository root:
+## Build/deployment truth
 
-```bash
-npm install
-npm run build
-npm run dev
-```
+- Public repository: https://github.com/MichaelWave369/phioffice369
+- Intended Pages URL: https://michaelwave369.github.io/phioffice369/
+- Canonical Pages workflow: `.github/workflows/deploy.yml`. The duplicate publisher was removed in the deployment revival branch.
+- Deployment only runs from `main` or manual workflow dispatch after merging.
+- Install/test/build/gate: `npm ci --no-audit`, `npm test`, `npm run build`, `npm run smoke:pages`.
+- The smoke check confirms the built HTML's React mount point, `.nojekyll` marker and on-disk Vite assets under `/phioffice369/`. It does not prove browser interactivity or remote site availability.
 
-The GitHub Pages workflow deploys `apps/web/dist`.
+GitHub Settings → Pages → Build and deployment → Source must be **GitHub Actions**.
 
-## Next recommended build steps
+## Acceptance plan
 
-1. Finish PhiGrid-lite and wire it into template routing.
-2. Add package lockfile once dependencies stabilize.
-3. Add a local artifact manifest model.
-4. Add import/export receipts shared across PhiWrite/PhiGrid/PhiDeck.
-5. Add basic tests for shared package functions.
+1. Merge a green deployment revival PR and observe **one** successful Pages publisher for that revision.
+2. Open the live URL in a fresh browser and verify navigation, PhiWrite, PhiGrid, PhiDeck and PhiVault.
+3. Round-trip one small Markdown document, one CSV grid and one native JSON deck; refresh and check local persistence.
+4. In a throwaway browser profile, export a workspace backup, reset local data and verify restore, with no valuable data at risk.
+5. Add browser smoke tests and only then advance PWA/desktop packaging or actual Office format interoperability.
+
+The open Parallax interop PR #14 is separate from this deployment repair.
+
+**Claims boundary:** green CI demonstrates the tested source paths pass; it does not establish Office compatibility, a fully functioning live site, or production readiness.

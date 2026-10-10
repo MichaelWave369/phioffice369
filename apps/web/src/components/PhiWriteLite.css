@@ -372,3 +372,15 @@
 }
 .phiwrite-docx-controls button:last-child { background: rgba(214, 168, 61, 0.3); }
 @media print { .phiwrite-docx-preview { display: none !important; } }
+
+.phiwrite-docx-export-note {
+  margin: 12px 4px 0;
+  padding: 10px 14px;
+  border-left: 3px solid rgba(214, 168, 61, 0.78);
+  color: #cfdbeb;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+@media print {
+  .phiwrite-docx-export-note { display: none !important; }
+}

@@ -129,7 +129,7 @@ async function decompressEntry(bytes, entry, limit) {
   return output;
 }
 
-export async function extractDocxXml(input) {
+export async function extractDocxPackage(input) {
   const { bytes, entries } = findDocxZipEntries(input);
   const manifest = entries.get('[Content_Types].xml');
   const document = entries.get('word/document.xml');
@@ -145,5 +145,21 @@ export async function extractDocxXml(input) {
   if (!contentTypes.includes('application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml')) {
     fail('ZIP is not a standard Word DOCX package.');
   }
-  return xml;
+
+  // Real Word/LibreOffice files often reference custom paragraph styles.
+  // Read the optional styles part under its own strict size budget.
+  const stylesPart = entries.get('word/styles.xml');
+  let stylesXml = null;
+  if (stylesPart) {
+    const styleBytes = await decompressEntry(bytes, stylesPart, 2 * 1024 * 1024);
+    stylesXml = decoder.decode(styleBytes).replace(/^\uFEFF/, '');
+    if (/<!DOCTYPE|<!ENTITY/i.test(stylesXml)) {
+      fail('XML entity and DOCTYPE declarations are unsupported.');
+    }
+  }
+  return { documentXml: xml, stylesXml };
+}
+
+export async function extractDocxXml(input) {
+  return (await extractDocxPackage(input)).documentXml;
 }

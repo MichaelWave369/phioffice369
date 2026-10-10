@@ -1,14 +1,14 @@
 # PhiWrite DOCX text interoperability
 
-**Status:** DOCX import preview (PR #20) and basic DOCX export (PR #21 candidate).
+**Status:** DOCX import preview (#20), basic DOCX export (#21), and a custom-style/content-control interoperability lab (#22 candidate).
 
 PhiWrite remains a simple local-first Markdown editor. DOCX files use actual ZIP/Office Open XML packaging so compatible word processors can open them. These features are a **text-level conversion path**, not a complete Word document editor or layout-preserving converter.
 
 | Content | PhiWrite → DOCX | DOCX → PhiWrite |
 | --- | --- | --- |
-| Document title | Visible Word Title paragraph | Derived from filename; source title appears in extracted text if present |
+| Document title | Visible Word Title paragraph | First Word Title-styled paragraph becomes the PhiWrite title; otherwise filename used |
 | Paragraphs and line breaks | Basic Word paragraphs and breaks | Text paragraphs and breaks |
-| Headings 1–6 | Word paragraph heading styles | Markdown headings for standard Word heading styles |
+| Headings 1–6 | Word paragraph heading styles | Markdown headings for standard styles, custom style inheritance, and paragraph outline levels |
 | Bullet / numbered lists | Standard Word numbering definitions | Simplified Markdown bullets (numbering distinctions are not guaranteed) |
 | Code blocks | Basic monospace Word paragraph style | Text is extracted; code styling may be lost |
 | Blockquotes | Simple Word Quote style | Text is extracted; quote styling may be lost |
@@ -17,7 +17,7 @@ PhiWrite remains a simple local-first Markdown editor. DOCX files use actual ZIP
 | Images and rich media | Not exported | Not preserved |
 | Headers, footers, comments, footnotes, fields | Not exported | Not preserved |
 | Pagination, section formatting, margins | Basic default page setup only | Not preserved |
-| Tracked edits, macros, complex embedded content | Not exported | Not preserved |
+| Tracked edits, macros, complex embedded content | Not exported | Tracked edits and macros not preserved; basic Word content-control text extracted, form behavior lost |
 
 The export is built locally with a strict source-size and package-size limit. It includes the main WordprocessingML document, styles, numbering, and OPC relationships, all as uncompressed ZIP entries for predictable output. It does not require a server, credentials, document upload or new runtime package.
 

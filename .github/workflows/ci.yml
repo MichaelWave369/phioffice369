@@ -38,3 +38,10 @@ jobs:
 
       - name: Smoke-check GitHub Pages output
         run: npm run smoke:pages
+
+      - name: Verify Chrome availability
+        run: |
+          command -v google-chrome || command -v chromium || command -v chromium-browser
+
+      - name: Accept PhiWrite in a real browser
+        run: npm run test:browser

@@ -36,6 +36,26 @@ function paragraph(text, { style = 'Normal', numId = null } = {}) {
     '</w:pPr>' + textRuns(text) + '</w:p>';
 }
 
+function simpleWordTable(rows) {
+  const width = rows[0]?.length ?? 0;
+  if (width < 2 || width > 32 || rows.length > 500 ||
+    rows.some((row) => row.length !== width)) {
+    throw new Error('DOCX export: Only rectangular tables of 2–32 columns and up to 500 rows are supported.');
+  }
+  const columnWidth = Math.max(220, Math.floor(9360 / width));
+  const grid = rows[0].map(() => '<w:gridCol w:w="' + columnWidth + '"/>').join('');
+  const rowXml = rows.map((cells, index) =>
+    '<w:tr>' + (index === 0 ? '<w:trPr><w:tblHeader w:val="true"/></w:trPr>' : '') +
+    cells.map((cell) => '<w:tc><w:tcPr><w:tcW w:w="' + columnWidth +
+      '" w:type="dxa"/></w:tcPr>' + paragraph(cell) + '</w:tc>').join('') + '</w:tr>'
+  ).join('');
+  return '<w:tbl><w:tblPr><w:tblW w:w="9360" w:type="dxa"/>' +
+    '<w:tblBorders><w:top w:val="single" w:sz="4"/><w:left w:val="single" w:sz="4"/>' +
+    '<w:bottom w:val="single" w:sz="4"/><w:right w:val="single" w:sz="4"/>' +
+    '<w:insideH w:val="single" w:sz="4"/><w:insideV w:val="single" w:sz="4"/>' +
+    '</w:tblBorders></w:tblPr><w:tblGrid>' + grid + '</w:tblGrid>' + rowXml + '</w:tbl>';
+}
+
 function xmlParts({ title, content }) {
   const blocks = parsePhiWritePrintBlocks(content);
   const documentBody = [
@@ -50,6 +70,7 @@ function xmlParts({ title, content }) {
           numId: block.listType === 'ol' ? 2 : 1,
         })).join('');
       }
+      if (block.kind === 'table') return simpleWordTable(block.rows);
       if (block.kind === 'code') return paragraph(block.text, { style: 'Code' });
       if (block.kind === 'quote') return paragraph(block.text, { style: 'Quote' });
       return paragraph(block.text);
@@ -209,8 +230,8 @@ export function buildPhiWriteDocx({ title = 'Untitled', content = '' } = {}) {
     mime: DOCX_EXPORT_MIME,
     bytes: zipStoredDocxParts(parts),
     warnings: [
-      'Exports basic paragraphs, headings, lists, quotations and code blocks. Advanced Markdown and inline formatting remain literal text.',
-      'Word page layout, tables, images, links, comments, tracked changes, macros and exact source fidelity are not supported.',
+      'Exports basic paragraphs, headings, lists, quotations, code blocks and simple rectangular pipe tables. Advanced Markdown and inline formatting remain literal text.',
+      'Complex tables (merges, nested tables, cell formatting), Word page layout, images, links, comments, tracked changes, macros and exact source fidelity are not supported.',
       'Importing this DOCX back into PhiWrite is a text round trip, not a pixel-perfect or formatting-preserving round trip.',
     ],
   };

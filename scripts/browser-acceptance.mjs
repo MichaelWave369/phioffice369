@@ -157,9 +157,9 @@ try {
       }
       console.log('PASS: ' + scenario + ' production browser acceptance.');
     } finally {
-        }
+      await rm(profile, { recursive: true, force: true });
+    }
   }
 } finally {
   await new Promise((resolveClose) => server.close(resolveClose));
-  await rm(profile, { recursive: true, force: true });
 }

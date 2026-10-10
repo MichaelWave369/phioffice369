@@ -101,7 +101,7 @@ async function runGrid() {
     assert(grid?.columns?.[1] === 'Category (2)', 'PhiGrid duplicate header not restored');
     assert(grid?.rows?.[0]?.Category === finalCell, 'PhiGrid multiline CSV cell not restored');
     assert(document.querySelector('.grid-title-field input')?.value === finalTitle, 'PhiGrid title not restored in UI');
-    assert(document.querySelector('.table-wrap tbody tr input')?.value === finalCell, 'PhiGrid imported cell not restored in UI');
+    assert(document.querySelector('.table-wrap tbody tr textarea')?.value === finalCell, 'PhiGrid multiline cell not restored in UI');
     sessionStorage.removeItem(phaseKey);
     return 'PhiGrid edit, autosave, CSV/JSON export, safe import review, cancel, confirm and reload';
   }

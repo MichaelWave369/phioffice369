@@ -6,7 +6,7 @@ PhiWrite remains a simple local-first Markdown editor. DOCX files use actual ZIP
 
 | Content | PhiWrite → DOCX | DOCX → PhiWrite |
 | --- | --- | --- |
-| Document title | Visible Word Title paragraph | Derived from filename; source title appears in extracted text if present |
+| Document title | Visible Word Title paragraph | First Word Title-styled paragraph becomes the PhiWrite title; otherwise filename used |
 | Paragraphs and line breaks | Basic Word paragraphs and breaks | Text paragraphs and breaks |
 | Headings 1–6 | Word paragraph heading styles | Markdown headings for standard Word heading styles |
 | Bullet / numbered lists | Standard Word numbering definitions | Simplified Markdown bullets (numbering distinctions are not guaranteed) |

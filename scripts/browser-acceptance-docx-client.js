@@ -116,14 +116,66 @@ function publish(result, detail) {
 }
 async function run() {
   const editor = await openWrite();
+  if (sessionStorage.getItem(phase) === 'roundtrip-reload') {
+    assert(document.querySelector('.title-field input')?.value === 'roundtrip-copy',
+      'Reimported PhiWrite DOCX title not restored');
+    assert(editor.value.includes('# Hello DOCX'), 'Exported DOCX heading lost after reimport');
+    assert(editor.value.includes('Imported locally. No upload.'),
+      'Exported DOCX paragraph lost after reimport');
+    assert(saved()?.title === 'roundtrip-copy' && saved()?.content === editor.value,
+      'Exported DOCX reimport did not persist across reload');
+    sessionStorage.removeItem(phase);
+    publish('PASS', 'genuine Word ZIP import, review/cancel, export, self-reimport and reload');
+    return;
+  }
   if (sessionStorage.getItem(phase) === 'reload') {
     assert(document.querySelector('.title-field input')?.value === importedTitle, 'DOCX title not restored');
     assert(editor.value.includes('# Hello DOCX'), 'DOCX Heading1 not converted into Markdown');
     assert(editor.value.includes('Imported locally. No upload.'), 'DOCX paragraph not restored');
     assert(saved()?.content === editor.value, 'DOCX converted text did not persist');
     assert(!document.querySelector('.phiwrite-docx-preview'), 'DOCX preview left open after reload');
-    sessionStorage.removeItem(phase);
-    publish('PASS', 'Word ZIP, safe review, cancel, confirmation and reload');
+
+    let exportedBlob = null;
+    let exportName = '';
+    const originalCreate = URL.createObjectURL;
+    const originalRevoke = URL.revokeObjectURL;
+    const originalClick = HTMLAnchorElement.prototype.click;
+    try {
+      URL.createObjectURL = (blob) => {
+        exportedBlob = blob;
+        return 'blob:phi-docx-export-smoke';
+      };
+      URL.revokeObjectURL = () => {};
+      HTMLAnchorElement.prototype.click = function captureExport() {
+        exportName = this.download;
+      };
+      assert(button('Export .docx'), 'DOCX export button is missing');
+      button('Export .docx').click();
+    } finally {
+      URL.createObjectURL = originalCreate;
+      URL.revokeObjectURL = originalRevoke;
+      HTMLAnchorElement.prototype.click = originalClick;
+    }
+    assert(exportName === 'sample-word-document.docx', 'DOCX export filename mismatch');
+    assert(exportedBlob?.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'DOCX export MIME type missing');
+    const bytes = new Uint8Array(await exportedBlob.arrayBuffer());
+    assert(bytes.length > 100 && bytes[0] === 0x50 && bytes[1] === 0x4b,
+      'DOCX export is not a ZIP file');
+    upload('roundtrip-copy.docx', bytes);
+    const secondPreview = await waitFor(() => document.querySelector('.phiwrite-docx-preview'),
+      'DOCX self-roundtrip preview');
+    assert(secondPreview.textContent.includes('Hello DOCX'),
+      'DOCX self-roundtrip lost the exported Heading 1');
+    assert(secondPreview.textContent.includes('Imported locally. No upload.'),
+      'DOCX self-roundtrip lost the exported body');
+    assert(editor.value.startsWith('# Hello DOCX'),
+      'Preview overwrote the active draft during self-roundtrip');
+    button('Replace draft with extracted text')?.click();
+    await waitFor(() => saved()?.title === 'roundtrip-copy' &&
+      saved()?.content?.includes('# Hello DOCX'), 'DOCX self-roundtrip save');
+    sessionStorage.setItem(phase, 'roundtrip-reload');
+    location.reload();
     return;
   }
 

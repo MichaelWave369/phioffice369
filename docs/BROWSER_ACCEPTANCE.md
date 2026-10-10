@@ -53,6 +53,7 @@ Each scenario runs against the compiled Vite app with a **separate disposable Ch
 - Reviews a valid DOCX text/heading extraction without replacing active content.
 - Cancels the preview, checks preserved local data, then confirms a second preview.
 - Reloads the page and verifies converted Markdown content and source filename title persisted.
+- Exports the same draft as genuine local DOCX (ZIP+OOXML), feeds that downloaded package to the DOCX importer, reviews/accepts it, then reloads and checks the content again.
 
 The disposable profiles are removed after each scenario. Nothing is sent to an external endpoint.
 

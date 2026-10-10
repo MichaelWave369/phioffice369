@@ -4,6 +4,7 @@ import {
   inferImportKindFromFilename,
   normalizeTextFile,
   parseCsvImport,
+  parseCsvRecords,
   parseMarkdownImport,
   parsePhiDeckJsonImport,
   splitCsvLine,
@@ -95,4 +96,57 @@ test('inferImportKindFromFilename detects supported local import types', () => {
   assert.equal(inferImportKindFromFilename('budget.csv'), 'csv');
   assert.equal(inferImportKindFromFilename('manifest.json'), 'json');
   assert.equal(inferImportKindFromFilename('image.png'), 'unknown');
+});
+
+test('parseCsvRecords preserves quoted newlines, commas, quotes and cell whitespace', () => {
+  const records = parseCsvRecords('Name,Notes,Value\r\nAda,"one,\r\ntwo ""quoted""", 4 \r\n');
+  assert.deepEqual(records, [
+    ['Name', 'Notes', 'Value'],
+    ['Ada', 'one,\ntwo "quoted"', ' 4 '],
+  ]);
+});
+
+test('parseCsvImport preserves blank rows, cell padding and trailing newline', () => {
+  const result = parseCsvImport('Name,Notes\nAlex," leading "\n\n', 'Local');
+  assert.deepEqual(result.columns, ['Name', 'Notes']);
+  assert.deepEqual(result.rows, [
+    { Name: 'Alex', Notes: ' leading ' },
+    { Name: '', Notes: '' },
+  ]);
+});
+
+test('parseCsvImport retains duplicate headers and excess cell values without data loss', () => {
+  const result = parseCsvImport('Name,Name,,Age\nA,B,C,20,Extra');
+  assert.deepEqual(result.columns, ['Name', 'Name (2)', 'Column 3', 'Age', 'Column 5']);
+  assert.deepEqual(result.rows[0], {
+    Name: 'A',
+    'Name (2)': 'B',
+    'Column 3': 'C',
+    Age: '20',
+    'Column 5': 'Extra',
+  });
+  assert.equal(result.csvWarnings.length, 3);
+});
+
+test('parseCsvRecords rejects malformed quoted fields before overwriting a grid', () => {
+  assert.throws(() => parseCsvRecords('Name,Notes\nA,"unfinished'), /unterminated quoted field/);
+  assert.throws(() => parseCsvRecords('Name,Notes\nA,"closed"extra'), /unexpected character/);
+  assert.throws(() => parseCsvRecords('Name,Notes\nA,un"quoted'), /unexpected character/);
+});
+
+test('parseCsvImport treats spreadsheet-like formulas as literal text', () => {
+  const result = parseCsvImport('Label,Value\nTotal,=SUM(A1:A5)');
+  assert.equal(result.rows[0].Value, '=SUM(A1:A5)');
+});
+
+test('parseCsvRecords handles blank and trailing-delimiter records', () => {
+  assert.deepEqual(parseCsvRecords(''), []);
+  assert.deepEqual(parseCsvRecords('A,B,\nC,D,'), [['A', 'B', ''], ['C', 'D', '']]);
+});
+
+test('parseCsvImport preserves potentially special JavaScript object keys as columns', () => {
+  const result = parseCsvImport('__proto__,constructor,toString\nsafe,1,2');
+  assert.deepEqual(result.columns, ['__proto__', 'constructor', 'toString']);
+  assert.equal(Object.prototype.hasOwnProperty.call(result.rows[0], '__proto__'), true);
+  assert.equal(result.rows[0].__proto__, 'safe');
 });

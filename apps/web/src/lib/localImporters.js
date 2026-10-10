@@ -16,61 +16,129 @@ export function parseMarkdownImport(text, fallbackTitle = 'Imported Markdown') {
   };
 }
 
-export function splitCsvLine(line) {
-  const cells = [];
-  let current = '';
-  let inQuotes = false;
+// A small RFC 4180-style reader: commas, escaped quotes, and newlines inside
+// quoted fields are data. Malformed quotes are rejected rather than silently
+// changing cells or overwriting an existing local workspace.
+export function parseCsvRecords(text) {
+  const source = normalizeTextFile(text);
+  if (source.length === 0) return [];
 
-  for (let index = 0; index < line.length; index += 1) {
-    const char = line[index];
-    const next = line[index + 1];
+  const records = [];
+  let record = [];
+  let field = '';
+  let insideQuotes = false;
+  let afterQuotedField = false;
 
-    if (char === '"' && inQuotes && next === '"') {
-      current += '"';
-      index += 1;
-      continue;
-    }
-
-    if (char === '"') {
-      inQuotes = !inQuotes;
-      continue;
-    }
-
-    if (char === ',' && !inQuotes) {
-      cells.push(current);
-      current = '';
-      continue;
-    }
-
-    current += char;
+  function endField() {
+    record.push(field);
+    field = '';
+    afterQuotedField = false;
   }
 
-  cells.push(current);
-  return cells;
+  function endRecord() {
+    endField();
+    records.push(record);
+    record = [];
+  }
+
+  for (let i = 0; i < source.length; i += 1) {
+    const char = source[i];
+
+    if (insideQuotes) {
+      if (char === '"' && source[i + 1] === '"') {
+        field += '"';
+        i += 1;
+      } else if (char === '"') {
+        insideQuotes = false;
+        afterQuotedField = true;
+      } else {
+        field += char;
+      }
+      continue;
+    }
+
+    if (char === ',') {
+      endField();
+      continue;
+    }
+    if (char === '\n') {
+      endRecord();
+      continue;
+    }
+    if (char === '"' && field.length === 0 && !afterQuotedField) {
+      insideQuotes = true;
+      continue;
+    }
+    if (char === '"' || afterQuotedField) {
+      throw new SyntaxError('Malformed CSV: unexpected character after a quoted field.');
+    }
+    field += char;
+  }
+
+  if (insideQuotes) {
+    throw new SyntaxError('Malformed CSV: unterminated quoted field.');
+  }
+
+  if (record.length > 0 || field.length > 0 || !source.endsWith('\n')) {
+    endRecord();
+  }
+
+  return records;
+}
+
+export function splitCsvLine(line) {
+  const records = parseCsvRecords(line);
+  if (records.length > 1) {
+    throw new SyntaxError('Expected one CSV record.');
+  }
+  return records[0] ?? [''];
 }
 
 export function parseCsvImport(text, fallbackTitle = 'Imported CSV') {
-  const lines = normalizeTextFile(text)
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
+  const records = parseCsvRecords(text);
 
-  if (lines.length === 0) {
+  if (records.length === 0) {
     return {
       kind: 'grid',
       app: 'PhiGrid',
       title: fallbackTitle,
       columns: ['Item', 'Value', 'Notes'],
       rows: [],
+      csvWarnings: [],
       importNote: 'Imported empty CSV. No file was uploaded.',
     };
   }
 
-  const columns = splitCsvLine(lines[0]).map((column, index) => column.trim() || `Column ${index + 1}`);
-  const rows = lines.slice(1).map((line) => {
-    const cells = splitCsvLine(line);
-    return columns.reduce((row, column, index) => ({ ...row, [column]: cells[index] ?? '' }), {});
-  });
+  const headers = records[0];
+  const width = records.reduce((max, record) => Math.max(max, record.length), headers.length);
+  const columns = [];
+  const usedNames = new Set();
+  let duplicateCount = 0;
+  let unnamedCount = 0;
+
+  for (let index = 0; index < width; index += 1) {
+    const rawHeader = headers[index]?.trim() ?? '';
+    if (index < headers.length && !rawHeader) unnamedCount += 1;
+    const base = rawHeader || 'Column ' + (index + 1);
+    let label = base;
+    let suffix = 2;
+    while (usedNames.has(label)) {
+      label = base + ' (' + suffix + ')';
+      suffix += 1;
+    }
+    if (label !== base) duplicateCount += 1;
+    usedNames.add(label);
+    columns.push(label);
+  }
+
+  const rows = records.slice(1).map((record) =>
+    Object.fromEntries(columns.map((column, index) => [column, record[index] ?? '']))
+  );
+
+  const csvWarnings = [];
+  if (duplicateCount) csvWarnings.push(duplicateCount + ' duplicate column names were renamed to prevent overwriting cells.');
+  if (unnamedCount) csvWarnings.push(unnamedCount + ' blank column names were assigned labels.');
+  if (width > headers.length) csvWarnings.push((width - headers.length) + ' additional columns were created for data beyond the header.');
 
   return {
     kind: 'grid',
@@ -78,6 +146,7 @@ export function parseCsvImport(text, fallbackTitle = 'Imported CSV') {
     title: fallbackTitle,
     columns,
     rows,
+    csvWarnings,
     importNote: 'Imported from local CSV. No file was uploaded.',
   };
 }

@@ -9,7 +9,12 @@ import { dirname, extname, join, relative, resolve, sep } from 'node:path';
 
 const appRoot = resolve('apps/web/dist');
 const indexFile = join(appRoot, 'index.html');
-const acceptanceClient = resolve('scripts/browser-acceptance-client.js');
+const acceptanceClients = Object.freeze({
+  phiwrite: resolve('scripts/browser-acceptance-client.js'),
+  phigrid: resolve('scripts/browser-acceptance-editors-client.js'),
+  phideck: resolve('scripts/browser-acceptance-editors-client.js'),
+});
+const scenarios = Object.keys(acceptanceClients);
 const base = '/phioffice369/';
 const mime = {
   '.css': 'text/css; charset=utf-8',
@@ -46,7 +51,12 @@ async function serve(request, response) {
 
     if (url.pathname === base + '__phi_acceptance_client.js') {
       response.writeHead(200, { 'content-type': mime['.js'], 'cache-control': 'no-store' });
-      response.end(await readFile(acceptanceClient));
+      const scenario = url.searchParams.get('scenario');
+      if (!Object.hasOwn(acceptanceClients, scenario)) {
+        response.writeHead(400).end('Unknown browser scenario');
+        return;
+      }
+      response.end(await readFile(acceptanceClients[scenario]));
       return;
     }
 
@@ -63,11 +73,16 @@ async function serve(request, response) {
     }
     let bytes = await readFile(target);
     if (target === indexFile) {
+      const scenario = url.searchParams.get('scenario');
+      if (!Object.hasOwn(acceptanceClients, scenario)) {
+        response.writeHead(400).end('Unknown browser scenario');
+        return;
+      }
       const html = bytes.toString('utf8');
       assert.ok(html.includes('</body>'), 'Built index missing closing body');
       bytes = Buffer.from(html.replace(
         '</body>',
-        '<script type="module" src="' + base + '__phi_acceptance_client.js"></script></body>',
+        '<script type="module" src="' + base + '__phi_acceptance_client.js?scenario=' + scenario + '"></script></body>',
       ));
     }
     response.writeHead(200, {
@@ -120,7 +135,6 @@ function runChrome(browser, url, profile) {
 
 await stat(indexFile); // Fail before opening the browser if npm run build was skipped.
 const browser = findChrome();
-const profile = await mkdtemp(join(tmpdir(), 'phioffice369-browser-'));
 const server = createServer((request, response) => {
   void serve(request, response);
 });
@@ -130,15 +144,21 @@ try {
   const address = server.address();
   const url = 'http://127.0.0.1:' + address.port + base;
   console.log('PhiOffice369 browser acceptance (disposable local profile) using: ' + browser);
-  const result = await runChrome(browser, url, profile);
-  const marker = result.output.match(/data-phi-acceptance="(PASS|FAIL)"/);
-  const detail = result.output.match(/<pre id="phi-browser-acceptance-result">([\s\S]*?)<\/pre>/);
-  if (result.code !== 0 || marker?.[1] !== 'PASS') {
-    console.error('Browser acceptance did not pass:', detail?.[1] ?? 'no result marker');
-    console.error('Browser diagnostics:', result.stderr.slice(-1600));
-    throw new Error('PhiOffice369 browser acceptance failed (Chrome exit ' + result.code + ').');
+  for (const scenario of scenarios) {
+    const profile = await mkdtemp(join(tmpdir(), 'phioffice369-' + scenario + '-'));
+    try {
+      const result = await runChrome(browser, url + '?scenario=' + scenario, profile);
+      const marker = result.output.match(/data-phi-acceptance="(PASS|FAIL)"/);
+      const detail = result.output.match(/<pre id="phi-browser-acceptance-result">([\s\S]*?)<\/pre>/);
+      if (result.code !== 0 || marker?.[1] !== 'PASS') {
+        console.error(scenario + ' acceptance failed:', detail?.[1] ?? 'no result marker');
+        console.error('Chrome diagnostics:', result.stderr.slice(-1600));
+        throw new Error('PhiOffice369 ' + scenario + ' acceptance failed (Chrome exit ' + result.code + ').');
+      }
+      console.log('PASS: ' + scenario + ' production browser acceptance.');
+    } finally {
+        }
   }
-  console.log('PASS: PhiWrite edit, autosave, HTML export, print control, and reload restore.');
 } finally {
   await new Promise((resolveClose) => server.close(resolveClose));
   await rm(profile, { recursive: true, force: true });

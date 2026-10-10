@@ -17,6 +17,7 @@ import {
 import { createArtifactReceipt, trustLabels } from '@phioffice369/core';
 import { parseMarkdownImport } from '../lib/localImporters.js';
 import { previewDocxFile } from '../lib/docxImport.js';
+import { buildPhiWriteDocx } from '../lib/docxExport.js';
 import { buildPhiWriteHtmlDocument } from '../lib/phiwritePrint.js';
 import PhiWritePrintDocument from './PhiWritePrintDocument.jsx';
 import { saveLocalExportReceipt } from '../lib/localReceipts.js';
@@ -120,6 +121,18 @@ function downloadTextFile(filename, body, type) {
   URL.revokeObjectURL(url);
 }
 
+function downloadBinaryFile(filename, bytes, type) {
+  const blob = new Blob([bytes], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 function getPacketExportBody(packet) {
   if (typeof packet.payload === 'string') return packet.payload;
   return JSON.stringify(packet.payload, null, 2);
@@ -212,6 +225,23 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
     downloadTextFile(filename, body, 'text/html;charset=utf-8');
     saveLocalExportReceipt({ artifactId: 'draft_' + template.id, format: 'html', filename, sourceApp: 'PhiWrite' });
     setSaveStatus('Standalone HTML exported + receipt saved');
+  }
+
+  function handleExportDocx() {
+    try {
+      const result = buildPhiWriteDocx({ title, content });
+      const filename = slugify(title) + '.docx';
+      downloadBinaryFile(filename, result.bytes, result.mime);
+      saveLocalExportReceipt({
+        artifactId: 'draft_' + template.id,
+        format: 'docx',
+        filename,
+        sourceApp: 'PhiWrite',
+      });
+      setSaveStatus('Basic DOCX exported + receipt saved. Review layout in Word or LibreOffice.');
+    } catch (error) {
+      setSaveStatus(error instanceof Error ? error.message : 'DOCX export failed. No receipt saved.');
+    }
   }
 
   function handlePrint() {
@@ -375,6 +405,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
           <button className="ghost-button" type="button" onClick={triggerDocxImport}><Upload aria-hidden="true" />Preview .docx</button>
           <button className="gold-button" type="button" onClick={handleExportMarkdown}><Download aria-hidden="true" />Export .md</button>
           <button className="ghost-button" type="button" onClick={handleExportHtml}><Download aria-hidden="true" />Export HTML</button>
+          <button className="ghost-button" type="button" onClick={handleExportDocx}><Download aria-hidden="true" />Export .docx</button>
           <button className="ghost-button" type="button" onClick={handlePrint}><Printer aria-hidden="true" />Print / Save as PDF</button>
           <input ref={importInputRef} className="workspace-file-input" type="file" accept=".md,.markdown,text/markdown,text/plain" onChange={handleImportMarkdown} />
           <input ref={docxImportRef} className="workspace-file-input" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={handleDocxImport} />
@@ -398,6 +429,8 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
           </div>
         </section>
       )}
+
+      <p className="phiwrite-docx-export-note" role="note">DOCX export: basic text, headings, lists, quotes and code. Complex Word layout, embedded images and inline Markdown formatting are not preserved. Export a copy and inspect it before sharing.</p>
 
       <div className="workspace-grid">
         <aside className="panel workspace-sidebar">

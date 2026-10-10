@@ -107,7 +107,7 @@ function runChrome(browser, url, profile) {
       '--no-default-browser-check',
       '--disable-background-networking',
       '--disable-sync',
-      '--virtual-time-budget=20000',
+      '--virtual-time-budget=45000',
       '--dump-dom',
       '--user-data-dir=' + profile,
       url,

@@ -267,7 +267,21 @@ export default function PhiGridLite({ template, onBack }) {
               <tbody>
                 {rows.map((row, rowIndex) => (
                   <tr key={`row-${rowIndex}`}>
-                    {columns.map((column) => <td key={column}><input value={row[column] ?? ''} onChange={(event) => updateCell(rowIndex, column, event.target.value)} /></td>)}
+                    {columns.map((column) => {
+                      const value = String(row[column] ?? '');
+                      const props = {
+                        value,
+                        onChange: (event) => updateCell(rowIndex, column, event.target.value),
+                        'aria-label': column + ' row ' + (rowIndex + 1),
+                      };
+                      return (
+                        <td key={column}>
+                          {value.includes('\n')
+                            ? <textarea {...props} rows={Math.min(6, value.split('\n').length)} />
+                            : <input {...props} />}
+                        </td>
+                      );
+                    })}
                   </tr>
                 ))}
               </tbody>

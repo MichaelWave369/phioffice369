@@ -1,3 +1,5 @@
+import { parsePipeTableAt } from './simpleTables.js';
+
 // Printable block-only Markdown subset. Other Markdown remains literal.
 export function parsePhiWritePrintBlocks(markdown = '') {
   const lines = String(markdown ?? '').replace(/\r\n?/g, '\n').split('\n');
@@ -21,6 +23,12 @@ export function parsePhiWritePrintBlocks(markdown = '') {
       blocks.push({ kind: 'code', text: content.join('\n') });
       continue;
     }
+    const table = parsePipeTableAt(lines, i);
+    if (table) {
+      blocks.push({ kind: 'table', rows: table.rows });
+      i = table.nextIndex;
+      continue;
+    }
     const head = heading(line);
     if (head) { blocks.push({ kind: 'heading', level: head[1].length, text: head[2].trim() }); i += 1; continue; }
     const listType = bullet(line) ? 'ul' : ordered(line) ? 'ol' : null;
@@ -40,7 +48,7 @@ export function parsePhiWritePrintBlocks(markdown = '') {
     }
     const text = [];
     while (i < lines.length && !blank(lines[i]) && !fence(lines[i]) &&
-      !heading(lines[i]) && !bullet(lines[i]) && !ordered(lines[i]) && !quote(lines[i])) {
+      !heading(lines[i]) && !bullet(lines[i]) && !ordered(lines[i]) && !quote(lines[i]) && !parsePipeTableAt(lines, i)) {
       text.push(lines[i]); i += 1;
     }
     blocks.push({ kind: 'paragraph', text: text.join('\n') });
@@ -64,6 +72,10 @@ export function renderPhiWritePrintBlocksHtml(blocks = []) {
       const tag = block.listType === 'ol' ? 'ol' : 'ul';
       return '<' + tag + '>' + block.items.map((item) => '<li>' + escapePhiWriteHtml(item) + '</li>').join('') + '</' + tag + '>';
     }
+    if (block.kind === 'table') {
+      const row = (cells, tag) => '<tr>' + cells.map((cell) => '<' + tag + '>' + escapePhiWriteHtml(cell) + '</' + tag + '>').join('') + '</tr>';
+      return '<table><thead>' + row(block.rows[0], 'th') + '</thead><tbody>' + block.rows.slice(1).map((cells) => row(cells, 'td')).join('') + '</tbody></table>';
+    }
     if (block.kind === 'code') return '<pre><code>' + escapePhiWriteHtml(block.text) + '</code></pre>';
     if (block.kind === 'quote') return '<blockquote>' + escapePhiWriteHtml(block.text) + '</blockquote>';
     return '<p>' + escapePhiWriteHtml(block.text) + '</p>';
@@ -83,6 +95,7 @@ export function buildPhiWriteHtmlDocument({ title = 'Untitled', content = '', tr
     'p,blockquote{white-space:pre-wrap}blockquote{border-left:3px solid #888;padding-left:1rem;color:#45516a}',
     'pre{white-space:pre-wrap;overflow-wrap:anywhere;padding:1rem;background:#f2f3f5}',
     'li{white-space:pre-wrap;margin-bottom:.35em}header{border-bottom:1px solid #ccd2dc;margin-bottom:1.5rem}',
+    'table{border-collapse:collapse;width:100%;table-layout:fixed;margin:1em 0}th,td{border:1px solid #bcc5d0;padding:.35rem .5rem;overflow-wrap:anywhere;text-align:left}thead{display:table-header-group}tr{break-inside:avoid}',
     'small{color:#44546a}@media print{@page{margin:18mm}main{padding:0}}',
     '</style></head><body><main><header><h1>' + safeTitle + '</h1>',
     '<small>Trust label: ' + escapePhiWriteHtml(trustLabel) + '</small></header>',

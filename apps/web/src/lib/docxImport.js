@@ -33,6 +33,12 @@ function headingFromName(value) {
   return match ? Number(match[1]) : null;
 }
 
+function quoteFromName(value) {
+  // Common Word quote style IDs and display names. Resolve through basedOn
+  // chains, but do not treat an arbitrary style containing "quote" as a quote.
+  return /^(?:quote|intense[\s_-]?quote|block[\s_-]?quote)$/i.test(String(value ?? '').trim());
+}
+
 export function buildDocxStyleResolver(stylesXml, parser) {
   const styleMap = new Map();
   if (stylesXml) {
@@ -68,6 +74,7 @@ export function buildDocxStyleResolver(stylesXml, parser) {
       }
       const heading = style?.heading ?? headingFromName(current);
       if (heading) return { kind: 'heading', level: heading };
+      if (quoteFromName(current) || quoteFromName(style?.name)) return { kind: 'quote' };
       current = style?.basedOn ?? '';
     }
     return { kind: 'paragraph' };
@@ -187,6 +194,7 @@ function markdownSafeText(value) {
 export function renderDocxBlocksAsMarkdown(blocks = []) {
   const rendered = [];
   let previousList = null;
+  let previousQuote = false;
   for (const block of blocks) {
     if (block.kind !== 'simple-table' && !block.text?.length) continue;
     if (block.kind === 'simple-table' && !block.rows?.length) continue;
@@ -204,6 +212,17 @@ export function renderDocxBlocksAsMarkdown(blocks = []) {
       rendered.push({ text: '  '.repeat(level) + marker + markdownSafeText(block.text),
         join: continuation ? '\n' : '\n\n' });
       previousList = { type: block.listType, group, root, level };
+      previousQuote = false;
+      continue;
+    }
+    if (block.kind === 'quote') {
+      // Every physical quote line needs its own Markdown quote marker.
+      // Consecutive Word Quote paragraphs stay one print-friendly blockquote.
+      const text = block.text.replace(/\r\n?/g, '\n').split('\n')
+        .map((line) => '> ' + line).join('\n');
+      rendered.push({ text, join: previousQuote ? '\n' : '\n\n' });
+      previousQuote = true;
+      previousList = null;
       continue;
     }
     let text;
@@ -214,6 +233,7 @@ export function renderDocxBlocksAsMarkdown(blocks = []) {
     else text = markdownSafeText(block.text);
     rendered.push({ text, join: '\n\n' });
     previousList = null;
+    previousQuote = false;
   }
   return rendered.map((item, i) => (i ? item.join : '') + item.text).join('');
 }
@@ -240,6 +260,7 @@ export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Docum
   let contentControlCount = 0;
   let approximatedLists = 0;
   let unsafeCodeFences = 0;
+  let convertedQuoteParagraphs = 0;
   const listCounters = new Map();
   function addParagraph(paragraph) {
     const plainText = collectParagraphText(paragraph);
@@ -265,6 +286,9 @@ export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Docum
       documentTitle = plainText;
     } else if (heading) {
       blocks.push({ kind: 'heading', level: heading, text });
+    } else if (resolved.kind === 'quote') {
+      convertedQuoteParagraphs += 1;
+      blocks.push({ kind: 'quote', text });
     } else if (/^(Code|CodeBlock|HTMLPreformatted)$/i.test(styleId)) {
       // The parser supports triple-tilde code fences. If the document itself
       // contains such a line, retain the text as ordinary paragraphs instead.
@@ -349,9 +373,10 @@ export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Docum
   if (!blocks.length && documentTitle) blocks.push({ kind: 'paragraph', text: documentTitle });
   if (!blocks.length) throw new Error('DOCX import: No supported readable document text found.');
   const warnings = [
-    'Preview preserves text, headings, basic code styles, simple tables, two-level lists, inline bold/italic/code and safe HTTP(S) hyperlinks. Exact Word formatting and pagination are not preserved.',
+    'Preview preserves text, headings, simple quote/code styles, tables, two-level lists, inline bold/italic/code and safe HTTP(S) hyperlinks. Exact Word formatting and pagination are not preserved.',
     'Images, comments, fields, tracked edits, footnotes, headers and footers are not carried into PhiWrite.',
   ];
+  if (convertedQuoteParagraphs) warnings.push(convertedQuoteParagraphs + ' Word Quote-style paragraph(s) converted into Markdown blockquotes; exact quotation styling is not retained.');
   if (unsafeCodeFences) warnings.push(unsafeCodeFences + ' Word code paragraph(s) had fence-like lines and were imported as plain text.');
   if (approximatedLists) warnings.push('Some list numbering uses missing definitions, unsupported levels/formats, or detached nesting and was approximated as flat Markdown.');
   if (structuredTables) warnings.push(structuredTables + ' simple rectangular Word table(s) converted to Markdown pipe tables; styling and header semantics may change.');

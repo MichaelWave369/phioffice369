@@ -1,6 +1,6 @@
 # PhiWrite DOCX text interoperability
 
-**Status:** DOCX import preview (#20), basic export (#21), external-style handling (#22), tables (#23), safe inline formatting (#24), ordered lists (#25), two-level lists (#26), and basic inline/fenced code preservation (#27 candidate).
+**Status:** DOCX import preview (#20), basic export (#21), external-style handling (#22), tables (#23), safe inline formatting (#24), ordered lists (#25), two-level lists (#26), inline/fenced code (#27), and quotation interoperability (#28 candidate).
 
 PhiWrite remains a simple local-first Markdown editor. DOCX files use actual ZIP/Office Open XML packaging so compatible word processors can open them. These features are a **text-level conversion path**, not a complete Word document editor or layout-preserving converter.
 
@@ -13,7 +13,8 @@ PhiWrite remains a simple local-first Markdown editor. DOCX files use actual ZIP
 | More than two levels, Roman/lettered/legal numbering, Word custom restarts | Not supported | Flattened or approximated with a visible warning; exact semantics not guaranteed |
 | Code blocks (simple fenced Markdown) | Word Code paragraph style with monospace font | Recognized Code/CodeBlock/HTMLPreformatted paragraphs become literal tilde-fenced Markdown; unsafe fence collisions fall back to text with a warning |
 | Inline code (single backticks) | Word CodeChar character style and escaped monospace text | Recognized CodeChar runs become literal single-backtick spans; complex or nested code styles are not retained |
-| Blockquotes | Simple Word Quote style | Text is extracted; quote styling may be lost |
+| Blockquotes and simple quotations | Native Word Quote paragraphs with rich inline runs | Recognized Quote, IntenseQuote, BlockQuote and styles based on them become Markdown blockquotes; adjacent quote paragraphs group together |
+| Complex quote typography and sidebars | Approximate only | Alignment, decorative typography, borders and advanced quote placement are not preserved |
 | Simple rectangular tables (2–32 columns; up to 500 rows) | Native Word tables from Markdown pipe tables | Converted to Markdown pipe tables, first row treated as header; text retained | 
 | Complex tables (merged/nested cells, multiple cell paragraphs) | Not supported | Flattened to tab-separated text with warning |
 | Simple inline bold and italic | Converted to Word run properties | Converted to Markdown emphasis for recognized run properties |

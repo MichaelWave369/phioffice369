@@ -62,6 +62,13 @@ function createDocxFixture(variant = 'basic') {
     '<w:p><w:pPr><w:pStyle w:val="Code"/></w:pPr>' +
     '<w:r><w:t>ping 192.0.2.1</w:t></w:r><w:r><w:br/></w:r>' +
     '<w:r><w:t>tracert example.org</w:t></w:r></w:p>' +
+    '<w:p><w:pPr><w:pStyle w:val="Quote"/></w:pPr>' +
+    '<w:r><w:t xml:space="preserve">Keep </w:t></w:r>' +
+    '<w:r><w:rPr><w:b/></w:rPr><w:t>receipts</w:t></w:r></w:p>' +
+    '<w:p><w:pPr><w:pStyle w:val="CompanyQuote"/></w:pPr>' +
+    '<w:r><w:t>Ledger: </w:t></w:r><w:hyperlink r:id="rIdLink">' +
+    '<w:r><w:t>source</w:t></w:r></w:hyperlink>' +
+    '<w:r><w:br/><w:t>Verify again</w:t></w:r></w:p>' +
     '<w:p><w:r><w:t>Reference: </w:t></w:r><w:hyperlink r:id="rIdLink">' +
     '<w:r><w:t>source</w:t></w:r></w:hyperlink></w:p>' +
     '<w:p><w:hyperlink r:id="rIdBad"><w:r><w:t>untrusted URL</w:t></w:r></w:hyperlink></w:p>' +
@@ -81,6 +88,9 @@ function createDocxFixture(variant = 'basic') {
     '<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/></w:style>' +
     '<w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/></w:style>' +
     '<w:style w:type="paragraph" w:styleId="CompanySection"><w:name w:val="Company Section"/><w:basedOn w:val="Heading2"/></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="Quote"><w:name w:val="Quote"/></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="CompanyQuote">' +
+    '<w:name w:val="Company Citation"/><w:basedOn w:val="Quote"/></w:style>' +
     '<w:style w:type="paragraph" w:styleId="Code"><w:name w:val="Code"/></w:style>' +
     '<w:style w:type="character" w:styleId="CodeChar"><w:name w:val="Code Char"/></w:style>' +
     '</w:styles>';
@@ -177,6 +187,15 @@ async function run() {
       'Word content-control text not restored');
     assert(editor.value.includes('café & résumé'), 'International Word text not restored');
     assert(editor.value.includes('Regular **Bold** plus *Italic*'), 'Word bold/italic lost on reload');
+    assert(editor.value.includes('> Keep **receipts**\n> Ledger: [source](https://example.org/docs)\n> Verify again'),
+      'Word Quote style and inherited custom Quote style lost');
+    assert([...document.querySelectorAll('.phiwrite-print-body blockquote')].some((node) =>
+      node.textContent.includes('Keep receipts') && node.textContent.includes('Verify again')),
+      'Word quote text lost from print blockquote');
+    assert(document.querySelector('.phiwrite-print-body blockquote strong')?.textContent === 'receipts',
+      'Word quote bold text lost in print');
+    assert(document.querySelector('.phiwrite-print-body blockquote a[href="https://example.org/docs"]')?.textContent === 'source',
+      'Word quote hyperlink lost in print');
     assert(editor.value.includes('Run `ipconfig /all` next'), 'Word CodeChar run not restored');
     assert(editor.value.includes('~~~\nping 192.0.2.1\ntracert example.org\n~~~'),
       'Word Code paragraph not restored as fenced Markdown');
@@ -250,6 +269,10 @@ async function run() {
       'Independent Word bullets were not decoded');
     assert(preview.textContent.includes('2. Install router\n  - Label cables\n  - Verify ports\n3. Test link'),
       'Independent Word two-level list was not preserved');
+    assert(preview.textContent.includes('> Keep **receipts**\n> Ledger: [source](https://example.org/docs)\n> Verify again'),
+      'Word quote styles did not become contiguous Markdown blockquotes');
+    assert(preview.textContent.includes('Quote-style paragraph'),
+      'Word quote fidelity warning missing');
     assert(preview.textContent.includes('Run `ipconfig /all` next'),
       'Word inline CodeChar not converted to Markdown');
     assert(preview.textContent.includes('~~~\nping 192.0.2.1\ntracert example.org\n~~~'),

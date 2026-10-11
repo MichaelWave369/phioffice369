@@ -142,9 +142,26 @@ async function runGrid() {
   await sleep(150);
   assert(document.querySelector('.table-wrap tbody tr input')?.value === 'Fixture category', 'Cancel mutated live grid');
 
-  upload(chooser, 'malformed.csv', 'A,B\nX,"unfinished', 'text/csv');
-  await waitFor(() => document.querySelector('.grid-save-status')?.textContent.includes('CSV import rejected') &&
-    chooser.value === '', 'Malformed CSV rejection and file chooser reset');
+  // Capture an asynchronously rendered rejection independently of file
+  // input clearing. The status message and chooser reset need not coexist.
+  const rejectionMessages = [];
+  const statusNode = document.querySelector('.grid-save-status');
+  assert(statusNode, 'PhiGrid save-status element missing');
+  const captureRejection = () => {
+    const message = statusNode.textContent ?? '';
+    if (message.includes('CSV import rejected')) rejectionMessages.push(message);
+  };
+  const observer = new MutationObserver(captureRejection);
+  observer.observe(statusNode, { childList: true, characterData: true, subtree: true });
+  try {
+    upload(chooser, 'malformed.csv', 'A,B\nX,"unfinished', 'text/csv');
+    await waitFor(() => chooser.value === '' && !document.querySelector('.grid-import-preview'),
+      'Malformed CSV file chooser reset without a preview', 10000);
+    await waitFor(() => rejectionMessages.length > 0,
+      'Malformed CSV rejection appeared in UI', 10000);
+  } finally {
+    observer.disconnect();
+  }
   await sleep(150);
   assert(document.querySelector('.table-wrap tbody tr input')?.value === 'Fixture category',
     'Malformed import mutated live grid');

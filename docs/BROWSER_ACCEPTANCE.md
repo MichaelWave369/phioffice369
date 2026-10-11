@@ -54,7 +54,7 @@ Each scenario runs against the compiled Vite app with a **separate disposable Ch
 - Cancels the preview, checks preserved local data, then confirms a second preview.
 - Reloads the page and verifies converted Markdown content and source filename title persisted.
 - Exports the same draft as genuine local DOCX (ZIP+OOXML), feeds that downloaded package to the DOCX importer, reviews/accepts it, then reloads and checks the content again.
-- Opens a separate, independently assembled **Word-style OOXML fixture** (not a Microsoft Word-authored binary) containing custom heading styles, style inheritance, Title, content controls, a simple table, bold/italic runs, external hyperlink relationships, and a decimal list with a start override plus bullets; verifies numbering, safe links, preview, print markup, accept and reload.
+- Opens a separate, independently assembled **Word-style OOXML fixture** (not a Microsoft Word-authored binary) containing custom heading styles, style inheritance, Title, content controls, a simple table, bold/italic runs, external hyperlink relationships, and a decimal list with start override, bullets, and a two-level decimal/bullet Word list; verifies nested markup, safe links, preview, print hierarchy, accept and reload.
 
 The disposable profiles are removed after each scenario. Nothing is sent to an external endpoint.
 

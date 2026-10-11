@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { parsePhiWritePrintBlocks } from '../lib/phiwritePrint.js';
 import { tokenizePhiWriteInline } from '../lib/phiwriteInline.js';
+import { buildTwoLevelListTree, groupTwoLevelListNodes } from '../lib/phiwriteNestedLists.js';
 import './PhiWritePrintDocument.css';
 
 // React owns every text node. Never inject untrusted Markdown as HTML.
@@ -13,6 +14,25 @@ function RichText({ value }) {
     if (token.italic) return <em key={index}>{token.text}</em>;
     return <span key={index}>{token.text}</span>;
   });
+}
+
+function NestedLists({ items }) {
+  function renderGroups(nodes) {
+    return groupTwoLevelListNodes(nodes).map((group, groupIndex) => {
+      const Tag = group.listType === 'ol' ? 'ol' : 'ul';
+      return (
+        <Tag key={groupIndex} {...(Tag === 'ol' && group.start > 1 ? { start: group.start } : {})}>
+          {group.items.map((item, index) => (
+            <li key={index}>
+              <RichText value={item.text} />
+              {item.children.length ? renderGroups(item.children) : null}
+            </li>
+          ))}
+        </Tag>
+      );
+    });
+  }
+  return <div className="phiwrite-nested-list">{renderGroups(buildTwoLevelListTree(items))}</div>;
 }
 
 export default function PhiWritePrintDocument({ title, content, trustLabel }) {
@@ -29,6 +49,7 @@ export default function PhiWritePrintDocument({ title, content, trustLabel }) {
             const Heading = 'h' + Math.max(2, Math.min(6, block.level + 1));
             return <Heading key={index}><RichText value={block.text} /></Heading>;
           }
+          if (block.kind === 'nested-list') return <NestedLists key={index} items={block.items} />;
           if (block.kind === 'list') {
             const List = block.listType === 'ol' ? 'ol' : 'ul';
             return <List key={index} {...(block.listType === 'ol' && block.start > 1 ? { start: block.start } : {})}>{block.items.map((item, itemIndex) => <li key={itemIndex}><RichText value={item} /></li>)}</List>;

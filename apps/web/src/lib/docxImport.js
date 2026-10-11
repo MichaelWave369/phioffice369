@@ -118,8 +118,22 @@ export function readDocxHyperlinkRelationships(xml, parser) {
 function paragraphInlineMarkdown(paragraph, hyperlinks) {
   const tokens = [];
   let hasFormatting = false;
+  function runText(run) {
+    let value = '';
+    function visit(node) {
+      if (node.nodeType !== 1) return;
+      if (node.namespaceURI === WORD_NS) {
+        if (node.localName === 't') { value += node.textContent ?? ''; return; }
+        if (node.localName === 'tab') { value += '\t'; return; }
+        if (node.localName === 'br' || node.localName === 'cr') { value += '\n'; return; }
+      }
+      for (const child of node.childNodes) visit(child);
+    }
+    visit(run);
+    return value;
+  }
   function addRun(run, href = null) {
-    const value = collectParagraphText(run);
+    const value = runText(run);
     if (!value) return;
     const rPr = [...run.children].find((node) =>
       node.namespaceURI === WORD_NS && node.localName === 'rPr');

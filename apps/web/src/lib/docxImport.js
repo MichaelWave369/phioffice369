@@ -1,6 +1,7 @@
 import { DOCX_MAX_FILE_BYTES, extractDocxPackage } from './docxZip.js';
 import { renderPipeTable } from './simpleTables.js';
 import { inlineTokensToMarkdown, safeExternalDocumentUrl } from './phiwriteInline.js';
+import { createDocxNumberingResolver } from './docxNumbering.js';
 
 const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
 const OFFICE_REL_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
@@ -181,18 +182,33 @@ function markdownSafeText(value) {
 }
 
 export function renderDocxBlocksAsMarkdown(blocks = []) {
-  return blocks.filter((block) => block.kind === 'simple-table' ? block.rows?.length : block.text?.length > 0).map((block) => {
-    if (block.kind === 'heading') {
-      return '#'.repeat(Math.max(1, Math.min(6, block.level ?? 1))) + ' ' + markdownSafeText(block.text);
+  const rendered = [];
+  let previousList = null;
+  for (const block of blocks) {
+    if (block.kind !== 'simple-table' && !block.text?.length) continue;
+    if (block.kind === 'simple-table' && !block.rows?.length) continue;
+    if (block.kind === 'list') {
+      const ordered = block.listType === 'ol';
+      const marker = ordered ? String(block.number ?? 1) + '. ' : '- ';
+      const group = block.group ?? null;
+      const continuation = previousList && previousList.type === block.listType &&
+        (group === null ? previousList.group === null : previousList.group === group);
+      rendered.push({ text: marker + markdownSafeText(block.text), join: continuation ? '\n' : '\n\n' });
+      previousList = { type: block.listType, group };
+      continue;
     }
-    if (block.kind === 'list') return '- ' + markdownSafeText(block.text);
-    if (block.kind === 'simple-table') return renderPipeTable(block.rows);
-    if (block.kind === 'table') return block.text.split('\n').map((row) => '    ' + row).join('\n');
-    return markdownSafeText(block.text);
-  }).join('\n\n');
+    let text;
+    if (block.kind === 'heading') text = '#'.repeat(Math.max(1, Math.min(6, block.level ?? 1))) + ' ' + markdownSafeText(block.text);
+    else if (block.kind === 'simple-table') text = renderPipeTable(block.rows);
+    else if (block.kind === 'table') text = block.text.split('\n').map((row) => '    ' + row).join('\n');
+    else text = markdownSafeText(block.text);
+    rendered.push({ text, join: '\n\n' });
+    previousList = null;
+  }
+  return rendered.map((item, i) => (i ? item.join : '') + item.text).join('');
 }
 
-export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Document', stylesXml = null, relationshipsXml = null, parser = null } = {}) {
+export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Document', stylesXml = null, relationshipsXml = null, numberingXml = null, parser = null } = {}) {
   if (typeof xml !== 'string' || !xml.trim()) throw new Error('DOCX import: Empty document XML.');
   if (/<!DOCTYPE|<!ENTITY/i.test(xml)) throw new Error('DOCX import: XML entities and DOCTYPE declarations are unsupported.');
   const domParser = parser ?? (typeof DOMParser !== 'undefined' ? new DOMParser() : null);
@@ -200,6 +216,7 @@ export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Docum
   const document = parseXml(xml, domParser, 'Document');
   const resolveStyle = buildDocxStyleResolver(stylesXml, domParser);
   const hyperlinkMap = readDocxHyperlinkRelationships(relationshipsXml, domParser);
+  const resolveNumbering = createDocxNumberingResolver(numberingXml, domParser);
   const root = document.documentElement;
   if (root.localName !== 'document' || root.namespaceURI !== WORD_NS) {
     throw new Error('DOCX import: Not WordprocessingML document XML.');
@@ -211,6 +228,8 @@ export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Docum
   let structuredTables = 0;
   let documentTitle = null;
   let contentControlCount = 0;
+  let approximatedLists = 0;
+  const listCounters = new Map();
   function addParagraph(paragraph) {
     const plainText = collectParagraphText(paragraph);
     if (!plainText) return;
@@ -224,13 +243,25 @@ export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Docum
     const outlineLevel = outlineValue === null ? -1 : Number(outlineValue);
     const heading = Number.isInteger(outlineLevel) && outlineLevel >= 0 && outlineLevel <= 5
       ? outlineLevel + 1 : resolved.kind === 'heading' ? resolved.level : null;
-    const numbered = wordElements(paragraph, 'numPr').length > 0 || /^List(Bullet|Number)/i.test(styleId);
+    const numPr = wordElements(paragraph, 'pPr').flatMap((node) =>
+      [...node.children].filter((child) => child.namespaceURI === WORD_NS && child.localName === 'numPr')
+    )[0];
+    const numId = attributeValue(wordElements(numPr ?? paragraph, 'numId')[0], 'val');
+    const rawLevel = attributeValue(wordElements(numPr ?? paragraph, 'ilvl')[0], 'val') ?? '0';
+    const numbering = numId === null ? null : resolveNumbering(numId, rawLevel);
+    const isList = numPr || /^List(Bullet|Number|Paragraph)/i.test(styleId);
     if (resolved.kind === 'title' && blocks.length === 0 && !documentTitle) {
       documentTitle = plainText;
     } else if (heading) {
       blocks.push({ kind: 'heading', level: heading, text });
-    } else if (numbered) {
-      blocks.push({ kind: 'list', text });
+    } else if (isList) {
+      const ordered = numbering ? numbering.kind === 'ol' : /^ListNumber/i.test(styleId);
+      const listType = ordered ? 'ol' : 'ul';
+      const group = numId !== null ? 'num-' + numId + '-level-' + rawLevel : 'style-' + styleId;
+      const counter = listCounters.has(group) ? listCounters.get(group) : (numbering?.start ?? 1);
+      if (ordered) listCounters.set(group, counter + 1);
+      if (!numbering || numbering.approximated || rawLevel !== '0') approximatedLists += 1;
+      blocks.push({ kind: 'list', text, listType, group, ...(ordered ? { number: counter } : {}) });
     } else {
       blocks.push({ kind: 'paragraph', text });
     }
@@ -289,6 +320,7 @@ export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Docum
     'Preview preserves basic text, headings, simple tables, basic bold/italic and safe HTTP(S) hyperlinks only. Exact Word formatting and pagination are not preserved.',
     'Images, comments, fields, tracked edits, footnotes, headers and footers are not carried into PhiWrite.',
   ];
+  if (approximatedLists) warnings.push('Some list numbering uses missing, unsupported or nested Word definitions and was approximated as flat Markdown.');
   if (structuredTables) warnings.push(structuredTables + ' simple rectangular Word table(s) converted to Markdown pipe tables; styling and header semantics may change.');
   if (flattenedTables) warnings.push(flattenedTables + ' complex Word table(s) flattened to tab-separated text because merged, nested, or multi-paragraph cells cannot round-trip faithfully.');
   if (contentControlCount) warnings.push(contentControlCount + ' Word content control(s) read as plain text; form behavior was not preserved.');
@@ -311,10 +343,11 @@ export async function previewDocxFile(file) {
   if (file.size > DOCX_MAX_FILE_BYTES) {
     throw new Error('DOCX import: File exceeds the 15 MiB preview limit.');
   }
-  const { documentXml, stylesXml, relationshipsXml } = await extractDocxPackage(await file.arrayBuffer());
+  const { documentXml, stylesXml, relationshipsXml, numberingXml } = await extractDocxPackage(await file.arrayBuffer());
   return parseDocxDocumentXml(documentXml, {
     fallbackTitle: file.name.replace(/\.docx$/i, ''),
     stylesXml,
     relationshipsXml,
+    numberingXml,
   });
 }

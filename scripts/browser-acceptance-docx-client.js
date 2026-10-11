@@ -67,6 +67,10 @@ function createDocxFixture(variant = 'basic') {
     '<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="7"/></w:numPr></w:pPr><w:r><w:t>First numbered task</w:t></w:r></w:p>' +
     '<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="7"/></w:numPr></w:pPr><w:r><w:t>Second numbered task</w:t></w:r></w:p>' +
     '<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="8"/></w:numPr></w:pPr><w:r><w:t>Bullet note</w:t></w:r></w:p>' +
+    '<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr><w:r><w:t>Install router</w:t></w:r></w:p>' +
+    '<w:p><w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="9"/></w:numPr></w:pPr><w:r><w:t>Label cables</w:t></w:r></w:p>' +
+    '<w:p><w:pPr><w:numPr><w:ilvl w:val="1"/><w:numId w:val="9"/></w:numPr></w:pPr><w:r><w:t>Verify ports</w:t></w:r></w:p>' +
+    '<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="9"/></w:numPr></w:pPr><w:r><w:t>Test link</w:t></w:r></w:p>' +
     '</w:body></w:document>';
   const externalStyles = '<?xml version="1.0"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
     '<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/></w:style>' +
@@ -81,7 +85,12 @@ function createDocxFixture(variant = 'basic') {
     '<w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/></w:lvl></w:abstractNum>' +
     '<w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/></w:lvl></w:abstractNum>' +
     '<w:num w:numId="7"><w:abstractNumId w:val="1"/><w:lvlOverride w:ilvl="0"><w:startOverride w:val="3"/></w:lvlOverride></w:num>' +
-    '<w:num w:numId="8"><w:abstractNumId w:val="0"/></w:num></w:numbering>';
+    '<w:num w:numId="8"><w:abstractNumId w:val="0"/></w:num>' +
+    '<w:abstractNum w:abstractNumId="2"><w:multiLevelType w:val="multilevel"/>' +
+    '<w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/></w:lvl>' +
+    '<w:lvl w:ilvl="1"><w:start w:val="1"/><w:numFmt w:val="bullet"/></w:lvl></w:abstractNum>' +
+    '<w:num w:numId="9"><w:abstractNumId w:val="2"/>' +
+    '<w:lvlOverride w:ilvl="0"><w:startOverride w:val="2"/></w:lvlOverride></w:num></w:numbering>';
   const records = [
     ['[Content_Types].xml', manifest],
     ['word/document.xml', variant === 'external' ? externalXml : xml],
@@ -176,6 +185,10 @@ async function run() {
       'Word ordered list was not preserved as contiguous Markdown');
     assert(editor.value.includes('- Bullet note'),
       'Word bullet list did not survive');
+    assert(editor.value.includes('2. Install router\n  - Label cables\n  - Verify ports\n3. Test link'),
+      'Word two-level list was not preserved as nested Markdown');
+    assert(document.querySelector('.phiwrite-print-body ol[start="2"] > li > ul')?.textContent.includes('Verify ports'),
+      'Word nested-list print rendering did not preserve hierarchy');
     assert(document.querySelector('.phiwrite-print-body ol[start="3"]')?.textContent.includes('Second numbered task'),
       'Printable ordered list start did not survive DOCX import');
     assert(document.querySelector('.phiwrite-print-body ul')?.textContent.includes('Bullet note'),
@@ -221,6 +234,8 @@ async function run() {
       'Independent Word numbering definitions were not decoded');
     assert(preview.textContent.includes('- Bullet note'),
       'Independent Word bullets were not decoded');
+    assert(preview.textContent.includes('2. Install router\n  - Label cables\n  - Verify ports\n3. Test link'),
+      'Independent Word two-level list was not preserved');
     assert(preview.textContent.includes('**Bold**') && preview.textContent.includes('*Italic*'),
       'Word inline emphasis missing from local preview');
     assert(preview.textContent.includes('[source](https://example.org/docs)'),

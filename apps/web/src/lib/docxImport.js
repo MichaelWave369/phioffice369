@@ -1,7 +1,10 @@
 import { DOCX_MAX_FILE_BYTES, extractDocxPackage } from './docxZip.js';
 import { renderPipeTable } from './simpleTables.js';
+import { inlineTokensToMarkdown, safeExternalDocumentUrl } from './phiwriteInline.js';
 
 const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+const OFFICE_REL_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+const PACKAGE_REL_NS = 'http://schemas.openxmlformats.org/package/2006/relationships';
 
 function wordElements(root, name) {
   return [...root.getElementsByTagNameNS(WORD_NS, name)];
@@ -91,6 +94,72 @@ function collectParagraphText(root) {
   return text.trim();
 }
 
+export function readDocxHyperlinkRelationships(xml, parser) {
+  const links = new Map();
+  if (!xml) return links;
+  const document = parseXml(xml, parser, 'relationships');
+  if (document.documentElement.localName !== 'Relationships' ||
+      document.documentElement.namespaceURI !== PACKAGE_REL_NS) {
+    throw new Error('DOCX import: Invalid document relationships.');
+  }
+  for (const relationship of document.documentElement.children) {
+    if (relationship.localName !== 'Relationship' ||
+        relationship.namespaceURI !== PACKAGE_REL_NS) continue;
+    const type = relationship.getAttribute('Type') ?? '';
+    if (type !== 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink' ||
+        relationship.getAttribute('TargetMode') !== 'External') continue;
+    const id = relationship.getAttribute('Id');
+    const href = safeExternalDocumentUrl(relationship.getAttribute('Target'));
+    if (id && href) links.set(id, href);
+  }
+  return links;
+}
+
+function paragraphInlineMarkdown(paragraph, hyperlinks) {
+  const tokens = [];
+  let hasFormatting = false;
+  function addRun(run, href = null) {
+    const value = collectParagraphText(run);
+    if (!value) return;
+    const rPr = [...run.children].find((node) =>
+      node.namespaceURI === WORD_NS && node.localName === 'rPr');
+    const enabled = (name) => {
+      const prop = rPr && [...rPr.children].find((node) =>
+        node.namespaceURI === WORD_NS && node.localName === name);
+      return Boolean(prop && !['0', 'false', 'off'].includes(String(attributeValue(prop, 'val')).toLowerCase()));
+    };
+    const bold = enabled('b');
+    const italic = enabled('i');
+    if (bold || italic || href) hasFormatting = true;
+    const prev = tokens[tokens.length - 1];
+    if (prev && Boolean(prev.bold) === bold && Boolean(prev.italic) === italic &&
+        (prev.href ?? null) === href) prev.text += value;
+    else tokens.push({ text: value, ...(bold ? { bold: true } : {}),
+      ...(italic ? { italic: true } : {}), ...(href ? { href } : {}) });
+  }
+  function visit(node) {
+    if (node.namespaceURI !== WORD_NS) return;
+    if (node.localName === 'r') return addRun(node);
+    if (node.localName === 'hyperlink') {
+      const id = node.getAttributeNS(OFFICE_REL_NS, 'id') ?? node.getAttribute('r:id');
+      const href = hyperlinks.get(id);
+      const value = collectParagraphText(node);
+      if (value) {
+        if (href) { tokens.push({ text: value, href }); hasFormatting = true; }
+        else tokens.push({ text: value });
+      }
+      return;
+    }
+    if (node.localName === 'pPr' || node.localName === 'bookmarkStart' ||
+        node.localName === 'bookmarkEnd') return;
+    if (node.localName === 'del' || node.localName === 'moveFrom') return;
+    for (const child of node.children) visit(child);
+  }
+  for (const child of paragraph.children) visit(child);
+  if (!hasFormatting) return collectParagraphText(paragraph);
+  return inlineTokensToMarkdown(tokens).trim();
+}
+
 function markdownSafeText(value) {
   // Text-only DOCX extraction: block-leading Markdown punctuation in ordinary
   // paragraphs is escaped to avoid accidental synthetic headings or lists.
@@ -109,13 +178,14 @@ export function renderDocxBlocksAsMarkdown(blocks = []) {
   }).join('\n\n');
 }
 
-export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Document', stylesXml = null, parser = null } = {}) {
+export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Document', stylesXml = null, relationshipsXml = null, parser = null } = {}) {
   if (typeof xml !== 'string' || !xml.trim()) throw new Error('DOCX import: Empty document XML.');
   if (/<!DOCTYPE|<!ENTITY/i.test(xml)) throw new Error('DOCX import: XML entities and DOCTYPE declarations are unsupported.');
   const domParser = parser ?? (typeof DOMParser !== 'undefined' ? new DOMParser() : null);
   if (!domParser) throw new Error('DOCX import: Browser XML parsing is unavailable.');
   const document = parseXml(xml, domParser, 'Document');
   const resolveStyle = buildDocxStyleResolver(stylesXml, domParser);
+  const hyperlinkMap = readDocxHyperlinkRelationships(relationshipsXml, domParser);
   const root = document.documentElement;
   if (root.localName !== 'document' || root.namespaceURI !== WORD_NS) {
     throw new Error('DOCX import: Not WordprocessingML document XML.');
@@ -128,8 +198,9 @@ export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Docum
   let documentTitle = null;
   let contentControlCount = 0;
   function addParagraph(paragraph) {
-    const text = collectParagraphText(paragraph);
-    if (!text) return;
+    const plainText = collectParagraphText(paragraph);
+    if (!plainText) return;
+    const text = paragraphInlineMarkdown(paragraph, hyperlinkMap);
     const styleId = attributeValue(wordElements(paragraph, 'pStyle')[0], 'val') ?? '';
     const resolved = resolveStyle(styleId);
     const directOutline = wordElements(paragraph, 'pPr').flatMap((node) =>
@@ -141,7 +212,7 @@ export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Docum
       ? outlineLevel + 1 : resolved.kind === 'heading' ? resolved.level : null;
     const numbered = wordElements(paragraph, 'numPr').length > 0 || /^List(Bullet|Number)/i.test(styleId);
     if (resolved.kind === 'title' && blocks.length === 0 && !documentTitle) {
-      documentTitle = text;
+      documentTitle = plainText;
     } else if (heading) {
       blocks.push({ kind: 'heading', level: heading, text });
     } else if (numbered) {
@@ -226,9 +297,10 @@ export async function previewDocxFile(file) {
   if (file.size > DOCX_MAX_FILE_BYTES) {
     throw new Error('DOCX import: File exceeds the 15 MiB preview limit.');
   }
-  const { documentXml, stylesXml } = await extractDocxPackage(await file.arrayBuffer());
+  const { documentXml, stylesXml, relationshipsXml } = await extractDocxPackage(await file.arrayBuffer());
   return parseDocxDocumentXml(documentXml, {
     fallbackTitle: file.name.replace(/\.docx$/i, ''),
     stylesXml,
+    relationshipsXml,
   });
 }

@@ -136,17 +136,22 @@ async function runGrid() {
   assert(document.querySelector('.grid-import-warnings')?.textContent.includes('duplicate'), 'Duplicate header warning missing');
   assert(stored(key)?.rows?.[0]?.Category === 'Fixture category', 'Preview mutated saved grid');
   findButton('Cancel import')?.click();
-  await waitFor(() => !document.querySelector('.grid-import-preview'), 'CSV preview cancel');
+  await waitFor(() => !document.querySelector('.grid-import-preview') &&
+    document.querySelector('.grid-save-status')?.textContent.includes('CSV import cancelled') &&
+    chooser.value === '', 'CSV preview cancel and file chooser reset');
+  await sleep(150);
   assert(document.querySelector('.table-wrap tbody tr input')?.value === 'Fixture category', 'Cancel mutated live grid');
 
   upload(chooser, 'malformed.csv', 'A,B\nX,"unfinished', 'text/csv');
-  await waitFor(() => document.querySelector('.grid-save-status')?.textContent.includes('CSV import rejected'),
-    'Malformed CSV rejection');
+  await waitFor(() => document.querySelector('.grid-save-status')?.textContent.includes('CSV import rejected') &&
+    chooser.value === '', 'Malformed CSV rejection and file chooser reset');
+  await sleep(150);
   assert(document.querySelector('.table-wrap tbody tr input')?.value === 'Fixture category',
     'Malformed import mutated live grid');
 
   upload(chooser, 'verified-final.csv', validCsv, 'text/csv');
-  await waitFor(() => document.querySelector('.grid-import-preview'), 'second CSV import preview');
+  await waitFor(() => document.querySelector('.grid-import-preview'),
+    'second CSV import preview; status=' + document.querySelector('.grid-save-status')?.textContent, 12000);
   findButton('Replace current grid with CSV')?.click();
   await waitFor(() => {
     const value = stored(key);

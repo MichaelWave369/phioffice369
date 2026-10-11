@@ -166,7 +166,16 @@ export async function extractDocxPackage(input) {
       fail('XML entity and DOCTYPE declarations are unsupported.');
     }
   }
-  return { documentXml: xml, stylesXml, relationshipsXml };
+  const numberingPart = entries.get('word/numbering.xml');
+  let numberingXml = null;
+  if (numberingPart) {
+    const numberingBytes = await decompressEntry(bytes, numberingPart, 1024 * 1024);
+    numberingXml = decoder.decode(numberingBytes).replace(/^\uFEFF/, '');
+    if (/<!DOCTYPE|<!ENTITY/i.test(numberingXml)) {
+      fail('XML entity and DOCTYPE declarations are unsupported.');
+    }
+  }
+  return { documentXml: xml, stylesXml, relationshipsXml, numberingXml };
 }
 
 export async function extractDocxXml(input) {

@@ -75,6 +75,7 @@ export function renderInlinePhiWriteHtml(value) {
   return tokenizePhiWriteInline(value).map((token) => {
     const safe = escapePhiWriteHtml(token.text);
     if (token.code) return '<code>' + safe + '</code>';
+    if (token.underline) return '<u>' + safe + '</u>';
     if (token.highlight) return '<mark>' + safe + '</mark>';
     if (token.strike) return '<del>' + safe + '</del>';
     if (token.href) return '<a href="' + escapePhiWriteHtml(token.href) +

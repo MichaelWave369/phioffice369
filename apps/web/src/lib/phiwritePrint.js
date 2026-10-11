@@ -1,4 +1,5 @@
 import { parsePipeTableAt } from './simpleTables.js';
+import { tokenizePhiWriteInline } from './phiwriteInline.js';
 
 // Printable block-only Markdown subset. Other Markdown remains literal.
 export function parsePhiWritePrintBlocks(markdown = '') {
@@ -62,23 +63,34 @@ export function escapePhiWriteHtml(value) {
   })[char]);
 }
 
+export function renderInlinePhiWriteHtml(value) {
+  return tokenizePhiWriteInline(value).map((token) => {
+    const safe = escapePhiWriteHtml(token.text);
+    if (token.href) return '<a href="' + escapePhiWriteHtml(token.href) +
+      '" target="_blank" rel="noopener noreferrer">' + safe + '</a>';
+    if (token.bold) return '<strong>' + safe + '</strong>';
+    if (token.italic) return '<em>' + safe + '</em>';
+    return safe;
+  }).join('');
+}
+
 export function renderPhiWritePrintBlocksHtml(blocks = []) {
   return blocks.map((block) => {
     if (block.kind === 'heading') {
       const level = Math.max(2, Math.min(6, Number(block.level) + 1 || 2));
-      return '<h' + level + '>' + escapePhiWriteHtml(block.text) + '</h' + level + '>';
+      return '<h' + level + '>' + renderInlinePhiWriteHtml(block.text) + '</h' + level + '>';
     }
     if (block.kind === 'list') {
       const tag = block.listType === 'ol' ? 'ol' : 'ul';
-      return '<' + tag + '>' + block.items.map((item) => '<li>' + escapePhiWriteHtml(item) + '</li>').join('') + '</' + tag + '>';
+      return '<' + tag + '>' + block.items.map((item) => '<li>' + renderInlinePhiWriteHtml(item) + '</li>').join('') + '</' + tag + '>';
     }
     if (block.kind === 'table') {
       const row = (cells, tag) => '<tr>' + cells.map((cell) => '<' + tag + '>' + escapePhiWriteHtml(cell) + '</' + tag + '>').join('') + '</tr>';
       return '<table><thead>' + row(block.rows[0], 'th') + '</thead><tbody>' + block.rows.slice(1).map((cells) => row(cells, 'td')).join('') + '</tbody></table>';
     }
     if (block.kind === 'code') return '<pre><code>' + escapePhiWriteHtml(block.text) + '</code></pre>';
-    if (block.kind === 'quote') return '<blockquote>' + escapePhiWriteHtml(block.text) + '</blockquote>';
-    return '<p>' + escapePhiWriteHtml(block.text) + '</p>';
+    if (block.kind === 'quote') return '<blockquote>' + renderInlinePhiWriteHtml(block.text) + '</blockquote>';
+    return '<p>' + renderInlinePhiWriteHtml(block.text) + '</p>';
   }).join('\n');
 }
 
@@ -96,7 +108,7 @@ export function buildPhiWriteHtmlDocument({ title = 'Untitled', content = '', tr
     'pre{white-space:pre-wrap;overflow-wrap:anywhere;padding:1rem;background:#f2f3f5}',
     'li{white-space:pre-wrap;margin-bottom:.35em}header{border-bottom:1px solid #ccd2dc;margin-bottom:1.5rem}',
     'table{border-collapse:collapse;width:100%;table-layout:fixed;margin:1em 0}th,td{border:1px solid #bcc5d0;padding:.35rem .5rem;overflow-wrap:anywhere;text-align:left}thead{display:table-header-group}tr{break-inside:avoid}',
-    'small{color:#44546a}@media print{@page{margin:18mm}main{padding:0}}',
+    'small{color:#44546a}a{color:#0757b0;text-decoration:underline;overflow-wrap:anywhere}@media print{@page{margin:18mm}main{padding:0}}',
     '</style></head><body><main><header><h1>' + safeTitle + '</h1>',
     '<small>Trust label: ' + escapePhiWriteHtml(trustLabel) + '</small></header>',
     renderPhiWritePrintBlocksHtml(parsePhiWritePrintBlocks(content)),

@@ -48,11 +48,18 @@ function createDocxFixture(variant = 'basic') {
   const manifest = '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
     (variant === 'external' ? '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' : '') + '</Types>';
   const xml = '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Hello DOCX</w:t></w:r></w:p><w:p><w:r><w:t>Imported locally. No upload.</w:t></w:r></w:p></w:body></w:document>';
-  const externalXml = '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>' +
+  const externalXml = '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>' +
     '<w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t>External Meeting Memo</w:t></w:r></w:p>' +
     '<w:p><w:pPr><w:pStyle w:val="CompanySection"/></w:pPr><w:r><w:t>External Heading</w:t></w:r></w:p>' +
     '<w:sdt><w:sdtContent><w:p><w:r><w:t>Form control body survives</w:t></w:r></w:p></w:sdtContent></w:sdt>' +
     '<w:p><w:r><w:t>Special characters: café &amp; résumé</w:t></w:r></w:p>' +
+    '<w:p><w:r><w:t>Regular </w:t></w:r>' +
+    '<w:r><w:rPr><w:b/></w:rPr><w:t>Bold</w:t></w:r>' +
+    '<w:r><w:t xml:space="preserve"> plus </w:t></w:r>' +
+    '<w:r><w:rPr><w:i/></w:rPr><w:t>Italic</w:t></w:r></w:p>' +
+    '<w:p><w:r><w:t>Reference: </w:t></w:r><w:hyperlink r:id="rIdLink">' +
+    '<w:r><w:t>source</w:t></w:r></w:hyperlink></w:p>' +
+    '<w:p><w:hyperlink r:id="rIdBad"><w:r><w:t>untrusted URL</w:t></w:r></w:hyperlink></w:p>' +
     '<w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="4600"/><w:gridCol w:w="4600"/></w:tblGrid>' +
     '<w:tr><w:tc><w:p><w:r><w:t>Product</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Price</w:t></w:r></w:p></w:tc></w:tr>' +
     '<w:tr><w:tc><w:p><w:r><w:t>Tea &amp; biscuits</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>12</w:t></w:r></w:p></w:tc></w:tr>' +
@@ -63,10 +70,14 @@ function createDocxFixture(variant = 'basic') {
     '<w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/></w:style>' +
     '<w:style w:type="paragraph" w:styleId="CompanySection"><w:name w:val="Company Section"/><w:basedOn w:val="Heading2"/></w:style>' +
     '</w:styles>';
+  const externalRels = '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+    '<Relationship Id="rIdLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.org/docs" TargetMode="External"/>' +
+    '<Relationship Id="rIdBad" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:alert(1)" TargetMode="External"/>' +
+    '</Relationships>';
   const records = [
     ['[Content_Types].xml', manifest],
     ['word/document.xml', variant === 'external' ? externalXml : xml],
-    ...(variant === 'external' ? [['word/styles.xml', externalStyles]] : []),
+    ...(variant === 'external' ? [['word/styles.xml', externalStyles], ['word/_rels/document.xml.rels', externalRels]] : []),
   ];
   const localParts = [];
   const centralParts = [];
@@ -141,6 +152,16 @@ async function run() {
     assert(editor.value.includes('Form control body survives'),
       'Word content-control text not restored');
     assert(editor.value.includes('café & résumé'), 'International Word text not restored');
+    assert(editor.value.includes('Regular **Bold** plus *Italic*'), 'Word bold/italic lost on reload');
+    assert(editor.value.includes('[source](https://example.org/docs)'), 'Word hyperlink relationship lost');
+    assert(editor.value.includes('untrusted URL') && !editor.value.includes('javascript:'),
+      'Unsafe Word hyperlink was not reduced to plain text');
+    assert(document.querySelector('.phiwrite-print-body strong')?.textContent === 'Bold',
+      'Bold run was not rendered in printable document');
+    assert(document.querySelector('.phiwrite-print-body em')?.textContent === 'Italic',
+      'Italic run was not rendered in printable document');
+    assert(document.querySelector('.phiwrite-print-body a[href="https://example.org/docs"]')?.textContent === 'source',
+      'Hyperlink was not rendered safely in printable document');
     assert(editor.value.includes('| Product | Price |'), 'External table header missing');
     assert(editor.value.includes('| Tea & biscuits | 12 |'), 'External table row missing');
     assert(document.querySelector('.phiwrite-print-body table')?.textContent.includes('Tea & biscuits'),
@@ -180,6 +201,12 @@ async function run() {
       'External Word table was not converted to Markdown');
     assert(preview.textContent.includes('Markdown pipe tables'),
       'Table compatibility notice missing');
+    assert(preview.textContent.includes('**Bold**') && preview.textContent.includes('*Italic*'),
+      'Word inline emphasis missing from local preview');
+    assert(preview.textContent.includes('[source](https://example.org/docs)'),
+      'External safe Word hyperlink missing');
+    assert(!preview.textContent.includes('javascript:alert'),
+      'Unsafe Word hyperlink target leaked into preview');
     assert(document.querySelector('.title-field input')?.value === importedTitle,
       'External preview overwrote active PhiWrite title');
     button('Replace draft with extracted text')?.click();

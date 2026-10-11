@@ -286,7 +286,7 @@ export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Docum
   if (!blocks.length && documentTitle) blocks.push({ kind: 'paragraph', text: documentTitle });
   if (!blocks.length) throw new Error('DOCX import: No supported readable document text found.');
   const warnings = [
-    'Preview extracts text and basic headings/lists only. Exact Word formatting and pagination are not preserved.',
+    'Preview preserves basic text, headings, simple tables, basic bold/italic and safe HTTP(S) hyperlinks only. Exact Word formatting and pagination are not preserved.',
     'Images, comments, fields, tracked edits, footnotes, headers and footers are not carried into PhiWrite.',
   ];
   if (structuredTables) warnings.push(structuredTables + ' simple rectangular Word table(s) converted to Markdown pipe tables; styling and header semantics may change.');

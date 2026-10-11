@@ -48,9 +48,9 @@ function richTextRuns(value, links) {
   }).join('');
 }
 
-function paragraph(text, { style = 'Normal', numId = null, rich = false, links = null } = {}) {
+function paragraph(text, { style = 'Normal', numId = null, level = 0, rich = false, links = null } = {}) {
   const numbering = numId === null ? '' :
-    '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="' + numId + '"/></w:numPr>';
+    '<w:numPr><w:ilvl w:val="' + level + '"/><w:numId w:val="' + numId + '"/></w:numPr>';
   return '<w:p><w:pPr><w:pStyle w:val="' + style + '"/>' + numbering +
     '</w:pPr>' + (rich && links ? richTextRuns(text, links) : textRuns(text)) + '</w:p>';
 }
@@ -79,6 +79,8 @@ function xmlParts({ title, content }) {
   const blocks = parsePhiWritePrintBlocks(content);
   const hyperlinkIds = new Map();
   const orderedInstances = [];
+  const nestedInstances = [];
+  let nextListId = 2;
   const documentBody = [
     paragraph(title || 'Untitled', { style: 'Title' }),
     ...blocks.map((block) => {
@@ -88,7 +90,7 @@ function xmlParts({ title, content }) {
       if (block.kind === 'list') {
         let numId = 1; // shared bullet definition
         if (block.listType === 'ol') {
-          numId = 2 + orderedInstances.length;
+          numId = nextListId++;
           orderedInstances.push({
             numId,
             start: Number.isInteger(block.start) && block.start >= 1 &&
@@ -97,6 +99,26 @@ function xmlParts({ title, content }) {
         }
         return block.items.map((item) => paragraph(item, {
           style: 'ListParagraph', numId, rich: true, links: hyperlinkIds,
+        })).join('');
+      }
+      if (block.kind === 'nested-list') {
+        const numId = nextListId++;
+        const abstractId = 2 + nestedInstances.length;
+        const getLevelType = (level) =>
+          block.items.find((item) => item.level === level)?.listType ?? 'ul';
+        const start = (level) => {
+          const item = block.items.find((entry) => entry.level === level);
+          return item?.listType === 'ol' && Number.isSafeInteger(item.number) &&
+            item.number >= 1 && item.number <= 999999 ? item.number : 1;
+        };
+        nestedInstances.push({
+          numId, abstractId,
+          levelTypes: [getLevelType(0), getLevelType(1)],
+          starts: [start(0), start(1)],
+        });
+        return block.items.map((item) => paragraph(item.text, {
+          style: 'ListParagraph', numId, level: item.level,
+          rich: true, links: hyperlinkIds,
         })).join('');
       }
       if (block.kind === 'table') return simpleWordTable(block.rows);
@@ -139,15 +161,34 @@ function xmlParts({ title, content }) {
     '"/><w:lvlText w:val="' + text +
     '"/><w:lvlJc w:val="left"/><w:pPr><w:tabs><w:tab w:val="num" w:pos="720"/></w:tabs>' +
     '<w:ind w:left="720" w:hanging="360"/></w:pPr></w:lvl></w:abstractNum>';
+  const nestedDefinitions = nestedInstances.map(({ abstractId, levelTypes }) =>
+    '<w:abstractNum w:abstractNumId="' + abstractId +
+      '"><w:multiLevelType w:val="multilevel"/>' +
+      levelTypes.map((listType, level) => {
+        const decimal = listType === 'ol';
+        const position = 720 + level * 360;
+        return '<w:lvl w:ilvl="' + level + '"><w:start w:val="1"/><w:numFmt w:val="' +
+          (decimal ? 'decimal' : 'bullet') + '"/><w:lvlText w:val="' +
+          (decimal ? '%' + (level + 1) + '.' : '•') +
+          '"/><w:lvlJc w:val="left"/><w:pPr><w:ind w:left="' + position +
+          '" w:hanging="360"/></w:pPr></w:lvl>';
+      }).join('') + '</w:abstractNum>'
+  ).join('');
   const numberingXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
-    listDef(0, 'bullet', '•') + listDef(1, 'decimal', '%1.') +
+    listDef(0, 'bullet', '•') + listDef(1, 'decimal', '%1.') + nestedDefinitions +
     '<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>' +
-    (orderedInstances.length ? orderedInstances.map(({ numId, start }) =>
+    (orderedInstances.length || nestedInstances.length ? orderedInstances.map(({ numId, start }) =>
       '<w:num w:numId="' + numId + '"><w:abstractNumId w:val="1"/>' +
       '<w:lvlOverride w:ilvl="0"><w:startOverride w:val="' + start +
       '"/></w:lvlOverride></w:num>'
     ).join('') : '<w:num w:numId="2"><w:abstractNumId w:val="1"/></w:num>') +
+    nestedInstances.map(({ numId, abstractId, starts }) =>
+      '<w:num w:numId="' + numId + '"><w:abstractNumId w:val="' + abstractId + '"/>' +
+      starts.map((start, level) => '<w:lvlOverride w:ilvl="' + level +
+        '"><w:startOverride w:val="' + start + '"/></w:lvlOverride>').join('') +
+      '</w:num>'
+    ).join('') +
     '</w:numbering>';
   const contentTypesXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
@@ -270,8 +311,8 @@ export function buildPhiWriteDocx({ title = 'Untitled', content = '' } = {}) {
     mime: DOCX_EXPORT_MIME,
     bytes: zipStoredDocxParts(parts),
     warnings: [
-      'Exports basic paragraphs, headings, lists, quotes, code, simple pipe tables, and limited bold/italic and http(s) hyperlink spans. Nested Markdown formatting is not supported.',
-      'Complex tables, Word page layout, images, unsupported link schemes, comments, tracked changes, macros and exact source fidelity are not supported.',
+      'Exports paragraphs, headings, one- or two-level decimal/bullet lists, quotes, code, simple tables, and limited bold/italic and HTTP(S) links. Nested inline formatting is not supported.',
+      'More than two list levels, exotic list styles, complex tables, Word page layout, images, unsupported links, tracked edits and exact fidelity are unsupported.',
       'Importing this DOCX back into PhiWrite is a text round trip, not a pixel-perfect or formatting-preserving round trip.',
     ],
   };

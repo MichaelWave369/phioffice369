@@ -191,10 +191,16 @@ export function renderDocxBlocksAsMarkdown(blocks = []) {
       const ordered = block.listType === 'ol';
       const marker = ordered ? String(block.number ?? 1) + '. ' : '- ';
       const group = block.group ?? null;
-      const continuation = previousList && previousList.type === block.listType &&
-        (group === null ? previousList.group === null : previousList.group === group);
-      rendered.push({ text: marker + markdownSafeText(block.text), join: continuation ? '\n' : '\n\n' });
-      previousList = { type: block.listType, group };
+      const root = block.listRoot ?? group;
+      const level = block.listLevel === 1 ? 1 : 0;
+      const continuation = Boolean(previousList && (
+        block.listRoot && previousList.root === block.listRoot ||
+        !block.listRoot && previousList.type === block.listType &&
+        (group === null ? previousList.group === null : previousList.group === group)
+      ));
+      rendered.push({ text: '  '.repeat(level) + marker + markdownSafeText(block.text),
+        join: continuation ? '\n' : '\n\n' });
+      previousList = { type: block.listType, group, root, level };
       continue;
     }
     let text;
@@ -257,11 +263,23 @@ export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Docum
     } else if (isList) {
       const ordered = numbering ? numbering.kind === 'ol' : /^ListNumber/i.test(styleId);
       const listType = ordered ? 'ol' : 'ul';
-      const group = numId !== null ? 'num-' + numId + '-level-' + rawLevel : 'style-' + styleId;
+      const parsedLevel = Number(rawLevel);
+      const listLevel = numbering && Number.isInteger(parsedLevel) && parsedLevel >= 0 && parsedLevel <= 1
+        ? parsedLevel : 0;
+      const group = numId !== null ? 'num-' + numId + '-level-' + listLevel : 'style-' + styleId;
+      const listRoot = numId !== null ? 'num-' + numId : null;
+      // Level-1 numbering restarts for each subsequent level-0 parent.
+      if (listLevel === 0 && listRoot) listCounters.delete(listRoot + '-level-1');
       const counter = listCounters.has(group) ? listCounters.get(group) : (numbering?.start ?? 1);
       if (ordered) listCounters.set(group, counter + 1);
-      if (!numbering || numbering.approximated || rawLevel !== '0') approximatedLists += 1;
-      blocks.push({ kind: 'list', text, listType, group, ...(ordered ? { number: counter } : {}) });
+      if (!numbering || numbering.approximated || parsedLevel > 1) approximatedLists += 1;
+      // Indentation without a visible parent would create malformed Markdown.
+      const previous = blocks[blocks.length - 1];
+      const parentVisible = previous?.kind === 'list' && previous.listRoot === listRoot;
+      const effectiveLevel = listLevel === 1 && parentVisible ? 1 : 0;
+      if (listLevel === 1 && !parentVisible) approximatedLists += 1;
+      blocks.push({ kind: 'list', text, listType, group, listRoot,
+        listLevel: effectiveLevel, ...(ordered ? { number: counter } : {}) });
     } else {
       blocks.push({ kind: 'paragraph', text });
     }
@@ -317,10 +335,10 @@ export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Docum
   if (!blocks.length && documentTitle) blocks.push({ kind: 'paragraph', text: documentTitle });
   if (!blocks.length) throw new Error('DOCX import: No supported readable document text found.');
   const warnings = [
-    'Preview preserves basic text, headings, simple tables, basic bold/italic and safe HTTP(S) hyperlinks only. Exact Word formatting and pagination are not preserved.',
+    'Preview preserves text, headings, simple tables, up to two levels of decimal/bullet lists, basic bold/italic and safe HTTP(S) hyperlinks. Exact Word formatting and pagination are not preserved.',
     'Images, comments, fields, tracked edits, footnotes, headers and footers are not carried into PhiWrite.',
   ];
-  if (approximatedLists) warnings.push('Some list numbering uses missing, unsupported or nested Word definitions and was approximated as flat Markdown.');
+  if (approximatedLists) warnings.push('Some list numbering uses missing definitions, unsupported levels/formats, or detached nesting and was approximated as flat Markdown.');
   if (structuredTables) warnings.push(structuredTables + ' simple rectangular Word table(s) converted to Markdown pipe tables; styling and header semantics may change.');
   if (flattenedTables) warnings.push(flattenedTables + ' complex Word table(s) flattened to tab-separated text because merged, nested, or multi-paragraph cells cannot round-trip faithfully.');
   if (contentControlCount) warnings.push(contentControlCount + ' Word content control(s) read as plain text; form behavior was not preserved.');

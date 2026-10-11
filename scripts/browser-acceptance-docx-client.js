@@ -57,6 +57,11 @@ function createDocxFixture(variant = 'basic') {
     '<w:r><w:rPr><w:b/></w:rPr><w:t>Bold</w:t></w:r>' +
     '<w:r><w:t xml:space="preserve"> plus </w:t></w:r>' +
     '<w:r><w:rPr><w:i/></w:rPr><w:t>Italic</w:t></w:r></w:p>' +
+    '<w:p><w:r><w:t>Run </w:t></w:r><w:r><w:rPr><w:rStyle w:val="CodeChar"/></w:rPr>' +
+    '<w:t>ipconfig /all</w:t></w:r><w:r><w:t xml:space="preserve"> next</w:t></w:r></w:p>' +
+    '<w:p><w:pPr><w:pStyle w:val="Code"/></w:pPr>' +
+    '<w:r><w:t>ping 192.0.2.1</w:t></w:r><w:r><w:br/></w:r>' +
+    '<w:r><w:t>tracert example.org</w:t></w:r></w:p>' +
     '<w:p><w:r><w:t>Reference: </w:t></w:r><w:hyperlink r:id="rIdLink">' +
     '<w:r><w:t>source</w:t></w:r></w:hyperlink></w:p>' +
     '<w:p><w:hyperlink r:id="rIdBad"><w:r><w:t>untrusted URL</w:t></w:r></w:hyperlink></w:p>' +
@@ -76,6 +81,8 @@ function createDocxFixture(variant = 'basic') {
     '<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/></w:style>' +
     '<w:style w:type="paragraph" w:styleId="Heading2"><w:name w:val="heading 2"/></w:style>' +
     '<w:style w:type="paragraph" w:styleId="CompanySection"><w:name w:val="Company Section"/><w:basedOn w:val="Heading2"/></w:style>' +
+    '<w:style w:type="paragraph" w:styleId="Code"><w:name w:val="Code"/></w:style>' +
+    '<w:style w:type="character" w:styleId="CodeChar"><w:name w:val="Code Char"/></w:style>' +
     '</w:styles>';
   const externalRels = '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
     '<Relationship Id="rIdLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.org/docs" TargetMode="External"/>' +
@@ -170,6 +177,13 @@ async function run() {
       'Word content-control text not restored');
     assert(editor.value.includes('café & résumé'), 'International Word text not restored');
     assert(editor.value.includes('Regular **Bold** plus *Italic*'), 'Word bold/italic lost on reload');
+    assert(editor.value.includes('Run `ipconfig /all` next'), 'Word CodeChar run not restored');
+    assert(editor.value.includes('~~~\nping 192.0.2.1\ntracert example.org\n~~~'),
+      'Word Code paragraph not restored as fenced Markdown');
+    assert([...document.querySelectorAll('.phiwrite-print-body :not(pre) > code')].some((node) =>
+      node.textContent === 'ipconfig /all'), 'Inline code missing from React print');
+    assert(document.querySelector('.phiwrite-print-body pre code')?.textContent.includes('tracert example.org'),
+      'Code block missing from React print');
     assert(editor.value.includes('[source](https://example.org/docs)'), 'Word hyperlink relationship lost');
     assert(editor.value.includes('untrusted URL') && !editor.value.includes('javascript:'),
       'Unsafe Word hyperlink was not reduced to plain text');
@@ -236,6 +250,10 @@ async function run() {
       'Independent Word bullets were not decoded');
     assert(preview.textContent.includes('2. Install router\n  - Label cables\n  - Verify ports\n3. Test link'),
       'Independent Word two-level list was not preserved');
+    assert(preview.textContent.includes('Run `ipconfig /all` next'),
+      'Word inline CodeChar not converted to Markdown');
+    assert(preview.textContent.includes('~~~\nping 192.0.2.1\ntracert example.org\n~~~'),
+      'Word code block not retained as fenced Markdown');
     assert(preview.textContent.includes('**Bold**') && preview.textContent.includes('*Italic*'),
       'Word inline emphasis missing from local preview');
     assert(preview.textContent.includes('[source](https://example.org/docs)'),

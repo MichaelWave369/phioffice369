@@ -39,6 +39,10 @@ function richTextRuns(value, links) {
         '<w:rPr><w:rStyle w:val="Hyperlink"/></w:rPr><w:t xml:space="preserve">' +
         escapeDocxXml(token.text) + '</w:t></w:r></w:hyperlink>';
     }
+    if (token.code) {
+      return '<w:r><w:rPr><w:rStyle w:val="CodeChar"/></w:rPr>' +
+        '<w:t xml:space="preserve">' + escapeDocxXml(token.text) + '</w:t></w:r>';
+    }
     if (token.bold || token.italic) {
       return '<w:r><w:rPr>' + (token.bold ? '<w:b/>' : '') +
         (token.italic ? '<w:i/>' : '') + '</w:rPr><w:t xml:space="preserve">' +
@@ -152,6 +156,9 @@ function xmlParts({ title, content }) {
     styleDef('Quote', 'Quote', '<w:pPr><w:ind w:left="720"/></w:pPr><w:rPr><w:i/></w:rPr>') +
     styleDef('Code', 'Code', '<w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/>' +
       '<w:sz w:val="19"/></w:rPr>') +
+    '<w:style w:type="character" w:styleId="CodeChar"><w:name w:val="Code Char"/>' +
+      '<w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/>' +
+      '<w:sz w:val="19"/></w:rPr></w:style>' +
     styleDef('Hyperlink', 'Hyperlink', '<w:rPr><w:color w:val="0563C1"/><w:u w:val="single"/></w:rPr>') +
     styleDef('ListParagraph', 'List Paragraph', '<w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr>') +
     '</w:styles>';
@@ -311,7 +318,7 @@ export function buildPhiWriteDocx({ title = 'Untitled', content = '' } = {}) {
     mime: DOCX_EXPORT_MIME,
     bytes: zipStoredDocxParts(parts),
     warnings: [
-      'Exports paragraphs, headings, one- or two-level decimal/bullet lists, quotes, code, simple tables, and limited bold/italic and HTTP(S) links. Nested inline formatting is not supported.',
+      'Exports paragraphs, headings, up to two list levels, quote/code blocks, simple tables, and limited inline bold/italic/code and HTTP(S) links. Nested inline formatting is not supported.',
       'More than two list levels, exotic list styles, complex tables, Word page layout, images, unsupported links, tracked edits and exact fidelity are unsupported.',
       'Importing this DOCX back into PhiWrite is a text round trip, not a pixel-perfect or formatting-preserving round trip.',
     ],

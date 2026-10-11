@@ -219,7 +219,7 @@ export function renderDocxBlocksAsMarkdown(blocks = []) {
       // Every physical quote line needs its own Markdown quote marker.
       // Consecutive Word Quote paragraphs stay one print-friendly blockquote.
       const text = block.text.replace(/\r\n?/g, '\n').split('\n')
-        .map((line) => '> ' + markdownSafeText(line)).join('\n');
+        .map((line) => '> ' + line).join('\n');
       rendered.push({ text, join: previousQuote ? '\n' : '\n\n' });
       previousQuote = true;
       previousList = null;

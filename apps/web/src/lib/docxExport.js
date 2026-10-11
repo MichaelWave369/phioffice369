@@ -1,5 +1,6 @@
 import { crc32, DOCX_MAX_FILE_BYTES, DOCX_MAX_XML_BYTES } from './docxZip.js';
 import { parsePhiWritePrintBlocks } from './phiwritePrint.js';
+import { tokenizePhiWriteInline } from './phiwriteInline.js';
 
 export const DOCX_EXPORT_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 export const DOCX_EXPORT_SCHEMA = 'phioffice369.docx_text_export.v0.1';
@@ -29,11 +30,29 @@ function textRuns(value) {
   }).join('');
 }
 
-function paragraph(text, { style = 'Normal', numId = null } = {}) {
+function richTextRuns(value, links) {
+  return tokenizePhiWriteInline(value).map((token) => {
+    if (token.href) {
+      const id = links.has(token.href) ? links.get(token.href) : 'rId' + (3 + links.size);
+      links.set(token.href, id);
+      return '<w:hyperlink r:id="' + id + '" w:history="1"><w:r>' +
+        '<w:rPr><w:rStyle w:val="Hyperlink"/></w:rPr><w:t xml:space="preserve">' +
+        escapeDocxXml(token.text) + '</w:t></w:r></w:hyperlink>';
+    }
+    if (token.bold || token.italic) {
+      return '<w:r><w:rPr>' + (token.bold ? '<w:b/>' : '') +
+        (token.italic ? '<w:i/>' : '') + '</w:rPr><w:t xml:space="preserve">' +
+        escapeDocxXml(token.text) + '</w:t></w:r>';
+    }
+    return textRuns(token.text);
+  }).join('');
+}
+
+function paragraph(text, { style = 'Normal', numId = null, rich = false, links = null } = {}) {
   const numbering = numId === null ? '' :
     '<w:numPr><w:ilvl w:val="0"/><w:numId w:val="' + numId + '"/></w:numPr>';
   return '<w:p><w:pPr><w:pStyle w:val="' + style + '"/>' + numbering +
-    '</w:pPr>' + textRuns(text) + '</w:p>';
+    '</w:pPr>' + (rich && links ? richTextRuns(text, links) : textRuns(text)) + '</w:p>';
 }
 
 function simpleWordTable(rows) {
@@ -58,29 +77,31 @@ function simpleWordTable(rows) {
 
 function xmlParts({ title, content }) {
   const blocks = parsePhiWritePrintBlocks(content);
+  const hyperlinkIds = new Map();
   const documentBody = [
     paragraph(title || 'Untitled', { style: 'Title' }),
     ...blocks.map((block) => {
       if (block.kind === 'heading') {
-        return paragraph(block.text, { style: 'Heading' + Math.max(1, Math.min(6, block.level || 1)) });
+        return paragraph(block.text, { style: 'Heading' + Math.max(1, Math.min(6, block.level || 1)), rich: true, links: hyperlinkIds });
       }
       if (block.kind === 'list') {
         return block.items.map((item) => paragraph(item, {
           style: 'ListParagraph',
           numId: block.listType === 'ol' ? 2 : 1,
+          rich: true, links: hyperlinkIds,
         })).join('');
       }
       if (block.kind === 'table') return simpleWordTable(block.rows);
       if (block.kind === 'code') return paragraph(block.text, { style: 'Code' });
-      if (block.kind === 'quote') return paragraph(block.text, { style: 'Quote' });
-      return paragraph(block.text);
+      if (block.kind === 'quote') return paragraph(block.text, { style: 'Quote', rich: true, links: hyperlinkIds });
+      return paragraph(block.text, { rich: true, links: hyperlinkIds });
     }),
     '<w:sectPr><w:pgSz w:w="12240" w:h="15840"/>' +
       '<w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440"/></w:sectPr>',
   ].join('');
 
   const documentXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
-    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
     '<w:body>' + documentBody + '</w:body></w:document>';
   const styleDef = (id, name, props = '') =>
     '<w:style w:type="paragraph" w:styleId="' + id + '"><w:name w:val="' + name +
@@ -101,6 +122,7 @@ function xmlParts({ title, content }) {
     styleDef('Quote', 'Quote', '<w:pPr><w:ind w:left="720"/></w:pPr><w:rPr><w:i/></w:rPr>') +
     styleDef('Code', 'Code', '<w:rPr><w:rFonts w:ascii="Consolas" w:hAnsi="Consolas"/>' +
       '<w:sz w:val="19"/></w:rPr>') +
+    styleDef('Hyperlink', 'Hyperlink', '<w:rPr><w:color w:val="0563C1"/><w:u w:val="single"/></w:rPr>') +
     styleDef('ListParagraph', 'List Paragraph', '<w:pPr><w:ind w:left="720" w:hanging="360"/></w:pPr>') +
     '</w:styles>';
   const listDef = (abstractId, format, text) =>
@@ -130,6 +152,11 @@ function xmlParts({ title, content }) {
     '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
     '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
     '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/numbering" Target="numbering.xml"/>' +
+    [...hyperlinkIds.entries()].map(([href, id]) =>
+      '<Relationship Id="' + id +
+      '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="' +
+      escapeDocxXml(href) + '" TargetMode="External"/>'
+    ).join('') +
     '</Relationships>';
   return [
     ['[Content_Types].xml', contentTypesXml],
@@ -230,8 +257,8 @@ export function buildPhiWriteDocx({ title = 'Untitled', content = '' } = {}) {
     mime: DOCX_EXPORT_MIME,
     bytes: zipStoredDocxParts(parts),
     warnings: [
-      'Exports basic paragraphs, headings, lists, quotations, code blocks and simple rectangular pipe tables. Advanced Markdown and inline formatting remain literal text.',
-      'Complex tables (merges, nested tables, cell formatting), Word page layout, images, links, comments, tracked changes, macros and exact source fidelity are not supported.',
+      'Exports basic paragraphs, headings, lists, quotes, code, simple pipe tables, and limited bold/italic and http(s) hyperlink spans. Nested Markdown formatting is not supported.',
+      'Complex tables, Word page layout, images, unsupported link schemes, comments, tracked changes, macros and exact source fidelity are not supported.',
       'Importing this DOCX back into PhiWrite is a text round trip, not a pixel-perfect or formatting-preserving round trip.',
     ],
   };

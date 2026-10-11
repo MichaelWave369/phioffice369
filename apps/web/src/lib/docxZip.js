@@ -157,7 +157,16 @@ export async function extractDocxPackage(input) {
       fail('XML entity and DOCTYPE declarations are unsupported.');
     }
   }
-  return { documentXml: xml, stylesXml };
+  const relsPart = entries.get('word/_rels/document.xml.rels');
+  let relationshipsXml = null;
+  if (relsPart) {
+    const relsBytes = await decompressEntry(bytes, relsPart, 512 * 1024);
+    relationshipsXml = decoder.decode(relsBytes).replace(/^\uFEFF/, '');
+    if (/<!DOCTYPE|<!ENTITY/i.test(relationshipsXml)) {
+      fail('XML entity and DOCTYPE declarations are unsupported.');
+    }
+  }
+  return { documentXml: xml, stylesXml, relationshipsXml };
 }
 
 export async function extractDocxXml(input) {

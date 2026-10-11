@@ -1,6 +1,6 @@
 // Deliberately small inline Markdown compatibility subset.
 // The source draft remains plain Markdown; this helper recognizes only simple
-// **bold**, *italic*, `code`, ~~strike~~, ==highlight== and safe links without nesting.
+// **bold**, *italic*, `code`, ~~strike~~, ==highlight==, ++underline++ and safe links without nesting.
 export function safeExternalDocumentUrl(value) {
   const text = String(value ?? '');
   if (text.length < 1 || text.length > 2048 ||
@@ -24,7 +24,7 @@ export function tokenizePhiWriteInline(source) {
   let i = 0;
   while (i < text.length) {
     if (text[i] === '\\' && i + 1 < text.length &&
-        '*[]`~=\\'.includes(text[i + 1])) {
+        '*[]`~=+\\'.includes(text[i + 1])) {
       buffer += text[i + 1];
       i += 2;
       continue;
@@ -50,13 +50,13 @@ export function tokenizePhiWriteInline(source) {
         }
       }
     }
-    if (text.startsWith('~~', i) || text.startsWith('==', i)) {
+    if (text.startsWith('~~', i) || text.startsWith('==', i) || text.startsWith('++', i)) {
       const marker = text.slice(i, i + 2);
       const end = text.indexOf(marker, i + 2);
       if (end > i + 2 && !/[\r\n]/.test(text.slice(i + 2, end))) {
         flush();
         tokens.push({ text: text.slice(i + 2, end),
-          ...(marker === '~~' ? { strike: true } : { highlight: true }) });
+          ...(marker === '~~' ? { strike: true } : marker === '==' ? { highlight: true } : { underline: true }) });
         i = end + 2;
         continue;
       }
@@ -90,7 +90,7 @@ export function tokenizePhiWriteInline(source) {
 // Escape text when embedding values from arbitrary external Word files back
 // into Markdown. Return plain text without interpreting unsafe URLs as links.
 export function escapeInlineMarkdownText(value) {
-  return String(value ?? '').replace(/[\\*`~=[\]]/g, '\\$&');
+  return String(value ?? '').replace(/[\\*`~+=\[\]]/g, '\\$&');
 }
 
 export function inlineTokensToMarkdown(tokens) {
@@ -101,6 +101,7 @@ export function inlineTokensToMarkdown(tokens) {
       const href = safeExternalDocumentUrl(token.href);
       return href ? '[' + text + '](' + href + ')' : text;
     }
+    if (token.underline) return '++' + text + '++'; // deliberately nonstandard, single-layer
     if (token.highlight) return '==' + text + '=='; // only single-layer markup
     if (token.strike) return '~~' + text + '~~';
     if (token.bold && token.italic) return '**' + text + '**'; // subset limitation

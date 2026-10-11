@@ -44,10 +44,10 @@ test('inline code and unsupported multiline syntax retain precedence', () => {
     { text: ', and ' },
     { text: 'removed', strike: true },
   ]);
-  assert.deepEqual(tokenizePhiWriteInline('==not\\nclosed=='), [
+  assert.deepEqual(tokenizePhiWriteInline('==not\nclosed=='), [
     { text: '==not\nclosed==' },
   ]);
-  assert.deepEqual(tokenizePhiWriteInline('~~not\\nclosed~~'), [
+  assert.deepEqual(tokenizePhiWriteInline('~~not\nclosed~~'), [
     { text: '~~not\nclosed~~' },
   ]);
 });

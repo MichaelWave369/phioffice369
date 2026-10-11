@@ -59,7 +59,7 @@ function paragraph(text, { style = 'Normal', numId = null, level = 0, rich = fal
     '</w:pPr>' + (rich && links ? richTextRuns(text, links) : textRuns(text)) + '</w:p>';
 }
 
-function simpleWordTable(rows) {
+function simpleWordTable(rows, links) {
   const width = rows[0]?.length ?? 0;
   if (width < 2 || width > 32 || rows.length > 500 ||
     rows.some((row) => row.length !== width)) {
@@ -70,7 +70,7 @@ function simpleWordTable(rows) {
   const rowXml = rows.map((cells, index) =>
     '<w:tr>' + (index === 0 ? '<w:trPr><w:tblHeader w:val="true"/></w:trPr>' : '') +
     cells.map((cell) => '<w:tc><w:tcPr><w:tcW w:w="' + columnWidth +
-      '" w:type="dxa"/></w:tcPr>' + paragraph(cell) + '</w:tc>').join('') + '</w:tr>'
+      '" w:type="dxa"/></w:tcPr>' + paragraph(cell, { rich: true, links }) + '</w:tc>').join('') + '</w:tr>'
   ).join('');
   return '<w:tbl><w:tblPr><w:tblW w:w="9360" w:type="dxa"/>' +
     '<w:tblBorders><w:top w:val="single" w:sz="4"/><w:left w:val="single" w:sz="4"/>' +
@@ -125,7 +125,7 @@ function xmlParts({ title, content }) {
           rich: true, links: hyperlinkIds,
         })).join('');
       }
-      if (block.kind === 'table') return simpleWordTable(block.rows);
+      if (block.kind === 'table') return simpleWordTable(block.rows, hyperlinkIds);
       if (block.kind === 'code') return paragraph(block.text, { style: 'Code' });
       if (block.kind === 'quote') return paragraph(block.text, { style: 'Quote', rich: true, links: hyperlinkIds });
       return paragraph(block.text, { rich: true, links: hyperlinkIds });
@@ -318,7 +318,7 @@ export function buildPhiWriteDocx({ title = 'Untitled', content = '' } = {}) {
     mime: DOCX_EXPORT_MIME,
     bytes: zipStoredDocxParts(parts),
     warnings: [
-      'Exports paragraphs, headings, up to two list levels, quote/code blocks, simple tables, and limited inline bold/italic/code and HTTP(S) links. Nested inline formatting is not supported.',
+      'Exports paragraphs, headings, two-level lists, quotes/code, simple tables with basic inline bold/italic/code and safe HTTP(S) links. Nested inline formatting is not supported.',
       'More than two list levels, exotic list styles, complex tables, Word page layout, images, unsupported links, tracked edits and exact fidelity are unsupported.',
       'Importing this DOCX back into PhiWrite is a text round trip, not a pixel-perfect or formatting-preserving round trip.',
     ],

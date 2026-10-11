@@ -227,7 +227,7 @@ async function run() {
     assert(editor.value.includes('| Tea & biscuits | 12 |'), 'External table row missing');
     assert(editor.value.includes('**READY** / *verified* / `ipconfig` / [docs](https://example.org/docs) / A \\| B'),
       'Word formatted table cell runs and escaped pipe lost on reload');
-    assert(editor.value.includes('| Literal | \\*not bold\\* |'),
+    assert(editor.value.includes(String.raw`| Literal | \\*not bold\\* |`),
       'Literal Word table text was not safely escaped from Markdown interpretation');
     const routerCells = [...document.querySelectorAll('.phiwrite-print-body tbody tr')]
       .find((row) => row.textContent.includes('Router'))?.querySelectorAll('td');
@@ -294,7 +294,7 @@ async function run() {
       'Table compatibility notice missing');
     assert(preview.textContent.includes('**READY** / *verified* / `ipconfig` / [docs](https://example.org/docs) / A \\| B'),
       'Word basic table cell formatting or escaped pipe did not survive preview');
-    assert(preview.textContent.includes('| Literal | \\*not bold\\* |'),
+    assert(preview.textContent.includes(String.raw`| Literal | \\*not bold\\* |`),
       'Word literal table cell text was not safely escaped');
     assert(preview.textContent.includes('3. First numbered task\n4. Second numbered task'),
       'Independent Word numbering definitions were not decoded');

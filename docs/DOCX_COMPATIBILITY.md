@@ -1,6 +1,6 @@
 # PhiWrite DOCX text interoperability
 
-**Status:** DOCX import preview (#20), basic export (#21), external-style handling (#22), tables (#23), safe inline formatting (#24), ordered lists (#25), and two-level list interoperability (#26 candidate).
+**Status:** DOCX import preview (#20), basic export (#21), external-style handling (#22), tables (#23), safe inline formatting (#24), ordered lists (#25), two-level lists (#26), and basic inline/fenced code preservation (#27 candidate).
 
 PhiWrite remains a simple local-first Markdown editor. DOCX files use actual ZIP/Office Open XML packaging so compatible word processors can open them. These features are a **text-level conversion path**, not a complete Word document editor or layout-preserving converter.
 
@@ -11,7 +11,8 @@ PhiWrite remains a simple local-first Markdown editor. DOCX files use actual ZIP
 | Headings 1–6 | Word paragraph heading styles | Markdown headings for standard styles, custom style inheritance, and paragraph outline levels |
 | Bullet / decimal-numbered lists with up to two levels | Native multilevel Word numbering definitions with level-specific formats and start overrides | Word numbering.xml converted to two-space-indented Markdown with level-specific bullet/decimal markers and start values |
 | More than two levels, Roman/lettered/legal numbering, Word custom restarts | Not supported | Flattened or approximated with a visible warning; exact semantics not guaranteed |
-| Code blocks | Basic monospace Word paragraph style | Text is extracted; code styling may be lost |
+| Code blocks (simple fenced Markdown) | Word Code paragraph style with monospace font | Recognized Code/CodeBlock/HTMLPreformatted paragraphs become literal tilde-fenced Markdown; unsafe fence collisions fall back to text with a warning |
+| Inline code (single backticks) | Word CodeChar character style and escaped monospace text | Recognized CodeChar runs become literal single-backtick spans; complex or nested code styles are not retained |
 | Blockquotes | Simple Word Quote style | Text is extracted; quote styling may be lost |
 | Simple rectangular tables (2–32 columns; up to 500 rows) | Native Word tables from Markdown pipe tables | Converted to Markdown pipe tables, first row treated as header; text retained | 
 | Complex tables (merged/nested cells, multiple cell paragraphs) | Not supported | Flattened to tab-separated text with warning |

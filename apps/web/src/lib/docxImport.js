@@ -145,12 +145,15 @@ function paragraphInlineMarkdown(paragraph, hyperlinks) {
     };
     const bold = enabled('b');
     const italic = enabled('i');
-    if (bold || italic || href) hasFormatting = true;
+    const code = attributeValue(rPr && [...rPr.children].find((node) =>
+      node.namespaceURI === WORD_NS && node.localName === 'rStyle'), 'val') === 'CodeChar';
+    if (bold || italic || code || href) hasFormatting = true;
     const prev = tokens[tokens.length - 1];
     if (prev && Boolean(prev.bold) === bold && Boolean(prev.italic) === italic &&
-        (prev.href ?? null) === href) prev.text += value;
+        Boolean(prev.code) === code && (prev.href ?? null) === href) prev.text += value;
     else tokens.push({ text: value, ...(bold ? { bold: true } : {}),
-      ...(italic ? { italic: true } : {}), ...(href ? { href } : {}) });
+      ...(italic ? { italic: true } : {}), ...(code ? { code: true } : {}),
+      ...(href ? { href } : {}) });
   }
   function visit(node) {
     if (node.namespaceURI !== WORD_NS) return;
@@ -205,6 +208,7 @@ export function renderDocxBlocksAsMarkdown(blocks = []) {
     }
     let text;
     if (block.kind === 'heading') text = '#'.repeat(Math.max(1, Math.min(6, block.level ?? 1))) + ' ' + markdownSafeText(block.text);
+    else if (block.kind === 'code') text = '~~~\n' + block.text + '\n~~~';
     else if (block.kind === 'simple-table') text = renderPipeTable(block.rows);
     else if (block.kind === 'table') text = block.text.split('\n').map((row) => '    ' + row).join('\n');
     else text = markdownSafeText(block.text);
@@ -235,6 +239,7 @@ export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Docum
   let documentTitle = null;
   let contentControlCount = 0;
   let approximatedLists = 0;
+  let unsafeCodeFences = 0;
   const listCounters = new Map();
   function addParagraph(paragraph) {
     const plainText = collectParagraphText(paragraph);
@@ -260,6 +265,15 @@ export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Docum
       documentTitle = plainText;
     } else if (heading) {
       blocks.push({ kind: 'heading', level: heading, text });
+    } else if (/^(Code|CodeBlock|HTMLPreformatted)$/i.test(styleId)) {
+      // The parser supports triple-tilde code fences. If the document itself
+      // contains such a line, retain the text as ordinary paragraphs instead.
+      if (/(^|\n)\s*~~~/.test(plainText)) {
+        unsafeCodeFences += 1;
+        blocks.push({ kind: 'paragraph', text: plainText });
+      } else {
+        blocks.push({ kind: 'code', text: plainText });
+      }
     } else if (isList) {
       const ordered = numbering ? numbering.kind === 'ol' : /^ListNumber/i.test(styleId);
       const listType = ordered ? 'ol' : 'ul';
@@ -335,9 +349,10 @@ export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Docum
   if (!blocks.length && documentTitle) blocks.push({ kind: 'paragraph', text: documentTitle });
   if (!blocks.length) throw new Error('DOCX import: No supported readable document text found.');
   const warnings = [
-    'Preview preserves text, headings, simple tables, up to two levels of decimal/bullet lists, basic bold/italic and safe HTTP(S) hyperlinks. Exact Word formatting and pagination are not preserved.',
+    'Preview preserves text, headings, basic code styles, simple tables, two-level lists, inline bold/italic/code and safe HTTP(S) hyperlinks. Exact Word formatting and pagination are not preserved.',
     'Images, comments, fields, tracked edits, footnotes, headers and footers are not carried into PhiWrite.',
   ];
+  if (unsafeCodeFences) warnings.push(unsafeCodeFences + ' Word code paragraph(s) had fence-like lines and were imported as plain text.');
   if (approximatedLists) warnings.push('Some list numbering uses missing definitions, unsupported levels/formats, or detached nesting and was approximated as flat Markdown.');
   if (structuredTables) warnings.push(structuredTables + ' simple rectangular Word table(s) converted to Markdown pipe tables; styling and header semantics may change.');
   if (flattenedTables) warnings.push(flattenedTables + ' complex Word table(s) flattened to tab-separated text because merged, nested, or multi-paragraph cells cannot round-trip faithfully.');

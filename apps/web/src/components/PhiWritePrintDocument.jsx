@@ -7,6 +7,7 @@ import './PhiWritePrintDocument.css';
 // React owns every text node. Never inject untrusted Markdown as HTML.
 function RichText({ value }) {
   return tokenizePhiWriteInline(value).map((token, index) => {
+    if (token.code) return <code key={index}>{token.text}</code>;
     if (token.href) {
       return <a key={index} href={token.href} target="_blank" rel="noopener noreferrer">{token.text}</a>;
     }

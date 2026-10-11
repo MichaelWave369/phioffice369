@@ -1,5 +1,6 @@
 import { parsePipeTableAt } from './simpleTables.js';
 import { tokenizePhiWriteInline } from './phiwriteInline.js';
+import { parsePhiWriteListAt, buildTwoLevelListTree, groupTwoLevelListNodes } from './phiwriteNestedLists.js';
 
 // Printable block-only Markdown subset. Other Markdown remains literal.
 export function parsePhiWritePrintBlocks(markdown = '') {
@@ -32,6 +33,12 @@ export function parsePhiWritePrintBlocks(markdown = '') {
     }
     const head = heading(line);
     if (head) { blocks.push({ kind: 'heading', level: head[1].length, text: head[2].trim() }); i += 1; continue; }
+    const parsedList = parsePhiWriteListAt(lines, i);
+    if (parsedList) {
+      blocks.push(parsedList.block);
+      i = parsedList.nextIndex;
+      continue;
+    }
     const listType = bullet(line) ? 'ul' : ordered(line) ? 'ol' : null;
     if (listType) {
       const items = [];
@@ -75,12 +82,28 @@ export function renderInlinePhiWriteHtml(value) {
   }).join('');
 }
 
+export function renderNestedPhiWriteListHtml(items = []) {
+  function groupsHtml(nodes) {
+    return groupTwoLevelListNodes(nodes).map((group) => {
+      const tag = group.listType === 'ol' ? 'ol' : 'ul';
+      const start = tag === 'ol' && group.start > 1 ? ' start="' + group.start + '"' : '';
+      const children = group.items.map((item) => '<li>' +
+        renderInlinePhiWriteHtml(item.text) +
+        (item.children.length ? groupsHtml(item.children) : '') + '</li>').join('');
+      return '<' + tag + start + '>' + children + '</' + tag + '>';
+    }).join('');
+  }
+  return '<div class="phiwrite-nested-list">' +
+    groupsHtml(buildTwoLevelListTree(items)) + '</div>';
+}
+
 export function renderPhiWritePrintBlocksHtml(blocks = []) {
   return blocks.map((block) => {
     if (block.kind === 'heading') {
       const level = Math.max(2, Math.min(6, Number(block.level) + 1 || 2));
       return '<h' + level + '>' + renderInlinePhiWriteHtml(block.text) + '</h' + level + '>';
     }
+    if (block.kind === 'nested-list') return renderNestedPhiWriteListHtml(block.items);
     if (block.kind === 'list') {
       const tag = block.listType === 'ol' ? 'ol' : 'ul';
       const start = tag === 'ol' && Number.isInteger(block.start) && block.start > 1 && block.start < 1000000 ? ' start="' + block.start + '"' : '';

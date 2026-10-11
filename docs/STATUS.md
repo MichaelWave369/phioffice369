@@ -8,7 +8,7 @@ Last source audit: October 9, 2026. This is a source-level audit, not a verified
 
 ### Currently implemented (lite versions)
 
-- **PhiWrite:** Markdown editor, local autosave, Markdown import/export, standalone HTML export, print-to-PDF via browser, DOCX local text-only review/confirmation and basic OOXML export with Word styles, lists and simple rectangular tables; custom Word heading styles and content-control text extraction (complex layout remains lossy), trust labels, and document-to-deck transformations.
+- **PhiWrite:** Markdown editor, local autosave, Markdown import/export, standalone HTML export, print-to-PDF via browser, DOCX local text-only review/confirmation and basic OOXML export with Word styles, lists and simple rectangular tables, basic bold/italic and safe hyperlinks; custom Word heading styles and content-control text extraction (complex layout remains lossy), trust labels, and document-to-deck transformations.
 - **PhiGrid:** editable tables, CSV import/export, JSON export, simple numeric totals and local autosave. Not an Excel calculation engine.
 - **PhiDeck:** standalone slide title/bullet editor, slide management, native deck JSON import/export and local autosave.
 - **PhiVault:** local artifact search, tags, project folders, backup/restore, receipt timeline, and guarded storage migration tooling.

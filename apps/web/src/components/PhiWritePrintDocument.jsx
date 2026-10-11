@@ -58,9 +58,9 @@ export default function PhiWritePrintDocument({ title, content, trustLabel }) {
           if (block.kind === 'table') {
             return (
               <table key={index}>
-                <thead><tr>{block.rows[0].map((cell, cellIndex) => <th key={cellIndex} scope="col">{cell}</th>)}</tr></thead>
+                <thead><tr>{block.rows[0].map((cell, cellIndex) => <th key={cellIndex} scope="col"><RichText value={cell} /></th>)}</tr></thead>
                 <tbody>{block.rows.slice(1).map((cells, rowIndex) => (
-                  <tr key={rowIndex}>{cells.map((cell, cellIndex) => <td key={cellIndex}>{cell}</td>)}</tr>
+                  <tr key={rowIndex}>{cells.map((cell, cellIndex) => <td key={cellIndex}><RichText value={cell} /></td>)}</tr>
                 ))}</tbody>
               </table>
             );

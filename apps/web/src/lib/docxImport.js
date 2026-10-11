@@ -1,6 +1,6 @@
 import { DOCX_MAX_FILE_BYTES, extractDocxPackage } from './docxZip.js';
 import { renderPipeTable } from './simpleTables.js';
-import { inlineTokensToMarkdown, safeExternalDocumentUrl } from './phiwriteInline.js';
+import { inlineTokensToMarkdown, safeExternalDocumentUrl, escapeInlineMarkdownText } from './phiwriteInline.js';
 import { createDocxNumberingResolver } from './docxNumbering.js';
 
 const WORD_NS = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main';
@@ -123,7 +123,7 @@ export function readDocxHyperlinkRelationships(xml, parser) {
   return links;
 }
 
-function paragraphInlineMarkdown(paragraph, hyperlinks) {
+function paragraphInlineMarkdown(paragraph, hyperlinks, { escapePlain = false } = {}) {
   const tokens = [];
   let hasFormatting = false;
   function runText(run) {
@@ -181,7 +181,10 @@ function paragraphInlineMarkdown(paragraph, hyperlinks) {
     for (const child of node.children) visit(child);
   }
   for (const child of paragraph.children) visit(child);
-  if (!hasFormatting) return collectParagraphText(paragraph);
+  if (!hasFormatting) {
+    const plain = collectParagraphText(paragraph);
+    return escapePlain ? escapeInlineMarkdownText(plain) : plain;
+  }
   return inlineTokensToMarkdown(tokens).trim();
 }
 
@@ -347,7 +350,9 @@ export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Docum
       if (simple) {
         structuredTables += 1;
         blocks.push({ kind: 'simple-table', rows: cells.map((row) =>
-          row.map((cell) => collectParagraphText(directChildren(cell, 'p')[0]))
+          row.map((cell) => paragraphInlineMarkdown(
+            directChildren(cell, 'p')[0], hyperlinkMap, { escapePlain: true }
+          ))
         ) });
       } else {
         flattenedTables += 1;
@@ -379,7 +384,7 @@ export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Docum
   if (convertedQuoteParagraphs) warnings.push(convertedQuoteParagraphs + ' Word Quote-style paragraph(s) converted into Markdown blockquotes; exact quotation styling is not retained.');
   if (unsafeCodeFences) warnings.push(unsafeCodeFences + ' Word code paragraph(s) had fence-like lines and were imported as plain text.');
   if (approximatedLists) warnings.push('Some list numbering uses missing definitions, unsupported levels/formats, or detached nesting and was approximated as flat Markdown.');
-  if (structuredTables) warnings.push(structuredTables + ' simple rectangular Word table(s) converted to Markdown pipe tables; styling and header semantics may change.');
+  if (structuredTables) warnings.push(structuredTables + ' simple rectangular Word table(s) converted to Markdown pipe tables; basic bold, italic, inline code and safe HTTP(S) links inside cells are retained, but layout and header semantics may change.');
   if (flattenedTables) warnings.push(flattenedTables + ' complex Word table(s) flattened to tab-separated text because merged, nested, or multi-paragraph cells cannot round-trip faithfully.');
   if (contentControlCount) warnings.push(contentControlCount + ' Word content control(s) read as plain text; form behavior was not preserved.');
   if (documentTitle) warnings.push('Document Title style was extracted into the PhiWrite title field rather than duplicated in the body.');

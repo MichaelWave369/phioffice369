@@ -154,12 +154,22 @@ function paragraphInlineMarkdown(paragraph, hyperlinks, { escapePlain = false } 
     const italic = enabled('i');
     const code = attributeValue(rPr && [...rPr.children].find((node) =>
       node.namespaceURI === WORD_NS && node.localName === 'rStyle'), 'val') === 'CodeChar';
-    if (bold || italic || code || href) hasFormatting = true;
+    const strike = enabled('strike') || enabled('dstrike');
+    const highlightNode = rPr && [...rPr.children].find((node) =>
+      node.namespaceURI === WORD_NS && node.localName === 'highlight');
+    // Yellow-only: Word's other highlight colors are not mapped into a
+    // misleading yellow marker. Unknown coloring falls back to plain text.
+    const highlight = attributeValue(highlightNode, 'val') === 'yellow';
+    if (bold || italic || code || strike || highlight || href) hasFormatting = true;
     const prev = tokens[tokens.length - 1];
     if (prev && Boolean(prev.bold) === bold && Boolean(prev.italic) === italic &&
-        Boolean(prev.code) === code && (prev.href ?? null) === href) prev.text += value;
+        Boolean(prev.code) === code && Boolean(prev.strike) === strike &&
+        Boolean(prev.highlight) === highlight &&
+        (prev.href ?? null) === href) prev.text += value;
     else tokens.push({ text: value, ...(bold ? { bold: true } : {}),
       ...(italic ? { italic: true } : {}), ...(code ? { code: true } : {}),
+      ...(strike ? { strike: true } : {}),
+      ...(highlight ? { highlight: true } : {}),
       ...(href ? { href } : {}) });
   }
   function visit(node) {
@@ -378,7 +388,7 @@ export function parseDocxDocumentXml(xml, { fallbackTitle = 'Imported Word Docum
   if (!blocks.length && documentTitle) blocks.push({ kind: 'paragraph', text: documentTitle });
   if (!blocks.length) throw new Error('DOCX import: No supported readable document text found.');
   const warnings = [
-    'Preview preserves text, headings, simple quote/code styles, tables, two-level lists, inline bold/italic/code and safe HTTP(S) hyperlinks. Exact Word formatting and pagination are not preserved.',
+    'Preview preserves text, headings, quote/code styles, tables, two-level lists, basic bold/italic/code/strikethrough/yellow highlighting, and safe HTTP(S) links. Overlapping styles, other highlight colors, Word layout and pagination are not preserved.',
     'Images, comments, fields, tracked edits, footnotes, headers and footers are not carried into PhiWrite.',
   ];
   if (convertedQuoteParagraphs) warnings.push(convertedQuoteParagraphs + ' Word Quote-style paragraph(s) converted into Markdown blockquotes; exact quotation styling is not retained.');

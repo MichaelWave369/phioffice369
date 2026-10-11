@@ -8,6 +8,8 @@ import './PhiWritePrintDocument.css';
 function RichText({ value }) {
   return tokenizePhiWriteInline(value).map((token, index) => {
     if (token.code) return <code key={index}>{token.text}</code>;
+    if (token.highlight) return <mark key={index}>{token.text}</mark>;
+    if (token.strike) return <del key={index}>{token.text}</del>;
     if (token.href) {
       return <a key={index} href={token.href} target="_blank" rel="noopener noreferrer">{token.text}</a>;
     }

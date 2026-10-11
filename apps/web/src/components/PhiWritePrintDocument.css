@@ -132,6 +132,14 @@
     overflow-wrap: anywhere;
   }
 
+  .phiwrite-print-page mark {
+    background: #fff39b !important;
+    color: #172031 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  .phiwrite-print-page del { text-decoration: line-through; }
+
   .phiwrite-print-page li { margin-bottom: 0.3rem; }
   .phiwrite-print-page p,
   .phiwrite-print-page li { orphans: 2; widows: 2; }

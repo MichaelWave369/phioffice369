@@ -231,12 +231,20 @@ async function runDeck() {
     slides: [{ id: 'fixture-slide', title: 'Imported slide', bullets: ['Verified locally'] }],
   };
   upload(document.querySelector('.deck-file-input'), 'valid.json', JSON.stringify(payload), 'application/json');
+  // File.text(), React state updates and debounced localStorage writes are
+  // independently asynchronous. Assert the visible import before persistence,
+  // rather than attributing an input/event race to a failed autosave.
+  await waitFor(() => document.querySelector('.deck-title-field input')?.value === finalTitle &&
+    document.querySelector('.deck-slide-editor input')?.value === 'Imported slide',
+    'PhiDeck imported JSON visible; status=' +
+      document.querySelector('.deck-save-status')?.textContent, 12000);
   await waitFor(() => {
     const deck = stored(key);
     return deck?.title === finalTitle &&
       deck?.slides?.[0]?.title === 'Imported slide' &&
       deck?.slides?.length === 1;
-  }, 'PhiDeck native JSON import autosave');
+  }, 'PhiDeck native JSON import autosave; status=' +
+    document.querySelector('.deck-save-status')?.textContent, 12000);
   sessionStorage.setItem(phaseKey, 'reload');
   location.reload();
   return null;

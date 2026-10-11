@@ -57,6 +57,12 @@ function createDocxFixture(variant = 'basic') {
     '<w:r><w:rPr><w:b/></w:rPr><w:t>Bold</w:t></w:r>' +
     '<w:r><w:t xml:space="preserve"> plus </w:t></w:r>' +
     '<w:r><w:rPr><w:i/></w:rPr><w:t>Italic</w:t></w:r></w:p>' +
+    '<w:p><w:r><w:t>Review: </w:t></w:r>' +
+    '<w:r><w:rPr><w:strike/></w:rPr><w:t>retired</w:t></w:r>' +
+    '<w:r><w:t xml:space="preserve"> then </w:t></w:r>' +
+    '<w:r><w:rPr><w:highlight w:val="yellow"/></w:rPr><w:t>verify</w:t></w:r></w:p>' +
+    '<w:p><w:r><w:t>Other color: </w:t></w:r>' +
+    '<w:r><w:rPr><w:highlight w:val="green"/></w:rPr><w:t>not yellow</w:t></w:r></w:p>' +
     '<w:p><w:r><w:t>Run </w:t></w:r><w:r><w:rPr><w:rStyle w:val="CodeChar"/></w:rPr>' +
     '<w:t>ipconfig /all</w:t></w:r><w:r><w:t xml:space="preserve"> next</w:t></w:r></w:p>' +
     '<w:p><w:pPr><w:pStyle w:val="Code"/></w:pPr>' +
@@ -198,6 +204,16 @@ async function run() {
       'Word content-control text not restored');
     assert(editor.value.includes('café & résumé'), 'International Word text not restored');
     assert(editor.value.includes('Regular **Bold** plus *Italic*'), 'Word bold/italic lost on reload');
+    assert(editor.value.includes('Review: ~~retired~~ then ==verify=='),
+      'Word strike/highlight spans lost on reload');
+    assert(editor.value.includes('Other color: not yellow') &&
+      !editor.value.includes('==not yellow=='), 'Unsupported Word highlight color was misrepresented');
+    assert([...document.querySelectorAll('.phiwrite-print-body del')]
+      .some((node) => node.textContent === 'retired'),
+      'Strikethrough not rendered as semantic del in React print');
+    assert([...document.querySelectorAll('.phiwrite-print-body mark')]
+      .some((node) => node.textContent === 'verify'),
+      'Yellow-highlight not rendered as semantic mark in React print');
     assert(editor.value.includes('> Keep **receipts**\n> Ledger: [source](https://example.org/docs)\n> Verify again'),
       'Word Quote style and inherited custom Quote style lost');
     assert([...document.querySelectorAll('.phiwrite-print-body blockquote')].some((node) =>
@@ -312,6 +328,11 @@ async function run() {
       'Word code block not retained as fenced Markdown');
     assert(preview.textContent.includes('**Bold**') && preview.textContent.includes('*Italic*'),
       'Word inline emphasis missing from local preview');
+    assert(preview.textContent.includes('Review: ~~retired~~ then ==verify=='),
+      'Word strike/yellow-highlight runs missing from import preview');
+    assert(preview.textContent.includes('Other color: not yellow') &&
+      !preview.textContent.includes('==not yellow=='),
+      'Non-yellow highlight incorrectly converted to a yellow marker');
     assert(preview.textContent.includes('[source](https://example.org/docs)'),
       'External safe Word hyperlink missing');
     assert(!preview.textContent.includes('javascript:alert'),

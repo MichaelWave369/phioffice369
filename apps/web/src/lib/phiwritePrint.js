@@ -111,7 +111,7 @@ export function renderPhiWritePrintBlocksHtml(blocks = []) {
       return '<' + tag + start + '>' + block.items.map((item) => '<li>' + renderInlinePhiWriteHtml(item) + '</li>').join('') + '</' + tag + '>';
     }
     if (block.kind === 'table') {
-      const row = (cells, tag) => '<tr>' + cells.map((cell) => '<' + tag + '>' + escapePhiWriteHtml(cell) + '</' + tag + '>').join('') + '</tr>';
+      const row = (cells, tag) => '<tr>' + cells.map((cell) => '<' + tag + '>' + renderInlinePhiWriteHtml(cell) + '</' + tag + '>').join('') + '</tr>';
       return '<table><thead>' + row(block.rows[0], 'th') + '</thead><tbody>' + block.rows.slice(1).map((cells) => row(cells, 'td')).join('') + '</tbody></table>';
     }
     if (block.kind === 'code') return '<pre><code>' + escapePhiWriteHtml(block.text) + '</code></pre>';

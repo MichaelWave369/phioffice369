@@ -75,6 +75,17 @@ function createDocxFixture(variant = 'basic') {
     '<w:tbl><w:tblPr/><w:tblGrid><w:gridCol w:w="4600"/><w:gridCol w:w="4600"/></w:tblGrid>' +
     '<w:tr><w:tc><w:p><w:r><w:t>Product</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Price</w:t></w:r></w:p></w:tc></w:tr>' +
     '<w:tr><w:tc><w:p><w:r><w:t>Tea &amp; biscuits</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>12</w:t></w:r></w:p></w:tc></w:tr>' +
+    '<w:tr><w:tc><w:p><w:r><w:t>Router</w:t></w:r></w:p></w:tc>' +
+    '<w:tc><w:p><w:r><w:rPr><w:b/></w:rPr><w:t>READY</w:t></w:r>' +
+    '<w:r><w:t xml:space="preserve"> / </w:t></w:r>' +
+    '<w:r><w:rPr><w:i/></w:rPr><w:t>verified</w:t></w:r>' +
+    '<w:r><w:t xml:space="preserve"> / </w:t></w:r>' +
+    '<w:r><w:rPr><w:rStyle w:val="CodeChar"/></w:rPr><w:t>ipconfig</w:t></w:r>' +
+    '<w:r><w:t xml:space="preserve"> / </w:t></w:r>' +
+    '<w:hyperlink r:id="rIdLink"><w:r><w:t>docs</w:t></w:r></w:hyperlink>' +
+    '<w:r><w:t xml:space="preserve"> / A | B</w:t></w:r></w:p></w:tc></w:tr>' +
+    '<w:tr><w:tc><w:p><w:r><w:t>Literal</w:t></w:r></w:p></w:tc>' +
+    '<w:tc><w:p><w:r><w:t>*not bold*</w:t></w:r></w:p></w:tc></w:tr>' +
     '</w:tbl>' +
     '<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="7"/></w:numPr></w:pPr><w:r><w:t>First numbered task</w:t></w:r></w:p>' +
     '<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="7"/></w:numPr></w:pPr><w:r><w:t>Second numbered task</w:t></w:r></w:p>' +
@@ -214,6 +225,24 @@ async function run() {
       'Hyperlink was not rendered safely in printable document');
     assert(editor.value.includes('| Product | Price |'), 'External table header missing');
     assert(editor.value.includes('| Tea & biscuits | 12 |'), 'External table row missing');
+    assert(editor.value.includes('**READY** / *verified* / `ipconfig` / [docs](https://example.org/docs) / A \\| B'),
+      'Word formatted table cell runs and escaped pipe lost on reload');
+    assert(editor.value.includes(String.raw`| Literal | \\*not bold\\* |`),
+      'Literal Word table text was not safely escaped from Markdown interpretation');
+    const routerCells = [...document.querySelectorAll('.phiwrite-print-body tbody tr')]
+      .find((row) => row.textContent.includes('Router'))?.querySelectorAll('td');
+    assert(routerCells?.[1]?.querySelector('strong')?.textContent === 'READY',
+      'Bold Word table cell text lost in React print');
+    assert(routerCells?.[1]?.querySelector('em')?.textContent === 'verified',
+      'Italic Word table cell text lost in React print');
+    assert(routerCells?.[1]?.querySelector('code')?.textContent === 'ipconfig',
+      'Code Word table cell text lost in React print');
+    assert(routerCells?.[1]?.querySelector('a[href="https://example.org/docs"]')?.textContent === 'docs',
+      'Safe Word table cell hyperlink lost in React print');
+    const literalCells = [...document.querySelectorAll('.phiwrite-print-body tbody tr')]
+      .find((row) => row.textContent.includes('Literal'))?.querySelectorAll('td');
+    assert(literalCells?.[1]?.textContent === '*not bold*' && !literalCells?.[1]?.querySelector('em'),
+      'Literal Word table cell punctuation was interpreted as formatting');
     assert(editor.value.includes('3. First numbered task\n4. Second numbered task'),
       'Word ordered list was not preserved as contiguous Markdown');
     assert(editor.value.includes('- Bullet note'),
@@ -263,6 +292,10 @@ async function run() {
       'External Word table was not converted to Markdown');
     assert(preview.textContent.includes('Markdown pipe tables'),
       'Table compatibility notice missing');
+    assert(preview.textContent.includes('**READY** / *verified* / `ipconfig` / [docs](https://example.org/docs) / A \\| B'),
+      'Word basic table cell formatting or escaped pipe did not survive preview');
+    assert(preview.textContent.includes(String.raw`| Literal | \\*not bold\\* |`),
+      'Word literal table cell text was not safely escaped');
     assert(preview.textContent.includes('3. First numbered task\n4. Second numbered task'),
       'Independent Word numbering definitions were not decoded');
     assert(preview.textContent.includes('- Bullet note'),

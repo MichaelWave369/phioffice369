@@ -1,6 +1,6 @@
 // Deliberately small inline Markdown compatibility subset.
 // The source draft remains plain Markdown; this helper recognizes only simple
-// **bold**, *italic* and [label](http(s)://...) without nested markup.
+// **bold**, *italic*, `code` and [label](http(s)://...) without nested markup.
 export function safeExternalDocumentUrl(value) {
   const text = String(value ?? '');
   if (text.length < 1 || text.length > 2048 ||
@@ -24,10 +24,19 @@ export function tokenizePhiWriteInline(source) {
   let i = 0;
   while (i < text.length) {
     if (text[i] === '\\' && i + 1 < text.length &&
-        '*[]\\'.includes(text[i + 1])) {
+        '*[]`\\'.includes(text[i + 1])) {
       buffer += text[i + 1];
       i += 2;
       continue;
+    }
+    if (text[i] === '`') {
+      const end = text.indexOf('`', i + 1);
+      if (end > i + 1 && !/[\r\n]/.test(text.slice(i + 1, end))) {
+        flush();
+        tokens.push({ text: text.slice(i + 1, end), code: true });
+        i = end + 1;
+        continue;
+      }
     }
     if (text[i] === '[') {
       const match = text.slice(i).match(/^\[([^\]\r\n]+)\]\((https?:\/\/[^)\s]+)\)/i);
@@ -70,12 +79,13 @@ export function tokenizePhiWriteInline(source) {
 // Escape text when embedding values from arbitrary external Word files back
 // into Markdown. Return plain text without interpreting unsafe URLs as links.
 export function escapeInlineMarkdownText(value) {
-  return String(value ?? '').replace(/[\\*[\]]/g, '\\$&');
+  return String(value ?? '').replace(/[\\*\x60[\]]/g, '\\return String(value ?? '').replace(/[\\*[\]]/g, '\\$&');');
 }
 
 export function inlineTokensToMarkdown(tokens) {
   return tokens.map((token) => {
     const text = escapeInlineMarkdownText(token.text);
+    if (token.code) return token.text.includes('`') ? text : '`' + token.text + '`';
     if (token.href) {
       const href = safeExternalDocumentUrl(token.href);
       return href ? '[' + text + '](' + href + ')' : text;

@@ -9,8 +9,8 @@ PhiWrite remains a simple local-first Markdown editor. DOCX files use actual ZIP
 | Document title | Visible Word Title paragraph | First Word Title-styled paragraph becomes the PhiWrite title; otherwise filename used |
 | Paragraphs and line breaks | Basic Word paragraphs and breaks | Text paragraphs and breaks |
 | Headings 1–6 | Word paragraph heading styles | Markdown headings for standard styles, custom style inheritance, and paragraph outline levels |
-| Single-level bullet / decimal-numbered lists | Real Word numbering definitions, separate numbered list instances and start values | Reads standard Word numbering.xml, distinguishes bullets from decimal lists and preserves supported start values in contiguous Markdown |
-| Nested and specialized numbering (Roman, letters, legal multilevel) | Not supported | Simplified to flat list structure with a visible approximation warning |
+| Bullet / decimal-numbered lists with up to two levels | Native multilevel Word numbering definitions with level-specific formats and start overrides | Word numbering.xml converted to two-space-indented Markdown with level-specific bullet/decimal markers and start values |
+| More than two levels, Roman/lettered/legal numbering, Word custom restarts | Not supported | Flattened or approximated with a visible warning; exact semantics not guaranteed |
 | Code blocks | Basic monospace Word paragraph style | Text is extracted; code styling may be lost |
 | Blockquotes | Simple Word Quote style | Text is extracted; quote styling may be lost |
 | Simple rectangular tables (2–32 columns; up to 500 rows) | Native Word tables from Markdown pipe tables | Converted to Markdown pipe tables, first row treated as header; text retained | 

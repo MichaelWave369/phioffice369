@@ -46,7 +46,7 @@ function crc32(bytes) {
 function createDocxFixture(variant = 'basic') {
   const encoder = new TextEncoder();
   const manifest = '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>' +
-    (variant === 'external' ? '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>' : '') + '</Types>';
+    (variant === 'external' ? '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/numbering.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.numbering+xml"/>' : '') + '</Types>';
   const xml = '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:pPr><w:pStyle w:val="Heading1"/></w:pPr><w:r><w:t>Hello DOCX</w:t></w:r></w:p><w:p><w:r><w:t>Imported locally. No upload.</w:t></w:r></w:p></w:body></w:document>';
   const externalXml = '<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><w:body>' +
     '<w:p><w:pPr><w:pStyle w:val="Title"/></w:pPr><w:r><w:t>External Meeting Memo</w:t></w:r></w:p>' +
@@ -64,6 +64,9 @@ function createDocxFixture(variant = 'basic') {
     '<w:tr><w:tc><w:p><w:r><w:t>Product</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>Price</w:t></w:r></w:p></w:tc></w:tr>' +
     '<w:tr><w:tc><w:p><w:r><w:t>Tea &amp; biscuits</w:t></w:r></w:p></w:tc><w:tc><w:p><w:r><w:t>12</w:t></w:r></w:p></w:tc></w:tr>' +
     '</w:tbl>' +
+    '<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="7"/></w:numPr></w:pPr><w:r><w:t>First numbered task</w:t></w:r></w:p>' +
+    '<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="7"/></w:numPr></w:pPr><w:r><w:t>Second numbered task</w:t></w:r></w:p>' +
+    '<w:p><w:pPr><w:numPr><w:ilvl w:val="0"/><w:numId w:val="8"/></w:numPr></w:pPr><w:r><w:t>Bullet note</w:t></w:r></w:p>' +
     '</w:body></w:document>';
   const externalStyles = '<?xml version="1.0"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
     '<w:style w:type="paragraph" w:styleId="Title"><w:name w:val="Title"/></w:style>' +
@@ -74,10 +77,15 @@ function createDocxFixture(variant = 'basic') {
     '<Relationship Id="rIdLink" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="https://example.org/docs" TargetMode="External"/>' +
     '<Relationship Id="rIdBad" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/hyperlink" Target="javascript:alert(1)" TargetMode="External"/>' +
     '</Relationships>';
+  const externalNumbering = '<?xml version="1.0"?><w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
+    '<w:abstractNum w:abstractNumId="0"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="bullet"/></w:lvl></w:abstractNum>' +
+    '<w:abstractNum w:abstractNumId="1"><w:lvl w:ilvl="0"><w:start w:val="1"/><w:numFmt w:val="decimal"/></w:lvl></w:abstractNum>' +
+    '<w:num w:numId="7"><w:abstractNumId w:val="1"/><w:lvlOverride w:ilvl="0"><w:startOverride w:val="3"/></w:lvlOverride></w:num>' +
+    '<w:num w:numId="8"><w:abstractNumId w:val="0"/></w:num></w:numbering>';
   const records = [
     ['[Content_Types].xml', manifest],
     ['word/document.xml', variant === 'external' ? externalXml : xml],
-    ...(variant === 'external' ? [['word/styles.xml', externalStyles], ['word/_rels/document.xml.rels', externalRels]] : []),
+    ...(variant === 'external' ? [['word/styles.xml', externalStyles], ['word/_rels/document.xml.rels', externalRels], ['word/numbering.xml', externalNumbering]] : []),
   ];
   const localParts = [];
   const centralParts = [];
@@ -164,6 +172,14 @@ async function run() {
       'Hyperlink was not rendered safely in printable document');
     assert(editor.value.includes('| Product | Price |'), 'External table header missing');
     assert(editor.value.includes('| Tea & biscuits | 12 |'), 'External table row missing');
+    assert(editor.value.includes('3. First numbered task\n4. Second numbered task'),
+      'Word ordered list was not preserved as contiguous Markdown');
+    assert(editor.value.includes('- Bullet note'),
+      'Word bullet list did not survive');
+    assert(document.querySelector('.phiwrite-print-body ol[start="3"]')?.textContent.includes('Second numbered task'),
+      'Printable ordered list start did not survive DOCX import');
+    assert(document.querySelector('.phiwrite-print-body ul')?.textContent.includes('Bullet note'),
+      'Printable bullet list did not survive DOCX import');
     assert(document.querySelector('.phiwrite-print-body table')?.textContent.includes('Tea & biscuits'),
       'Printable PhiWrite table not rendered from imported Word data');
     assert(!editor.value.startsWith('External Meeting Memo'),
@@ -201,6 +217,10 @@ async function run() {
       'External Word table was not converted to Markdown');
     assert(preview.textContent.includes('Markdown pipe tables'),
       'Table compatibility notice missing');
+    assert(preview.textContent.includes('3. First numbered task\n4. Second numbered task'),
+      'Independent Word numbering definitions were not decoded');
+    assert(preview.textContent.includes('- Bullet note'),
+      'Independent Word bullets were not decoded');
     assert(preview.textContent.includes('**Bold**') && preview.textContent.includes('*Italic*'),
       'Word inline emphasis missing from local preview');
     assert(preview.textContent.includes('[source](https://example.org/docs)'),

@@ -43,9 +43,10 @@ function richTextRuns(value, links) {
       return '<w:r><w:rPr><w:rStyle w:val="CodeChar"/></w:rPr>' +
         '<w:t xml:space="preserve">' + escapeDocxXml(token.text) + '</w:t></w:r>';
     }
-    if (token.strike || token.highlight || token.bold || token.italic) {
+    if (token.strike || token.highlight || token.underline || token.bold || token.italic) {
       return '<w:r><w:rPr>' + (token.strike ? '<w:strike/>' : '') +
         (token.highlight ? '<w:highlight w:val="yellow"/>' : '') +
+        (token.underline ? '<w:u w:val="single"/>' : '') +
         (token.bold ? '<w:b/>' : '') + (token.italic ? '<w:i/>' : '') +
         '</w:rPr><w:t xml:space="preserve">' +
         escapeDocxXml(token.text) + '</w:t></w:r>';
@@ -320,7 +321,7 @@ export function buildPhiWriteDocx({ title = 'Untitled', content = '' } = {}) {
     mime: DOCX_EXPORT_MIME,
     bytes: zipStoredDocxParts(parts),
     warnings: [
-      'Exports paragraphs, headings, two-level lists, quotes/code, simple tables with inline bold/italic/code/strikethrough/yellow highlighting and safe HTTP(S) links. Nested inline formatting is not supported.',
+      'Exports paragraphs, headings, two-level lists, quotes/code, simple tables with inline bold/italic/code/strikethrough/yellow highlighting/single underlining and safe HTTP(S) links. Nested inline formatting is not supported.',
       'More than two list levels, exotic list styles, complex tables, Word page layout, images, unsupported links, tracked edits and exact fidelity are unsupported.',
       'Importing this DOCX back into PhiWrite is a text round trip, not a pixel-perfect or formatting-preserving round trip.',
     ],

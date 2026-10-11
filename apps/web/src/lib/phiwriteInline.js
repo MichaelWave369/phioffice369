@@ -90,7 +90,7 @@ export function tokenizePhiWriteInline(source) {
 // Escape text when embedding values from arbitrary external Word files back
 // into Markdown. Return plain text without interpreting unsafe URLs as links.
 export function escapeInlineMarkdownText(value) {
-  return String(value ?? '').replace(/[\\*`~=[\]]/g, '\\return String(value ?? '').replace(/[\\*`[\]]/g, '\\$&');');
+  return String(value ?? '').replace(/[\\*`~=[\]]/g, '\\$&');
 }
 
 export function inlineTokensToMarkdown(tokens) {

@@ -78,6 +78,7 @@ function simpleWordTable(rows) {
 function xmlParts({ title, content }) {
   const blocks = parsePhiWritePrintBlocks(content);
   const hyperlinkIds = new Map();
+  const orderedInstances = [];
   const documentBody = [
     paragraph(title || 'Untitled', { style: 'Title' }),
     ...blocks.map((block) => {
@@ -85,10 +86,17 @@ function xmlParts({ title, content }) {
         return paragraph(block.text, { style: 'Heading' + Math.max(1, Math.min(6, block.level || 1)), rich: true, links: hyperlinkIds });
       }
       if (block.kind === 'list') {
+        let numId = 1; // shared bullet definition
+        if (block.listType === 'ol') {
+          numId = 2 + orderedInstances.length;
+          orderedInstances.push({
+            numId,
+            start: Number.isInteger(block.start) && block.start >= 1 &&
+              block.start <= 999999 ? block.start : 1,
+          });
+        }
         return block.items.map((item) => paragraph(item, {
-          style: 'ListParagraph',
-          numId: block.listType === 'ol' ? 2 : 1,
-          rich: true, links: hyperlinkIds,
+          style: 'ListParagraph', numId, rich: true, links: hyperlinkIds,
         })).join('');
       }
       if (block.kind === 'table') return simpleWordTable(block.rows);
@@ -135,7 +143,12 @@ function xmlParts({ title, content }) {
     '<w:numbering xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
     listDef(0, 'bullet', '•') + listDef(1, 'decimal', '%1.') +
     '<w:num w:numId="1"><w:abstractNumId w:val="0"/></w:num>' +
-    '<w:num w:numId="2"><w:abstractNumId w:val="1"/></w:num></w:numbering>';
+    (orderedInstances.length ? orderedInstances.map(({ numId, start }) =>
+      '<w:num w:numId="' + numId + '"><w:abstractNumId w:val="1"/>' +
+      '<w:lvlOverride w:ilvl="0"><w:startOverride w:val="' + start +
+      '"/></w:lvlOverride></w:num>'
+    ).join('') : '<w:num w:numId="2"><w:abstractNumId w:val="1"/></w:num>') +
+    '</w:numbering>';
   const contentTypesXml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
     '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +

@@ -40,7 +40,8 @@ export function parsePhiWritePrintBlocks(markdown = '') {
         if (!match) break;
         items.push(match[1]); i += 1;
       }
-      blocks.push({ kind: 'list', listType, items }); continue;
+      blocks.push({ kind: 'list', listType, items,
+        ...(listType === 'ol' ? { start: Number(ordered(line)?.[0]?.match(/^\d+/)?.[0]) || 1 } : {}) }); continue;
     }
     if (quote(line)) {
       const text = [];
@@ -82,7 +83,8 @@ export function renderPhiWritePrintBlocksHtml(blocks = []) {
     }
     if (block.kind === 'list') {
       const tag = block.listType === 'ol' ? 'ol' : 'ul';
-      return '<' + tag + '>' + block.items.map((item) => '<li>' + renderInlinePhiWriteHtml(item) + '</li>').join('') + '</' + tag + '>';
+      const start = tag === 'ol' && Number.isInteger(block.start) && block.start > 1 && block.start < 1000000 ? ' start="' + block.start + '"' : '';
+      return '<' + tag + start + '>' + block.items.map((item) => '<li>' + renderInlinePhiWriteHtml(item) + '</li>').join('') + '</' + tag + '>';
     }
     if (block.kind === 'table') {
       const row = (cells, tag) => '<tr>' + cells.map((cell) => '<' + tag + '>' + escapePhiWriteHtml(cell) + '</' + tag + '>').join('') + '</tr>';

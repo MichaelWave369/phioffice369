@@ -31,7 +31,7 @@ export default function PhiWritePrintDocument({ title, content, trustLabel }) {
           }
           if (block.kind === 'list') {
             const List = block.listType === 'ol' ? 'ol' : 'ul';
-            return <List key={index}>{block.items.map((item, itemIndex) => <li key={itemIndex}><RichText value={item} /></li>)}</List>;
+            return <List key={index} {...(block.listType === 'ol' && block.start > 1 ? { start: block.start } : {})}>{block.items.map((item, itemIndex) => <li key={itemIndex}><RichText value={item} /></li>)}</List>;
           }
           if (block.kind === 'table') {
             return (

@@ -18,7 +18,8 @@ PhiWrite remains a simple local-first Markdown editor. DOCX files use actual ZIP
 | Simple rectangular tables (2–32 columns; up to 500 rows) | Native Word tables from Markdown pipe tables; basic bold/italic/inline code and safe HTTP(S) links in cells become true Word runs | Converted to Markdown pipe tables; recognized cell emphasis, inline code and safe external links retained; first row treated as header, column styling/layout not preserved | 
 | Complex tables (merged/nested cells, multiple cell paragraphs) | Not supported | Flattened to tab-separated text with warning |
 | Simple inline bold and italic | Converted to Word run properties | Converted to Markdown emphasis for recognized run properties |
-| Strikethrough and yellow highlighting | `~~removed~~` becomes `w:strike`; `==review==` becomes a yellow `w:highlight` run | Recognized strike/double-strike and exactly yellow-highlighted runs become matching markers; other colors and overlapping styling are not faithfully preserved |
+| Strikethrough and yellow highlighting | `~~removed~~` becomes `w:strike`; `==review==` becomes yellow `w:highlight` | Recognized strike/double-strike and exactly yellow-highlighted runs become matching markers; other colors and overlapping styling are not faithfully preserved |
+| Single underline | Nonstandard `++underlined++` becomes native Word `w:u w:val="single"` | Word simple single underline runs become `++text++`; double/dotted/wavy/disabled and overlapping underline styles are not preserved |
 | HTTP(S) hyperlinks | External hyperlink relationships | Safe HTTP(S) external relationships converted to Markdown links; unsafe/missing links become plain text |
 | Nested/complex inline markup | Not supported | May lose overlapping run formatting and complex field-code links |
 | Images and rich media | Not exported | Not preserved |

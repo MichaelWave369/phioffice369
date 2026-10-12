@@ -120,10 +120,9 @@ async function run() {
       Strikethrough: '~~', Highlight: '==', Code: '`' }[buttonLabel];
     await waitFor(() => editor.value.includes(marker + word + marker),
       'Formatting applied to ' + word);
-    await new Promise((resolve) => requestAnimationFrame(resolve));
-    assert(document.activeElement === editor, 'Toolbar failed to restore focus to editor');
-    assert(editor.value.slice(editor.selectionStart, editor.selectionEnd) === word,
-      'Toolbar did not preserve selection for ' + word);
+    await waitFor(() => document.activeElement === editor &&
+      editor.value.slice(editor.selectionStart, editor.selectionEnd) === word,
+      'Formatting focus and selection restoration for ' + word);
   }
   await formatWord('alpha', 'Bold', 'b');
   await formatWord('beta', 'Italic', 'i');
@@ -136,10 +135,12 @@ async function run() {
   // A second click with text still selected removes the same markup.
   formatButton('Code').click();
   await waitFor(() => editor.value.endsWith('==epsilon== zeta'), 'Code toolbar toggle off');
-  await new Promise((resolve) => requestAnimationFrame(resolve));
+  await waitFor(() => editor.value.slice(editor.selectionStart, editor.selectionEnd) === 'zeta',
+    'Code toggle-off selection restoration');
   formatButton('Code').click();
   await waitFor(() => editor.value === expectedContent, 'Code toolbar toggle back on');
-  await new Promise((resolve) => requestAnimationFrame(resolve));
+  await waitFor(() => editor.value.slice(editor.selectionStart, editor.selectionEnd) === 'zeta',
+    'Code toggle-on selection restoration');
 
   // Reject multiline selections and preserve the working draft.
   editor.setSelectionRange(0, editor.value.indexOf('Local'));

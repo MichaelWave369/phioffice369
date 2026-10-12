@@ -352,6 +352,78 @@
   .phiwrite-find-fields { grid-template-columns: 1fr; }
 }
 
+
+.phiwrite-table-composer {
+  margin-top: 10px;
+  padding: 16px;
+  border: 1px solid rgba(214, 168, 61, 0.45);
+  border-radius: 15px;
+  background: rgba(2, 7, 16, 0.58);
+  color: #e6ecf6;
+}
+.phiwrite-table-dimensions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.phiwrite-table-dimensions label,
+.phiwrite-table-grid label {
+  display: grid;
+  gap: 5px;
+  font-size: .8rem;
+  font-weight: 750;
+  color: #f1e2b8;
+}
+.phiwrite-table-dimensions select,
+.phiwrite-table-grid input {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid rgba(214, 168, 61, .36);
+  border-radius: 9px;
+  padding: 8px;
+  color: #fff8dc;
+  background: #101a2b;
+  font: inherit;
+}
+.phiwrite-table-dimensions label { min-width: 95px; }
+.phiwrite-table-dimensions select:focus-visible,
+.phiwrite-table-grid input:focus-visible,
+.phiwrite-table-actions button:focus-visible {
+  outline: 2px solid #d6a83d;
+  outline-offset: 2px;
+}
+.phiwrite-table-caption { margin: 12px 0; font-size: .83rem; color: #dce6f4; }
+.phiwrite-table-grid-wrap { width: 100%; max-width: 100%; overflow-x: auto; }
+.phiwrite-table-grid {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid rgba(214, 168, 61, .32);
+}
+.phiwrite-table-grid th,
+.phiwrite-table-grid td {
+  min-width: 128px;
+  border: 1px solid rgba(214, 168, 61, .24);
+  padding: 8px;
+  vertical-align: top;
+}
+.phiwrite-table-grid th { background: rgba(214, 168, 61, .12); }
+.phiwrite-table-grid label span { white-space: nowrap; }
+.phiwrite-table-error { color: #ffb7b1; margin: 10px 0; }
+.phiwrite-table-actions { display: flex; flex-wrap: wrap; gap: 9px; margin: 12px 0; }
+.phiwrite-table-actions button {
+  padding: 8px 14px;
+  border: 1px solid rgba(214, 168, 61, .44);
+  border-radius: 999px;
+  background: rgba(214, 168, 61, .13);
+  color: #fff8dc;
+  font: inherit;
+  font-weight: 750;
+  cursor: pointer;
+}
+.phiwrite-table-actions button[type="submit"] { background: rgba(214, 168, 61, .27); }
+.phiwrite-table-composer small { color: #cbd6e7; }
+
 .phiwrite-format-help {
   font-size: .8rem;
   color: #cbd6e7;

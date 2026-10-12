@@ -18,6 +18,8 @@ import {
   ListOrdered,
   Printer,
   Quote,
+  Search,
+  Replace,
   ListChecks,
   RotateCcw,
   ShieldCheck,
@@ -36,6 +38,7 @@ import { formatPhiWriteSelection, PHIWRITE_FORMATS, phiWriteShortcutForKey } fro
 import { preparePhiWriteLinkSelection, insertPhiWriteSafeLink } from '../lib/phiwriteEditorLinks.js';
 import { formatPhiWriteBlockSelection, PHIWRITE_BLOCK_ACTIONS } from '../lib/phiwriteEditorBlocks.js';
 import { formatPhiWriteSpecialBlock, PHIWRITE_SPECIAL_BLOCKS } from '../lib/phiwriteEditorSpecialBlocks.js';
+import { findPhiWriteMatches, choosePhiWriteMatch, replacePhiWriteMatch, replaceAllPhiWriteMatches, undoPhiWriteReplace } from '../lib/phiwriteFindReplace.js';
 import PhiWritePrintDocument from './PhiWritePrintDocument.jsx';
 import { saveLocalExportReceipt } from '../lib/localReceipts.js';
 import { createPhiWriteToPhiDeckPayload, getTransformIds } from '../lib/transformRegistry.js';
@@ -181,6 +184,13 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   const [transformSet, setTransformSet] = useState(null);
   const [pendingDocxImport, setPendingDocxImport] = useState(null);
   const [formatStatus, setFormatStatus] = useState('Select text to format, or insert a placeholder.');
+  const [findOpen, setFindOpen] = useState(false);
+  const [findQuery, setFindQuery] = useState('');
+  const [replaceText, setReplaceText] = useState('');
+  const [matchCase, setMatchCase] = useState(false);
+  const [activeMatch, setActiveMatch] = useState(-1);
+  const [findStatus, setFindStatus] = useState('Find literal text in this local document.');
+  const [lastReplace, setLastReplace] = useState(null);
   const [linkDraft, setLinkDraft] = useState(null);
 
   const activeLabel = trustLabels.find((label) => label.id === activeLabelId) ?? trustLabels[0];
@@ -211,6 +221,8 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
   const sectionCount = template.sections.length;
   const characterCount = content.length;
+  const foundText = useMemo(() => findPhiWriteMatches(content, findQuery, matchCase),
+    [content, findQuery, matchCase]);
 
   // Apply focus and selection immediately after React commits a controlled
   // textarea update. Unlike requestAnimationFrame, this works consistently
@@ -333,7 +345,84 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
     setFormatStatus('Safe external link inserted locally.');
   }
 
+  function openFindReplace(target = editorRef.current) {
+    if (target && target.selectionStart !== target.selectionEnd) {
+      const selected = target.value.slice(target.selectionStart, target.selectionEnd);
+      if (selected.length <= 256 && !/[\r\n]/.test(selected)) setFindQuery(selected);
+    }
+    setActiveMatch(-1);
+    setFindOpen(true);
+    setFindStatus('Find text, navigate to a match, then replace explicitly.');
+  }
+
+  function findMatch(direction) {
+    const target = editorRef.current;
+    if (!target || !foundText.matches.length) {
+      setFindStatus('No matches. The draft is unchanged.');
+      return;
+    }
+    const position = direction === 'next' ? target.selectionEnd : target.selectionStart;
+    const index = choosePhiWriteMatch(foundText.matches, position, direction);
+    const match = foundText.matches[index];
+    target.focus({ preventScroll: true });
+    target.setSelectionRange(match.start, match.end);
+    setActiveMatch(index);
+    setFindStatus('Match ' + (index + 1) + ' of ' + foundText.matches.length +
+      '. Review the selected text before replacing.');
+  }
+
+  function applyFindReplacement(all = false) {
+    const target = editorRef.current;
+    if (!target) return;
+    if (foundText.truncated) {
+      setFindStatus('Match limit exceeded. Narrow the search; no changes made.');
+      return;
+    }
+    const match = foundText.matches[activeMatch];
+    if (!all && (!match || target.selectionStart !== match.start ||
+      target.selectionEnd !== match.end)) {
+      setFindStatus('Select a match with Next or Previous before replacing.');
+      return;
+    }
+    const result = all
+      ? replaceAllPhiWriteMatches(content, findQuery, replaceText, matchCase)
+      : replacePhiWriteMatch(content, findQuery, replaceText, match.start, matchCase);
+    if (!result.changed) {
+      setFindStatus(result.reason === 'same'
+        ? 'Replacement is identical; nothing changed.'
+        : 'Unable to replace. Refine the search or replacement.');
+      return;
+    }
+    setLastReplace(result);
+    pendingSelectionRef.current = {
+      target, selectionStart: result.selectionStart, selectionEnd: result.selectionEnd,
+    };
+    setContent(result.content);
+    setActiveMatch(-1);
+    setFindStatus('Replaced ' + result.count + ' literal match' +
+      (result.count === 1 ? '' : 'es') + '. Undo Last Replace is available.');
+  }
+
+  function undoLastFindReplace() {
+    const restored = undoPhiWriteReplace(content, lastReplace);
+    if (!restored.changed) {
+      setFindStatus('Document changed since that replacement. Undo refused to protect new edits.');
+      return;
+    }
+    setContent(restored.content);
+    setLastReplace(null);
+    setActiveMatch(-1);
+    setFindStatus('Last replacement undone. Original local text restored.');
+    editorRef.current?.focus({ preventScroll: true });
+  }
+
   function handleEditorShortcut(event) {
+    if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey &&
+      event.key.toLowerCase() === 'f' && !event.isComposing) {
+      event.preventDefault();
+      openFindReplace(event.currentTarget);
+      return;
+    }
     const action = phiWriteShortcutForKey(event);
     if (!action || event.isComposing) return;
     event.preventDefault();
@@ -349,6 +438,8 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   function handleResetDraft() {
     setPendingDocxImport(null);
     setLinkDraft(null);
+    setFindOpen(false);
+    setLastReplace(null);
     setTitle(template.title);
     setContent(makeStarterContent(template));
     setDeckSlides([]);
@@ -622,6 +713,13 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
               onClick={() => openLinkComposer()}>
               <Link2 aria-hidden="true" /><span>Link</span>
             </button>
+            <button type="button" className="phiwrite-format-action"
+              aria-label="Find and Replace (Ctrl/Cmd+F)" title="Find and Replace · Ctrl/Cmd+F"
+              aria-expanded={findOpen} aria-controls="phiwrite-find-replace"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => findOpen ? setFindOpen(false) : openFindReplace()}>
+              <Search aria-hidden="true" /><span>Find / Replace</span>
+            </button>
           </div>
           {linkDraft && (
             <form className="phiwrite-link-composer" id="phiwrite-link-composer"
@@ -642,6 +740,47 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
               </div>
               <small>Only safe HTTP(S) links are supported. No file, script or data URLs.</small>
             </form>
+          )}
+          {findOpen && (
+            <section className="phiwrite-find-panel" id="phiwrite-find-replace"
+              aria-label="Find and replace in local draft">
+              <div className="phiwrite-find-fields">
+                <label>Find literal text
+                  <input aria-label="Find literal text" value={findQuery} autoFocus
+                    maxLength={256}
+                    onChange={(event) => { setFindQuery(event.target.value); setActiveMatch(-1); }} />
+                </label>
+                <label>Replace with
+                  <input aria-label="Replace with" value={replaceText} maxLength={2048}
+                    onChange={(event) => setReplaceText(event.target.value)} />
+                </label>
+              </div>
+              <label className="phiwrite-find-case">
+                <input type="checkbox" checked={matchCase}
+                  onChange={(event) => { setMatchCase(event.target.checked); setActiveMatch(-1); }} />
+                Match case
+              </label>
+              <p className="phiwrite-find-count" role="status">
+                {foundText.reason === 'query' ? 'Search text must be a single line, up to 256 characters.'
+                  : foundText.truncated ? 'More than 10,000 matches. Refine the search.'
+                  : foundText.matches.length + ' match' + (foundText.matches.length === 1 ? '' : 'es')}
+              </p>
+              <div className="phiwrite-find-actions">
+                <button type="button" disabled={!foundText.matches.length}
+                  onClick={() => findMatch('previous')}>Previous</button>
+                <button type="button" disabled={!foundText.matches.length}
+                  onClick={() => findMatch('next')}>Next</button>
+                <button type="button" disabled={activeMatch < 0 || foundText.truncated}
+                  onClick={() => applyFindReplacement(false)}><Replace aria-hidden="true" /> Replace selected</button>
+                <button type="button" disabled={!foundText.matches.length || foundText.truncated}
+                  onClick={() => applyFindReplacement(true)}>Replace all ({foundText.matches.length})</button>
+                <button type="button" disabled={!lastReplace}
+                  onClick={undoLastFindReplace}>Undo Last Replace</button>
+                <button type="button" onClick={() => setFindOpen(false)}>Close find</button>
+              </div>
+              <p className="phiwrite-find-status" role="status" aria-live="polite">{findStatus}</p>
+              <small>Search is literal, not a regular expression. Replacements edit raw Markdown, including code and link destinations. Replace all changes every match after you click it.</small>
+            </section>
           )}
           <div className="phiwrite-formatting-toolbar phiwrite-block-toolbar"
             role="toolbar" aria-label="PhiWrite paragraph formatting">

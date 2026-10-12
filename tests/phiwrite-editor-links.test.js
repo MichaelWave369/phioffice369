@@ -110,9 +110,8 @@ test('non-nested pasted link or formatted span is refused', () => {
   assert.equal(insertPhiWriteSafeLink(source,link,'docs','https://example.org/next').changed,false);
   const start=source.indexOf('bold');
   const nested=preparePhiWriteLinkSelection(source,start,start+4);
-  // Selection of a styled span's interior is allowed as plain text for now.
-  // Only its brackets and delimiters are excluded.
-  assert.equal(insertPhiWriteSafeLink(source,nested,'bold','https://example.org').changed,true);
+  assert.equal(insertPhiWriteSafeLink(source,nested,'bold','https://example.org').changed,false);
+  assert.equal(insertPhiWriteSafeLink(source,nested,'bold','https://example.org').reason,'nested');
 });
 
 test('Ctrl/Cmd+K only opens link editor when modifier contract is satisfied', () => {

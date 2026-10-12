@@ -69,6 +69,6 @@ export function formatPhiWriteSelection(content, start, end, format) {
 
 export function phiWriteShortcutForKey({ key, ctrlKey = false, metaKey = false, altKey = false, shiftKey = false } = {}) {
   if ((!ctrlKey && !metaKey) || altKey || shiftKey) return null;
-  const shortcuts = { b: 'bold', i: 'italic', u: 'underline' };
+  const shortcuts = { b: 'bold', i: 'italic', u: 'underline', k: 'link' };
   return shortcuts[String(key ?? '').toLowerCase()] ?? null;
 }

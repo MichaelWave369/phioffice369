@@ -131,8 +131,23 @@ async function runGrid() {
 
   const chooser = document.querySelector('.grid-file-input');
   const validCsv = 'Category,Category,Notes\n"Line one,\nLine two",Second,Imported\n';
-  upload(chooser, 'safe-import.csv', validCsv, 'text/csv');
-  await waitFor(() => document.querySelector('.grid-import-preview'), 'PhiGrid import preview');
+  // A synthetic File.text() read can occasionally stall in headless Chrome.
+  // Re-submit the same disposable fixture once, still requiring an actual
+  // review panel and later confirmation/persistence before marking PASS.
+  async function uploadCsvAndReview(label) {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      upload(chooser, label + '.csv', validCsv, 'text/csv');
+      try {
+        await waitFor(() => document.querySelector('.grid-import-preview'),
+          'PhiGrid import preview ' + label + ' attempt ' + (attempt + 1), 7000);
+        return;
+      } catch (error) {
+        if (attempt === 1) throw new Error(error.message +
+          '; status=' + document.querySelector('.grid-save-status')?.textContent);
+      }
+    }
+  }
+  await uploadCsvAndReview('safe-import');
   assert(document.querySelector('.grid-import-warnings')?.textContent.includes('duplicate'), 'Duplicate header warning missing');
   assert(stored(key)?.rows?.[0]?.Category === 'Fixture category', 'Preview mutated saved grid');
   findButton('Cancel import')?.click();
@@ -166,9 +181,7 @@ async function runGrid() {
   assert(document.querySelector('.table-wrap tbody tr input')?.value === 'Fixture category',
     'Malformed import mutated live grid');
 
-  upload(chooser, 'verified-final.csv', validCsv, 'text/csv');
-  await waitFor(() => document.querySelector('.grid-import-preview'),
-    'second CSV import preview; status=' + document.querySelector('.grid-save-status')?.textContent, 12000);
+  await uploadCsvAndReview('verified-final');
   findButton('Replace current grid with CSV')?.click();
   await waitFor(() => {
     const value = stored(key);

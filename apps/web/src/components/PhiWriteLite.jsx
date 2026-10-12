@@ -17,6 +17,7 @@ import {
   List,
   ListOrdered,
   Printer,
+  Quote,
   ListChecks,
   RotateCcw,
   ShieldCheck,
@@ -34,6 +35,7 @@ import { buildPhiWriteHtmlDocument } from '../lib/phiwritePrint.js';
 import { formatPhiWriteSelection, PHIWRITE_FORMATS, phiWriteShortcutForKey } from '../lib/phiwriteEditorFormatting.js';
 import { preparePhiWriteLinkSelection, insertPhiWriteSafeLink } from '../lib/phiwriteEditorLinks.js';
 import { formatPhiWriteBlockSelection, PHIWRITE_BLOCK_ACTIONS } from '../lib/phiwriteEditorBlocks.js';
+import { formatPhiWriteSpecialBlock, PHIWRITE_SPECIAL_BLOCKS } from '../lib/phiwriteEditorSpecialBlocks.js';
 import PhiWritePrintDocument from './PhiWritePrintDocument.jsx';
 import { saveLocalExportReceipt } from '../lib/localReceipts.js';
 import { createPhiWriteToPhiDeckPayload, getTransformIds } from '../lib/transformRegistry.js';
@@ -262,6 +264,29 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
     setLinkDraft(null);
     setContent(result.content);
     setFormatStatus(PHIWRITE_BLOCK_ACTIONS[action].label + ' applied locally. Apply again to toggle off.');
+  }
+
+  function applySpecialBlock(action, target = editorRef.current) {
+    if (!target) return;
+    const result = formatPhiWriteSpecialBlock(
+      target.value, target.selectionStart, target.selectionEnd, action,
+    );
+    if (!result.changed) {
+      const reasons = {
+        blank: 'Select contiguous, nonempty text (up to 100 lines).',
+        code: 'An existing code fence or partial code selection is protected.',
+        structured: 'Use plain lines. Lists, tables, headings and nested blocks are protected.',
+      };
+      setFormatStatus(reasons[result.reason] ?? 'This block cannot be formatted safely.');
+      target.focus();
+      return;
+    }
+    pendingSelectionRef.current = {
+      target, selectionStart: result.selectionStart, selectionEnd: result.selectionEnd,
+    };
+    setLinkDraft(null);
+    setContent(result.content);
+    setFormatStatus(PHIWRITE_SPECIAL_BLOCKS[action].label + ' applied locally. Apply again to toggle off.');
   }
 
   function openLinkComposer(target = editorRef.current) {
@@ -558,7 +583,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
         </section>
       )}
 
-      <p className="phiwrite-docx-export-note" role="note">DOCX export: text, headings (choose H1–H3 in the paragraph toolbar), two-level lists (bullet/numbered controls for flat lists), simple tables, blockquotes, basic bold/italic/code/strikethrough, yellow highlighting, single underline (++text++) and safe HTTP(S) links (insert via the Link toolbar or Ctrl/Cmd+K). Deeper lists, overlapping inline styling, fancy underline variants, other highlight colors, merged cells, images and precise layout remain unsupported. Inspect the exported copy before sharing.</p>
+      <p className="phiwrite-docx-export-note" role="note">DOCX export: text, headings (H1–H3 toolbar), two-level lists (bullet/numbered toolbar for flat lists), simple tables, blockquotes (Quote toolbar), fenced code blocks (Code block toolbar), basic bold/italic/code/strikethrough, yellow highlighting, single underline (++text++) and safe HTTP(S) links (insert via the Link toolbar or Ctrl/Cmd+K). Deeper lists, overlapping inline styling, fancy underline variants, other highlight colors, merged cells, images and precise layout remain unsupported. Inspect the exported copy before sharing.</p>
 
       <div className="workspace-grid">
         <aside className="panel workspace-sidebar">
@@ -635,6 +660,18 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
                 <Icon aria-hidden="true" /><span>{PHIWRITE_BLOCK_ACTIONS[name].label}</span>
               </button>
             ))}
+            <button type="button" className="phiwrite-format-action"
+              aria-label="Quote" title="Quote selected lines"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => applySpecialBlock('quote')}>
+              <Quote aria-hidden="true" /><span>Quote</span>
+            </button>
+            <button type="button" className="phiwrite-format-action"
+              aria-label="Code block" title="Fence selected plain lines as literal code"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => applySpecialBlock('codeblock')}>
+              <Code2 aria-hidden="true" /><span>Code block</span>
+            </button>
           </div>
           <p className="phiwrite-format-help" role="status" aria-live="polite">{formatStatus}</p>
           <label className="editor-field"><span>Draft content</span>

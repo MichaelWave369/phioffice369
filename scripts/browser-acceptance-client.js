@@ -3,11 +3,15 @@
 const phaseKey = '__phioffice369_acceptance_phase_v1';
 const storageKey = 'phioffice369:phiwrite:basic_project_spec';
 const expectedTitle = 'PhiOffice Browser Acceptance';
-const rawContent = '## Real Browser Check\n\nLocal autosave survives reload.\n\n<script>alert("not executable")</script>\n\nFormatting: alpha beta gamma delta epsilon zeta\n\nReference: field manual\n\nOutline heading\n\nInspect cable\nVerify port';
-const expectedFormatting = '## Real Browser Check\n\nLocal autosave survives reload.\n\n<script>alert("not executable")</script>\n\nFormatting: **alpha** *beta* ++gamma++ ~~delta~~ ==epsilon== `zeta`\n\nReference: field manual\n\nOutline heading\n\nInspect cable\nVerify port';
+const rawContent = '## Real Browser Check\n\nLocal autosave survives reload.\n\n<script>alert("not executable")</script>\n\nFormatting: alpha beta gamma delta epsilon zeta\n\nReference: field manual\n\nOutline heading\n\nInspect cable\nVerify port\n\nEvidence from technician\n\nconst port = 42;';
+const expectedFormatting = '## Real Browser Check\n\nLocal autosave survives reload.\n\n<script>alert("not executable")</script>\n\nFormatting: **alpha** *beta* ++gamma++ ~~delta~~ ==epsilon== `zeta`\n\nReference: field manual\n\nOutline heading\n\nInspect cable\nVerify port\n\nEvidence from technician\n\nconst port = 42;';
 const expectedContent = expectedFormatting.replace('field manual', '[field manual](https://example.org/docs)');
 const expectedFinalContent = expectedContent.replace('Outline heading', '## Outline heading')
   .replace('Inspect cable\nVerify port', '- Inspect cable\n- Verify port');
+const expectedQuotedContent = expectedFinalContent.replace(
+  'Evidence from technician', '> Evidence from technician');
+const expectedSpecialContent = expectedQuotedContent.replace(
+  'const port = 42;', '~~~\nconst port = 42;\n~~~');
 
 function assert(condition, description) {
   if (!condition) throw new Error(description);
@@ -78,7 +82,7 @@ async function run() {
     const editor = await openPhiWrite();
     const title = document.querySelector('.title-field input');
     assert(title?.value === expectedTitle, 'Saved title was not restored after reload');
-    assert(editor.value === expectedFinalContent, 'Saved document body was not restored after reload');
+    assert(editor.value === expectedSpecialContent, 'Saved document body was not restored after reload');
     const printable = document.querySelector('.phiwrite-print-page');
     assert(printable?.textContent?.includes(expectedTitle), 'Restored print view has wrong title');
     assert(printable?.textContent?.includes('not executable'), 'Restored print view lost content');
@@ -96,9 +100,15 @@ async function run() {
     assert([...printable.querySelectorAll('.phiwrite-print-body ul')].some((node) =>
       node.textContent.includes('Inspect cable') && node.textContent.includes('Verify port')),
       'Bullet list toolbar output did not survive reload');
+    assert([...printable.querySelectorAll('.phiwrite-print-body blockquote')].some((node) =>
+      node.textContent.includes('Evidence from technician')),
+      'Quote toolbar output did not survive reload');
+    assert([...printable.querySelectorAll('.phiwrite-print-body pre code')].some((node) =>
+      node.textContent.includes('const port = 42;')),
+      'Code block toolbar output did not survive reload');
     const stored = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
     assert(stored?.title === expectedTitle, 'Persisted local draft missing title');
-    assert(stored?.content === expectedFinalContent, 'Persisted local draft missing content');
+    assert(stored?.content === expectedSpecialContent, 'Persisted local draft missing content');
     sessionStorage.removeItem(phaseKey);
     publish('PASS', 'edit, autosave, HTML output, print control and reload/restore verified');
     return;
@@ -237,14 +247,41 @@ async function run() {
   await waitFor(() => document.querySelector('.phiwrite-format-help')?.textContent.includes('single-line'),
     'Multiline selection did not explain the limit');
 
+  // Quote and code block controls must toggle exact text, survive print,
+  // and refuse destructive changes to an active fenced code region.
+  const quoteText = 'Evidence from technician';
+  let idx = editor.value.indexOf(quoteText);
+  editor.focus();
+  editor.setSelectionRange(idx, idx + quoteText.length);
+  await clickParagraph('Quote', expectedQuotedContent);
+  await clickParagraph('Quote', expectedFinalContent);
+  await clickParagraph('Quote', expectedQuotedContent);
+
+  const codeText = 'const port = 42;';
+  idx = editor.value.indexOf(codeText);
+  editor.focus();
+  editor.setSelectionRange(idx, idx + codeText.length);
+  await clickParagraph('Code block', expectedSpecialContent);
+  await clickParagraph('Code block', expectedQuotedContent);
+  await clickParagraph('Code block', expectedSpecialContent);
+  paragraphButton('Quote').click();
+  assert(editor.value === expectedSpecialContent,
+    'Quote action unexpectedly changed fenced code');
+  await waitFor(() => document.querySelector('.phiwrite-format-help')?.textContent.includes('code fence'),
+    'Protected fenced code did not explain the refusal');
+
   await waitFor(() => {
     const stored = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
-    return stored?.title === expectedTitle && stored?.content === expectedFinalContent;
+    return stored?.title === expectedTitle && stored?.content === expectedSpecialContent;
   }, 'PhiWrite local autosave');
 
   const preview = document.querySelector('.phiwrite-print-page');
   assert(preview?.textContent?.includes(expectedTitle), 'Print view did not update its title');
   assert(preview?.textContent?.includes('not executable'), 'Print view did not update its body');
+  assert([...preview.querySelectorAll('.phiwrite-print-body blockquote')].some((node) =>
+    node.textContent.includes('Evidence from technician')), 'Quote missing from live print');
+  assert([...preview.querySelectorAll('.phiwrite-print-body pre code')].some((node) =>
+    node.textContent.includes('const port = 42;')), 'Code block missing from live print');
   assert([...preview.querySelectorAll('.phiwrite-print-body h3')].some((node) =>
     node.textContent === 'Outline heading'), 'Heading 2 not reflected in local React print');
   assert(!preview.querySelector('script'), 'Print view contains injected script');
@@ -282,6 +319,10 @@ async function run() {
   assert(html.includes('<h3>Outline heading</h3>'), 'Heading 2 absent from exported HTML');
   assert(html.includes('<li>Inspect cable</li>') && html.includes('<li>Verify port</li>'),
     'Bullet list absent from exported HTML');
+  assert(html.includes('<blockquote>Evidence from technician</blockquote>'),
+    'Quote absent from exported HTML');
+  assert(html.includes('<pre><code>const port = 42;</code></pre>'),
+    'Fenced literal code absent from exported HTML');
   assert(!html.includes('href="javascript:'), 'Unsafe link was introduced into HTML export');
 
   let printCalled = false;

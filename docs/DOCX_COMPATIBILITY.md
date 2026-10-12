@@ -1,6 +1,6 @@
 # PhiWrite DOCX text interoperability
 
-**Status:** DOCX import preview (#20), basic export (#21), external-style handling (#22), tables (#23), safe inline formatting (#24), ordered lists (#25), two-level lists (#26), inline/fenced code (#27), quotation interoperability (#28), rich text in simple table cells (#29), strikethrough/yellow highlighting (#30), single underline interoperability (#31), the selection-aware formatting toolbar (#32), reviewed safe-link insertion (#33), and paragraph-heading/list toolbar actions (#34 candidate).
+**Status:** DOCX import preview (#20), basic export (#21), external-style handling (#22), tables (#23), safe inline formatting (#24), ordered lists (#25), two-level lists (#26), inline/fenced code (#27), quotation interoperability (#28), rich text in simple table cells (#29), strikethrough/yellow highlighting (#30), single underline interoperability (#31), the selection-aware formatting toolbar (#32), reviewed safe-link insertion (#33), paragraph-heading/list toolbar actions (#34), and reversible Quote/Code block controls (#35 candidate).
 
 PhiWrite remains a simple local-first Markdown editor. DOCX files use actual ZIP/Office Open XML packaging so compatible word processors can open them. These features are a **text-level conversion path**, not a complete Word document editor or layout-preserving converter.
 

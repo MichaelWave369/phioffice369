@@ -146,7 +146,7 @@ async function run() {
   editor.setSelectionRange(0, editor.value.indexOf('Local'));
   formatButton('Highlight').click();
   assert(editor.value === expectedContent, 'Multiline selection was unexpectedly changed');
-  assert(document.querySelector('.phiwrite-format-help')?.textContent.includes('single-line'),
+  await waitFor(() => document.querySelector('.phiwrite-format-help')?.textContent.includes('single-line'),
     'Multiline selection did not explain the limit');
 
   await waitFor(() => {

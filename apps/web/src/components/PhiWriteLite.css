@@ -230,6 +230,53 @@
   background: rgba(214, 168, 61, 0.22);
   outline-offset: 3px;
 }
+.phiwrite-link-composer {
+  display: grid;
+  gap: 12px;
+  border: 1px solid rgba(214, 168, 61, 0.45);
+  border-radius: 15px;
+  margin-top: 10px;
+  padding: 16px;
+  background: rgba(2, 7, 16, 0.52);
+}
+.phiwrite-link-composer label {
+  display: grid;
+  gap: 5px;
+  color: #f1e2b8;
+  font-size: .85rem;
+  font-weight: 750;
+}
+.phiwrite-link-composer input {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid rgba(214, 168, 61, 0.3);
+  border-radius: 10px;
+  padding: 9px 12px;
+  background: rgba(2, 7, 16, .75);
+  color: #fff8dc;
+  font: inherit;
+}
+.phiwrite-link-composer input:focus-visible {
+  outline: 2px solid #d6a83d;
+  outline-offset: 2px;
+}
+.phiwrite-link-controls { display: flex; gap: 10px; flex-wrap: wrap; }
+.phiwrite-link-controls button {
+  border: 1px solid rgba(214, 168, 61, .5);
+  border-radius: 999px;
+  padding: 8px 13px;
+  background: rgba(214, 168, 61, .12);
+  color: #fff8dc;
+  font: inherit;
+  font-weight: 750;
+  cursor: pointer;
+}
+.phiwrite-link-controls button[type="submit"] {
+  background: rgba(214, 168, 61, .25);
+}
+.phiwrite-link-composer small { color: #cbd6e7; }
+.phiwrite-link-error { color: #ffb7b1; margin: 0; }
+
 .phiwrite-format-help {
   font-size: .8rem;
   color: #cbd6e7;

@@ -20,6 +20,9 @@ const expectedTableMarkdown = [
   '| RJ45 | Tested | Mikey |',
 ].join('\n');
 const expectedAfterTable = expectedAfterReplace + expectedTableMarkdown;
+const expectedAfterTableEdit = expectedAfterTable.replace('| Cable \\| Path | Status | Owner |',
+  '| Cable \\| Path | Result | Owner |').replace('| RJ45 | Tested | Mikey |',
+  '| RJ45 | Tested | Field crew |');
 
 function assert(condition, description) {
   if (!condition) throw new Error(description);
@@ -90,7 +93,7 @@ async function run() {
     const editor = await openPhiWrite();
     const title = document.querySelector('.title-field input');
     assert(title?.value === expectedTitle, 'Saved title was not restored after reload');
-    assert(editor.value === expectedAfterTable, 'Saved document body was not restored after reload');
+    assert(editor.value === expectedAfterTableEdit, 'Saved document body was not restored after reload');
     const printable = document.querySelector('.phiwrite-print-page');
     assert(printable?.textContent?.includes(expectedTitle), 'Restored print view has wrong title');
     assert(printable?.textContent?.includes('not executable'), 'Restored print view lost content');
@@ -116,10 +119,11 @@ async function run() {
       'Code block toolbar output did not survive reload');
     const stored = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
     assert([...printable.querySelectorAll('.phiwrite-print-body table')].some((table) =>
-      table.textContent.includes('Cable | Path') && table.textContent.includes('Mikey')),
-      'Confirmed table missing after browser reload');
+      table.textContent.includes('Cable | Path') && table.textContent.includes('Field crew') &&
+      table.textContent.includes('Result')),
+      'Edited table missing after browser reload');
     assert(stored?.title === expectedTitle, 'Persisted local draft missing title');
-    assert(stored?.content === expectedAfterTable, 'Persisted local draft missing content');
+    assert(stored?.content === expectedAfterTableEdit, 'Persisted local draft missing content');
     sessionStorage.removeItem(phaseKey);
     publish('PASS', 'edit, autosave, HTML output, print control and reload/restore verified');
     return;
@@ -429,9 +433,71 @@ async function run() {
       table.textContent.includes('Fibre') && table.textContent.includes('Mikey')),
     'Inserted table visible in semantic print');
 
+  // Cell-only editing of an existing table is a separate explicit review:
+  // invalid selection, open/cancel, genuine edits and HTML/reload preservation.
+  const editTable = await waitFor(() =>
+    [...document.querySelectorAll('button')].find((button) =>
+      button.getAttribute('aria-label') === 'Edit Existing Table'),
+    'Edit Existing Table toolbar action');
+  editor.focus();
+  editor.setSelectionRange(editor.value.indexOf('Outline heading'),
+    editor.value.indexOf('Outline heading'));
+  editTable.click();
+  assert(editor.value === expectedAfterTable, 'Non-table edit action mutated the source');
+  assert(!document.querySelector('form[aria-label="Edit existing table"]'),
+    'Non-table selection unexpectedly opened an editor');
+  await waitFor(() =>
+    document.querySelector('.phiwrite-format-help')?.textContent.includes('cursor inside'),
+    'Invalid Edit Existing Table action should explain location');
+
+  editor.focus();
+  const tableCaret = editor.value.indexOf('Fibre') + 2;
+  editor.setSelectionRange(tableCaret, tableCaret);
+  editTable.click();
+  let editPanel = await waitFor(() => document.querySelector('form[aria-label="Edit existing table"]'),
+    'Existing table cell review panel');
+  assert(editor.value === expectedAfterTable, 'Opening an existing table panel changed source');
+  assert(editPanel.querySelector('select[aria-label="Table columns"]')?.disabled,
+    'Edit Existing Table allowed destructive column resizing');
+  assert(editPanel.querySelector('select[aria-label="Table body rows"]')?.disabled,
+    'Edit Existing Table allowed destructive row resizing');
+  assert(editPanel.querySelector('input[aria-label="Table header 1"]')?.value === 'Cable | Path',
+    'Existing table header did not parse escaped literal pipe');
+  assert(editPanel.querySelector('input[aria-label="Table row 2 column 3"]')?.value === 'Mikey',
+    'Existing table body cell did not load into review panel');
+
+  const cancelEdit = [...editPanel.querySelectorAll('button')].find((button) =>
+    button.textContent.trim() === 'Cancel table edits');
+  assert(cancelEdit, 'Cancel table edits action missing');
+  cancelEdit.click();
+  await waitFor(() => !document.querySelector('form[aria-label="Edit existing table"]'),
+    'Cancellation of existing table review');
+  assert(editor.value === expectedAfterTable, 'Cancelling existing table edits changed content');
+
+  editor.focus();
+  editor.setSelectionRange(tableCaret, tableCaret);
+  editTable.click();
+  editPanel = await waitFor(() => document.querySelector('form[aria-label="Edit existing table"]'),
+    'Reopened existing table review');
+  changeInput(editPanel.querySelector('input[aria-label="Table header 2"]'), 'Result');
+  changeInput(editPanel.querySelector('input[aria-label="Table row 2 column 3"]'), 'Field crew');
+  const approveEdit = [...editPanel.querySelectorAll('button')].find((button) =>
+    button.textContent.trim() === 'Save table changes');
+  assert(approveEdit, 'Save table changes action missing');
+  approveEdit.click();
+  await waitFor(() => editor.value === expectedAfterTableEdit,
+    'Approved existing table edits should change only selected Markdown table');
+  await waitFor(() => document.activeElement === editor &&
+    editor.value.slice(editor.selectionStart, editor.selectionEnd).includes('| RJ45 | Tested | Field crew |'),
+    'Saved table text selection restored');
+  await waitFor(() => [...document.querySelectorAll('.phiwrite-print-body table')].some((table) =>
+    table.textContent.includes('Cable | Path') &&
+    table.textContent.includes('Result') && table.textContent.includes('Field crew')),
+    'Edited table was not reflected in semantic print');
+
   await waitFor(() => {
     const stored = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
-    return stored?.title === expectedTitle && stored?.content === expectedAfterTable;
+    return stored?.title === expectedTitle && stored?.content === expectedAfterTableEdit;
   }, 'PhiWrite local autosave');
 
   const preview = document.querySelector('.phiwrite-print-page');
@@ -477,8 +543,8 @@ async function run() {
   assert(html.includes('href="https://example.org/docs"'), 'Safe link lost from HTML export');
   assert(html.includes('<h3>Outline heading</h3>'), 'Heading 2 absent from exported HTML');
   assert(html.includes('<table>') && html.includes('<th>Cable | Path</th>') &&
-    html.includes('<td>Larrina</td>') && html.includes('<td>Mikey</td>'),
-    'Confirmed Markdown table absent from safe HTML export');
+    html.includes('<th>Result</th>') && html.includes('<td>Field crew</td>'),
+    'Reviewed table edits absent from safe HTML export');
   assert(html.includes('<li>Inspect cable</li>') && html.includes('<li>Verify socket</li>'),
     'Bullet list absent from exported HTML');
   assert(html.includes('<blockquote>Evidence from technician</blockquote>'),

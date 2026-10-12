@@ -150,11 +150,12 @@ try {
     try {
       let result = await runChrome(browser, url + '?scenario=' + scenario, profile);
       let marker = result.output.match(/data-phi-acceptance="(PASS|FAIL)"/);
-      // Headless --dump-dom occasionally returns the initial page before the
-      // acceptance module starts. Only retry an indeterminate result, never a
-      // real FAIL marker. The replay gets its own clean browser profile.
-      if (result.code === 0 && !marker) {
-        console.warn('No ' + scenario + ' result marker on first Chrome launch; retrying once with a fresh profile.');
+      // Headless --dump-dom occasionally returns initial DOM before the
+      // acceptance client has executed. Replay an indeterminate result at most
+      // twice with independent browser profiles. A real FAIL is never retried.
+      for (let retry = 1; retry <= 2 && result.code === 0 && !marker; retry += 1) {
+        console.warn('No ' + scenario + ' result marker on Chrome attempt ' + retry +
+          '; retrying with an isolated profile (' + retry + '/2).');
         const retryProfile = await mkdtemp(join(tmpdir(), 'phioffice369-' + scenario + '-retry-'));
         try {
           result = await runChrome(browser, url + '?scenario=' + scenario, retryProfile);

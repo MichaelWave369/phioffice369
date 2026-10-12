@@ -283,6 +283,75 @@
 .phiwrite-link-composer small { color: #cbd6e7; }
 .phiwrite-link-error { color: #ffb7b1; margin: 0; }
 
+
+.phiwrite-find-panel {
+  margin-top: 10px;
+  padding: 16px;
+  border: 1px solid rgba(214, 168, 61, .45);
+  border-radius: 15px;
+  color: #e6ecf6;
+  background: rgba(2, 7, 16, .58);
+}
+.phiwrite-find-fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.phiwrite-find-fields label {
+  display: grid;
+  gap: 6px;
+  color: #f1e2b8;
+  font-size: .86rem;
+  font-weight: 750;
+  min-width: 0;
+}
+.phiwrite-find-fields input {
+  box-sizing: border-box;
+  width: 100%;
+  border: 1px solid rgba(214, 168, 61, .36);
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: #fff8dc;
+  background: rgba(2, 7, 16, .75);
+  font: inherit;
+}
+.phiwrite-find-fields input:focus-visible,
+.phiwrite-find-actions button:focus-visible {
+  outline: 2px solid #d6a83d;
+  outline-offset: 2px;
+}
+.phiwrite-find-case {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  margin-top: 11px;
+  color: #f1e2b8;
+  font-size: .85rem;
+}
+.phiwrite-find-case input { accent-color: #d6a83d; }
+.phiwrite-find-count,
+.phiwrite-find-status { font-size: .83rem; color: #cbd6e7; margin: 9px 0; }
+.phiwrite-find-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.phiwrite-find-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 11px;
+  border: 1px solid rgba(214, 168, 61, .45);
+  border-radius: 10px;
+  background: rgba(214, 168, 61, .12);
+  color: #fff8dc;
+  font: inherit;
+  font-size: .83rem;
+  cursor: pointer;
+}
+.phiwrite-find-actions button svg { width: 15px; height: 15px; }
+.phiwrite-find-actions button:disabled { opacity: .46; cursor: not-allowed; }
+.phiwrite-find-panel small { color: #cbd6e7; }
+@media (max-width: 600px) {
+  .phiwrite-find-fields { grid-template-columns: 1fr; }
+}
+
 .phiwrite-format-help {
   font-size: .8rem;
   color: #cbd6e7;

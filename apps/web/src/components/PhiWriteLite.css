@@ -207,6 +207,12 @@
   border-radius: 15px;
   background: rgba(2, 7, 16, 0.44);
 }
+.phiwrite-block-toolbar {
+  margin-top: 10px;
+}
+.phiwrite-block-toolbar .phiwrite-format-action {
+  min-width: 80px;
+}
 .phiwrite-format-action {
   display: inline-flex;
   gap: 6px;

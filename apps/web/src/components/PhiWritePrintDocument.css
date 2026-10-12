@@ -139,6 +139,7 @@
     print-color-adjust: exact;
   }
   .phiwrite-print-page del { text-decoration: line-through; }
+  .phiwrite-print-page u { text-decoration: underline; text-underline-offset: 0.12em; }
 
   .phiwrite-print-page li { margin-bottom: 0.3rem; }
   .phiwrite-print-page p,

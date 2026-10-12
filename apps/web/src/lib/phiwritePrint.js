@@ -75,6 +75,7 @@ export function renderInlinePhiWriteHtml(value) {
   return tokenizePhiWriteInline(value).map((token) => {
     const safe = escapePhiWriteHtml(token.text);
     if (token.code) return '<code>' + safe + '</code>';
+    if (token.underline) return '<u>' + safe + '</u>';
     if (token.highlight) return '<mark>' + safe + '</mark>';
     if (token.strike) return '<del>' + safe + '</del>';
     if (token.href) return '<a href="' + escapePhiWriteHtml(token.href) +
@@ -135,7 +136,7 @@ export function buildPhiWriteHtmlDocument({ title = 'Untitled', content = '', tr
     'p,blockquote{white-space:pre-wrap}blockquote{border-left:3px solid #888;padding-left:1rem;color:#45516a}',
     'pre{white-space:pre-wrap;overflow-wrap:anywhere;padding:1rem;background:#f2f3f5}',
     'code{font:0.9em/1.4 Consolas,monospace;background:#f2f3f5;padding:0.1em 0.2em}pre code{background:none;padding:0}',
-    'mark{background:#fff39b;color:inherit;padding:0 .08em;-webkit-print-color-adjust:exact;print-color-adjust:exact}del{text-decoration:line-through}',
+    'mark{background:#fff39b;color:inherit;padding:0 .08em;-webkit-print-color-adjust:exact;print-color-adjust:exact}del{text-decoration:line-through}u{text-decoration:underline;text-underline-offset:.12em}',
     'li{white-space:pre-wrap;margin-bottom:.35em}header{border-bottom:1px solid #ccd2dc;margin-bottom:1.5rem}',
     'table{border-collapse:collapse;width:100%;table-layout:fixed;margin:1em 0}th,td{border:1px solid #bcc5d0;padding:.35rem .5rem;overflow-wrap:anywhere;text-align:left}thead{display:table-header-group}tr{break-inside:avoid}',
     'small{color:#44546a}a{color:#0757b0;text-decoration:underline;overflow-wrap:anywhere}@media print{@page{margin:18mm}main{padding:0}}',

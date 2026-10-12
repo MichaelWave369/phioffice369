@@ -430,7 +430,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
         </section>
       )}
 
-      <p className="phiwrite-docx-export-note" role="note">DOCX export: text, headings, two-level lists, simple tables, blockquotes, basic bold/italic/code/strikethrough, yellow highlighting and safe HTTP(S) links. Deeper lists, overlapping inline styling, other highlight colors, merged cells, images and precise layout remain unsupported. Inspect the exported copy before sharing.</p>
+      <p className="phiwrite-docx-export-note" role="note">DOCX export: text, headings, two-level lists, simple tables, blockquotes, basic bold/italic/code/strikethrough, yellow highlighting, single underline (++text++) and safe HTTP(S) links. Deeper lists, overlapping inline styling, fancy underline variants, other highlight colors, merged cells, images and precise layout remain unsupported. Inspect the exported copy before sharing.</p>
 
       <div className="workspace-grid">
         <aside className="panel workspace-sidebar">

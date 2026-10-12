@@ -63,6 +63,14 @@ function createDocxFixture(variant = 'basic') {
     '<w:r><w:rPr><w:highlight w:val="yellow"/></w:rPr><w:t>verify</w:t></w:r></w:p>' +
     '<w:p><w:r><w:t>Other color: </w:t></w:r>' +
     '<w:r><w:rPr><w:highlight w:val="green"/></w:rPr><w:t>not yellow</w:t></w:r></w:p>' +
+    '<w:p><w:r><w:t>Underline: </w:t></w:r>' +
+    '<w:r><w:rPr><w:u w:val="single"/></w:rPr><w:t>inspect</w:t></w:r>' +
+    '<w:r><w:t xml:space="preserve"> and </w:t></w:r>' +
+    '<w:r><w:rPr><w:u/></w:rPr><w:t>sign</w:t></w:r></w:p>' +
+    '<w:p><w:r><w:t>Other underline: </w:t></w:r>' +
+    '<w:r><w:rPr><w:u w:val="double"/></w:rPr><w:t>two lines</w:t></w:r>' +
+    '<w:r><w:t xml:space="preserve"> / </w:t></w:r>' +
+    '<w:r><w:rPr><w:u w:val="none"/></w:rPr><w:t>clear</w:t></w:r></w:p>' +
     '<w:p><w:r><w:t>Run </w:t></w:r><w:r><w:rPr><w:rStyle w:val="CodeChar"/></w:rPr>' +
     '<w:t>ipconfig /all</w:t></w:r><w:r><w:t xml:space="preserve"> next</w:t></w:r></w:p>' +
     '<w:p><w:pPr><w:pStyle w:val="Code"/></w:pPr>' +
@@ -208,6 +216,14 @@ async function run() {
       'Word strike/highlight spans lost on reload');
     assert(editor.value.includes('Other color: not yellow') &&
       !editor.value.includes('==not yellow=='), 'Unsupported Word highlight color was misrepresented');
+    assert(editor.value.includes('Underline: ++inspect++ and ++sign++'),
+      'Word explicit and default single underlining were not restored');
+    assert(editor.value.includes('Other underline: two lines / clear') &&
+      !editor.value.includes('++two lines++') && !editor.value.includes('++clear++'),
+      'Word unsupported and disabled underline values were misrepresented');
+    assert([...document.querySelectorAll('.phiwrite-print-body u')]
+      .some((node) => node.textContent === 'inspect'),
+      'Word single underline not rendered in React print');
     assert([...document.querySelectorAll('.phiwrite-print-body del')]
       .some((node) => node.textContent === 'retired'),
       'Strikethrough not rendered as semantic del in React print');
@@ -333,6 +349,11 @@ async function run() {
     assert(preview.textContent.includes('Other color: not yellow') &&
       !preview.textContent.includes('==not yellow=='),
       'Non-yellow highlight incorrectly converted to a yellow marker');
+    assert(preview.textContent.includes('Underline: ++inspect++ and ++sign++'),
+      'Word single underlines were not imported into editable Markdown');
+    assert(preview.textContent.includes('Other underline: two lines / clear') &&
+      !preview.textContent.includes('++two lines++'),
+      'Word unsupported underline style was incorrectly claimed');
     assert(preview.textContent.includes('[source](https://example.org/docs)'),
       'External safe Word hyperlink missing');
     assert(!preview.textContent.includes('javascript:alert'),

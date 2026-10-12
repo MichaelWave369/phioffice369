@@ -31,7 +31,8 @@ export function insertPhiWriteSafeLink(currentContent, selection, label, url) {
   const visible = String(label ?? '').trim();
   // Only link labels that our intentionally minimal one-layer parser can read.
   // Reject embedded Markdown constructs instead of promising nested markup.
-  if (!visible || visible.length > 200 || /[\r\n\t\u0000-\u001f\[\]`*~=+]/.test(visible)) {
+  if (!visible || visible.length > 200 ||
+      /[\r\n\t\u0000-\u001f\[\]`*~+]/.test(visible) || visible.includes('==')) {
     return unchanged('label');
   }
   const trimmedUrl = String(url ?? '').trim();

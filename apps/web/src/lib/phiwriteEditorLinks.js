@@ -47,6 +47,13 @@ export function insertPhiWriteSafeLink(currentContent, selection, label, url) {
   if (/[\r\n\[\]`*~=+]/.test(selected)) return unchanged('nested');
   if (source.slice(selection.start - 1, selection.start) === '[' ||
       source.slice(selection.end, selection.end + 2) === '](') return unchanged('nested');
+  // Do not introduce an unsupported nested link inside a formatted span.
+  for (const marker of ['**', '~~', '==', '++', '*', '`']) {
+    if (source.slice(selection.start - marker.length, selection.start) === marker &&
+        source.slice(selection.end, selection.end + marker.length) === marker) {
+      return unchanged('nested');
+    }
+  }
   const markdown = '[' + visible + '](' + href + ')';
   const next = source.slice(0, selection.start) + markdown + source.slice(selection.end);
   return {

@@ -28,7 +28,7 @@ Each scenario runs against the compiled Vite app with a **separate disposable Ch
 - Verifies the approved Markdown link reaches local autosave, HTML export, semantic print rendering, and survives reload, with no unsafe href.
 - Exercises Heading 1/2/3 switching and toggle-off, numbered-list creation/removal, bullet-list creation, and refusal to apply a heading to multiple lines. Adds Quote and Code block creation/toggle-off and attempts to quote an existing fenced code region; verifies the protected refusal, semantic React print, exported HTML, autosave, and reload.
 - Exercises Ctrl/Cmd+F local literal Find & Replace: two matches, Next/Previous selection, case-sensitive zero-hit control, case-insensitive recovery, selected replacement, explicit Replace All and guarded undo; verifies HTML/print and autosave/reload of the replaced Markdown.
-- Uses the Insert Table panel to refuse nonempty-line insertion, open and cancel review without mutating text, create a three-column, two-body-row table with an escaped pipe in the header, verify confirmed table selection, semantic HTML/React print, autosave and reload.
+- Uses Insert Table to refuse nonempty-line insertion, open/cancel review, create a three-column, two-body-row table with an escaped pipe, and verify selection. Uses Edit Existing Table to reject unrelated text, load parsed cells, keep dimensions locked, cancel without mutation, then explicitly edit a header and cell. Confirms the resulting table in HTML/React print, autosave and reload.
 - Verifies the resulting Markdown markup is saved and the semantic print nodes survive reload.
 - Verifies the updated values reach browser-local autosave storage.
 - Verifies the safe document print component updates from the actual editor.

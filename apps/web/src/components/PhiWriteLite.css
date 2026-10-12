@@ -196,8 +196,48 @@
   font-weight: 800;
 }
 
-.editor-field {
+.phiwrite-formatting-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
   margin-top: 18px;
+  padding: 9px;
+  border: 1px solid rgba(214, 168, 61, 0.28);
+  border-radius: 15px;
+  background: rgba(2, 7, 16, 0.44);
+}
+.phiwrite-format-action {
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  justify-content: center;
+  min-height: 36px;
+  padding: 7px 10px;
+  border: 1px solid rgba(214, 168, 61, 0.3);
+  border-radius: 9px;
+  background: rgba(214, 168, 61, 0.08);
+  color: #fff8dc;
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+.phiwrite-format-action svg { width: 16px; height: 16px; }
+.phiwrite-format-action:hover,
+.phiwrite-format-action:focus-visible {
+  border-color: #d6a83d;
+  background: rgba(214, 168, 61, 0.22);
+  outline-offset: 3px;
+}
+.phiwrite-format-help {
+  font-size: .8rem;
+  color: #cbd6e7;
+  margin: 8px 1px 0;
+  min-height: 1.2em;
+}
+.editor-field {
+  margin-top: 12px;
 }
 
 .editor-field textarea {

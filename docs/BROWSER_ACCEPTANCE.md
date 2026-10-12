@@ -26,7 +26,7 @@ Each scenario runs against the compiled Vite app with a **separate disposable Ch
 - Uses the PhiWrite inline-formatting toolbar and Ctrl/Cmd+B, I, U shortcuts on actual textarea selections; verifies bold, italic, underline, strikethrough, highlight and code, selection restoration, toggle removal/reapplication, and rejection of multiline selections.
 - Reviews selected link text without changing the working draft; rejects a script-scheme URL with visible feedback, cancels safely, then inserts an HTTPS hyperlink via Ctrl/Cmd+K.
 - Verifies the approved Markdown link reaches local autosave, HTML export, semantic print rendering, and survives reload, with no unsafe href.
-- Exercises Heading 1/2/3 switching and toggle-off, numbered-list creation/removal, bullet-list creation, and refusal to apply a heading to multiple lines; verifies the final paragraph structure in React print, exported HTML, autosave, and reload.
+- Exercises Heading 1/2/3 switching and toggle-off, numbered-list creation/removal, bullet-list creation, and refusal to apply a heading to multiple lines. Adds Quote and Code block creation/toggle-off and attempts to quote an existing fenced code region; verifies the protected refusal, semantic React print, exported HTML, autosave, and reload.
 - Verifies the resulting Markdown markup is saved and the semantic print nodes survive reload.
 - Verifies the updated values reach browser-local autosave storage.
 - Verifies the safe document print component updates from the actual editor.

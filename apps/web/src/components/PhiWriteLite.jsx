@@ -41,6 +41,7 @@ import { formatPhiWriteBlockSelection, PHIWRITE_BLOCK_ACTIONS } from '../lib/phi
 import { formatPhiWriteSpecialBlock, PHIWRITE_SPECIAL_BLOCKS } from '../lib/phiwriteEditorSpecialBlocks.js';
 import { findPhiWriteMatches, choosePhiWriteMatch, replacePhiWriteMatch, replaceAllPhiWriteMatches, undoPhiWriteReplace } from '../lib/phiwriteFindReplace.js';
 import { preparePhiWriteTableInsertion, insertPhiWriteTable, PHIWRITE_TABLE_LIMITS } from '../lib/phiwriteEditorTables.js';
+import { preparePhiWriteTableEdit, savePhiWriteTableEdit } from '../lib/phiwriteEditorTableEdit.js';
 import PhiWritePrintDocument from './PhiWritePrintDocument.jsx';
 import { saveLocalExportReceipt } from '../lib/localReceipts.js';
 import { createPhiWriteToPhiDeckPayload, getTransformIds } from '../lib/transformRegistry.js';
@@ -320,15 +321,38 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
       return;
     }
     setTableDraft({
-      snapshot, headers: ['Column 1', 'Column 2'],
+      mode: 'insert', snapshot, headers: ['Column 1', 'Column 2'],
       rows: [['', ''], ['', '']], error: '',
     });
     setFormatStatus('Review the table dimensions and cells, then select Insert table.');
   }
 
+  function openExistingTableEditor(target = editorRef.current) {
+    if (!target) return;
+    const snapshot = preparePhiWriteTableEdit(
+      target.value, target.selectionStart, target.selectionEnd,
+    );
+    if (snapshot.reason) {
+      const reasons = {
+        table: 'Place the cursor inside a supported Markdown table or select the whole table.',
+        size: 'This table exceeds the cell editor limits (2–8 columns, 1–12 data rows, max 160 characters per cell).',
+        alignment: 'This table has alignment rules that the cell editor cannot preserve. Edit its Markdown directly.',
+        lineEndings: 'This document uses CRLF line endings. To avoid changing them, edit the table as Markdown.',
+      };
+      setFormatStatus(reasons[snapshot.reason] ?? 'This table cannot be edited in the review panel.');
+      target.focus({ preventScroll: true });
+      return;
+    }
+    setTableDraft({
+      mode: 'edit', snapshot, headers: snapshot.headers,
+      rows: snapshot.rows, error: '',
+    });
+    setFormatStatus('Review and edit cells, then explicitly save the existing table.');
+  }
+
   function resizeTable(axis, size) {
     setTableDraft((draft) => {
-      if (!draft) return draft;
+      if (!draft || draft.mode === 'edit') return draft;
       if (axis === 'columns') {
         const count = Math.max(PHIWRITE_TABLE_LIMITS.minColumns,
           Math.min(PHIWRITE_TABLE_LIMITS.maxColumns, size));
@@ -368,16 +392,21 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   function submitTableComposer(event) {
     event.preventDefault();
     if (!tableDraft) return;
-    const result = insertPhiWriteTable(
-      content, tableDraft.snapshot, tableDraft.headers, tableDraft.rows,
-    );
+    const editing = tableDraft.mode === 'edit';
+    const result = editing
+      ? savePhiWriteTableEdit(content, tableDraft.snapshot, tableDraft.headers, tableDraft.rows)
+      : insertPhiWriteTable(content, tableDraft.snapshot, tableDraft.headers, tableDraft.rows);
     if (!result.changed) {
       const reasons = {
-        stale: 'The document changed while the table was being reviewed. Close and select the insertion point again.',
+        stale: 'The document changed while this table was being reviewed. Cancel and reopen the editor to preserve newer changes.',
         line: 'Insert a table on an empty line only.',
         code: 'A fenced code block cannot contain a table.',
-        shape: 'Table dimensions must be 2–8 columns and 1–12 body rows.',
+        table: 'The original table could not be found unchanged. Nothing was rewritten.',
+        alignment: 'Alignment markers cannot be round-tripped by this editor.',
+        shape: 'The number of rows and columns must remain unchanged in edit mode.',
+        header: 'Every table header needs a nonempty column name.',
         cell: 'Cells must contain one line of text, at most 160 characters each.',
+        unchanged: 'No cell changes to save; the document is unchanged.',
       };
       setTableDraft((draft) => draft ? {
         ...draft, error: reasons[result.reason] ?? 'Table insertion was not permitted.',
@@ -390,12 +419,14 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
     };
     setContent(result.content);
     setTableDraft(null);
-    setFormatStatus('Editable table inserted locally with an explicit header row.');
+    setFormatStatus(editing
+      ? 'Existing table cells updated locally. Surrounding text preserved.'
+      : 'Editable table inserted locally with an explicit header row.');
   }
 
   function cancelTableComposer() {
     setTableDraft(null);
-    setFormatStatus('Table insertion cancelled. The document was not changed.');
+    setFormatStatus('Table review cancelled. The document was not changed.');
     editorRef.current?.focus({ preventScroll: true });
   }
 
@@ -911,33 +942,45 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
               <Code2 aria-hidden="true" /><span>Code block</span>
             </button>
             <button type="button" className="phiwrite-format-action"
-              aria-label="Insert Table" aria-expanded={Boolean(tableDraft)}
+              aria-label="Insert Table" aria-expanded={Boolean(tableDraft?.mode === 'insert')}
               aria-controls="phiwrite-table-composer" title="Insert an editable table at an empty line"
               onMouseDown={(event) => event.preventDefault()}
               onClick={() => openTableComposer()}>
               <Table2 aria-hidden="true" /><span>Table</span>
             </button>
+            <button type="button" className="phiwrite-format-action"
+              aria-label="Edit Existing Table" aria-expanded={Boolean(tableDraft?.mode === 'edit')}
+              aria-controls="phiwrite-table-composer" title="Edit cells in the table under the cursor"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => openExistingTableEditor()}>
+              <Table2 aria-hidden="true" /><span>Edit table</span>
+            </button>
           </div>
           {tableDraft && (
             <form className="phiwrite-table-composer" id="phiwrite-table-composer"
-              aria-label="Insert editable table" onSubmit={submitTableComposer}>
+              aria-label={tableDraft.mode === 'edit' ? 'Edit existing table' : 'Insert editable table'}
+              onSubmit={submitTableComposer}>
               <div className="phiwrite-table-dimensions">
                 <label>Columns
-                  <select aria-label="Table columns" value={tableDraft.headers.length}
+                  <select aria-label="Table columns" disabled={tableDraft.mode === 'edit'}
+                    value={tableDraft.headers.length}
                     onChange={(event) => resizeTable('columns', Number(event.target.value))}>
                     {Array.from({ length: 7 }, (_, index) => index + 2).map((count) =>
                       <option value={count} key={count}>{count}</option>)}
                   </select>
                 </label>
                 <label>Body rows
-                  <select aria-label="Table body rows" value={tableDraft.rows.length}
+                  <select aria-label="Table body rows" disabled={tableDraft.mode === 'edit'}
+                    value={tableDraft.rows.length}
                     onChange={(event) => resizeTable('rows', Number(event.target.value))}>
                     {Array.from({ length: 12 }, (_, index) => index + 1).map((count) =>
                       <option value={count} key={count}>{count}</option>)}
                   </select>
                 </label>
               </div>
-              <p className="phiwrite-table-caption">First row is the header. Blank cells are allowed. All content remains local.</p>
+              <p className="phiwrite-table-caption">{tableDraft.mode === 'edit'
+                ? 'Editing existing cells only. Rows and columns are locked to protect existing content.'
+                : 'First row is the header. Blank cells are allowed. All content remains local.'}</p>
               <div className="phiwrite-table-grid-wrap">
                 <table className="phiwrite-table-grid">
                   <thead>
@@ -968,10 +1011,12 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
               </div>
               {tableDraft.error && <p role="alert" className="phiwrite-table-error">{tableDraft.error}</p>}
               <div className="phiwrite-table-actions">
-                <button type="button" onClick={cancelTableComposer}>Cancel table</button>
-                <button type="submit">Insert table</button>
+                <button type="button" onClick={cancelTableComposer}>{tableDraft.mode === 'edit' ? 'Cancel table edits' : 'Cancel table'}</button>
+                <button type="submit">{tableDraft.mode === 'edit' ? 'Save table changes' : 'Insert table'}</button>
               </div>
-              <small>Creates a simple 2–8 column table with 1–12 data rows. Merged cells, alignment and inline rich editing are not supported.</small>
+              <small>{tableDraft.mode === 'edit'
+                ? 'Only the selected simple table is changed after approval. Alignment-specific tables and resizing are not supported.'
+                : 'Creates a simple 2–8 column table with 1–12 data rows. Merged cells, alignment and inline rich editing are not supported.'}</small>
             </form>
           )}
           <p className="phiwrite-format-help" role="status" aria-live="polite">{formatStatus}</p>

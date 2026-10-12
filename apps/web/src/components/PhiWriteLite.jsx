@@ -10,6 +10,7 @@ import {
   Download,
   FileText,
   Layers3,
+  Link2,
   Printer,
   ListChecks,
   RotateCcw,
@@ -26,6 +27,7 @@ import { previewDocxFile } from '../lib/docxImport.js';
 import { buildPhiWriteDocx } from '../lib/docxExport.js';
 import { buildPhiWriteHtmlDocument } from '../lib/phiwritePrint.js';
 import { formatPhiWriteSelection, PHIWRITE_FORMATS, phiWriteShortcutForKey } from '../lib/phiwriteEditorFormatting.js';
+import { preparePhiWriteLinkSelection, insertPhiWriteSafeLink } from '../lib/phiwriteEditorLinks.js';
 import PhiWritePrintDocument from './PhiWritePrintDocument.jsx';
 import { saveLocalExportReceipt } from '../lib/localReceipts.js';
 import { createPhiWriteToPhiDeckPayload, getTransformIds } from '../lib/transformRegistry.js';
@@ -171,6 +173,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   const [transformSet, setTransformSet] = useState(null);
   const [pendingDocxImport, setPendingDocxImport] = useState(null);
   const [formatStatus, setFormatStatus] = useState('Select text to format, or insert a placeholder.');
+  const [linkDraft, setLinkDraft] = useState(null);
 
   const activeLabel = trustLabels.find((label) => label.id === activeLabelId) ?? trustLabels[0];
   const receipt = useMemo(() => createArtifactReceipt({
@@ -231,11 +234,56 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
     setFormatStatus(PHIWRITE_FORMATS[action].label + ' applied locally. Select the text and apply it again to remove.');
   }
 
+  function openLinkComposer(target = editorRef.current) {
+    if (!target) return;
+    const selection = preparePhiWriteLinkSelection(
+      target.value, target.selectionStart, target.selectionEnd,
+    );
+    if (selection.reason) {
+      setFormatStatus('Links require a single-line selection.');
+      target.focus();
+      return;
+    }
+    setLinkDraft({ selection, label: selection.label, url: '', error: '' });
+    setFormatStatus('Review the label and destination before inserting the link.');
+  }
+
+  function cancelLinkComposer() {
+    setLinkDraft(null);
+    setFormatStatus('Link insertion cancelled. Draft unchanged.');
+    editorRef.current?.focus({ preventScroll: true });
+  }
+
+  function submitLinkComposer(event) {
+    event.preventDefault();
+    if (!linkDraft) return;
+    const result = insertPhiWriteSafeLink(content, linkDraft.selection, linkDraft.label, linkDraft.url);
+    if (!result.changed) {
+      const errors = {
+        stale: 'The document changed while the link editor was open. Cancel and select the text again.',
+        multiline: 'Links require a single-line selection.',
+        label: 'Use plain link text (1–200 characters). No nested Markdown, brackets or controls.',
+        url: 'Enter a valid HTTP(S) address without credentials, spaces or parentheses.',
+        nested: 'Select plain text, not another Markdown link or formatted span.',
+        selection: 'Selection is no longer valid. Re-select the text.',
+      };
+      setLinkDraft((current) => current ? { ...current, error: errors[result.reason] ?? 'Unable to insert the link.' } : null);
+      return;
+    }
+    pendingSelectionRef.current = {
+      target: editorRef.current, selectionStart: result.selectionStart, selectionEnd: result.selectionEnd,
+    };
+    setContent(result.content);
+    setLinkDraft(null);
+    setFormatStatus('Safe external link inserted locally.');
+  }
+
   function handleEditorShortcut(event) {
     const action = phiWriteShortcutForKey(event);
     if (!action || event.isComposing) return;
     event.preventDefault();
-    applyInlineFormat(action, event.currentTarget);
+    if (action === 'link') openLinkComposer(event.currentTarget);
+    else applyInlineFormat(action, event.currentTarget);
   }
 
   function appendAssistantBlock(label, block) {
@@ -245,6 +293,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
 
   function handleResetDraft() {
     setPendingDocxImport(null);
+    setLinkDraft(null);
     setTitle(template.title);
     setContent(makeStarterContent(template));
     setDeckSlides([]);
@@ -380,6 +429,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
 
   function acceptDocxImport() {
     if (!pendingDocxImport) return;
+    setLinkDraft(null);
     setTitle(pendingDocxImport.title);
     setContent(pendingDocxImport.content);
     setDeckSlides([]);
@@ -398,6 +448,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
       const text = await file.text();
       const imported = parseMarkdownImport(text, file.name.replace(/\.(md|markdown)$/i, ''));
       setPendingDocxImport(null);
+      setLinkDraft(null);
       setTitle(imported.title);
       setContent(imported.content);
       setDeckSlides([]);
@@ -509,7 +560,34 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
                 <span>{PHIWRITE_FORMATS[name].label}</span>
               </button>
             ))}
+            <button type="button" className="phiwrite-format-action"
+              aria-label="Insert Link (Ctrl/Cmd+K)" title="Insert Link · Ctrl/Cmd+K"
+              aria-expanded={Boolean(linkDraft)} aria-controls="phiwrite-link-composer"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => openLinkComposer()}>
+              <Link2 aria-hidden="true" /><span>Link</span>
+            </button>
           </div>
+          {linkDraft && (
+            <form className="phiwrite-link-composer" id="phiwrite-link-composer"
+              aria-label="Insert safe external link" onSubmit={submitLinkComposer}>
+              <label>Link text
+                <input aria-label="Link text" maxLength={200} value={linkDraft.label}
+                  onChange={(event) => setLinkDraft((draft) => ({ ...draft, label: event.target.value, error: '' }))} />
+              </label>
+              <label>HTTP(S) address
+                <input aria-label="HTTP(S) address" type="url" autoFocus
+                  placeholder="https://example.org/docs" value={linkDraft.url}
+                  onChange={(event) => setLinkDraft((draft) => ({ ...draft, url: event.target.value, error: '' }))} />
+              </label>
+              {linkDraft.error && <p role="alert" className="phiwrite-link-error">{linkDraft.error}</p>}
+              <div className="phiwrite-link-controls">
+                <button type="button" onClick={cancelLinkComposer}>Cancel link</button>
+                <button type="submit">Insert link</button>
+              </div>
+              <small>Only safe HTTP(S) links are supported. No file, script or data URLs.</small>
+            </form>
+          )}
           <p className="phiwrite-format-help" role="status" aria-live="polite">{formatStatus}</p>
           <label className="editor-field"><span>Draft content</span>
             <textarea ref={editorRef} value={content}

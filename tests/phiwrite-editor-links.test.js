@@ -33,7 +33,7 @@ test('collapsed cursor uses editable placeholder and never erases adjacent text'
   const snapshot=preparePhiWriteLinkSelection(source,4,4);
   assert.equal(snapshot.label,'link text');
   const result=insertPhiWriteSafeLink(source,snapshot,snapshot.label,'http://example.org');
-  assert.equal(result.content,'See [link text](http://example.org/) .');
+  assert.equal(result.content,'See [link text](http://example.org/).');
   assert.equal(result.content.slice(result.selectionStart,result.selectionEnd),'link text');
 });
 

@@ -137,7 +137,7 @@ async function run() {
 
   // A second click with text still selected removes the same markup.
   formatButton('Code').click();
-  await waitFor(() => editor.value.endsWith('==epsilon== zeta'), 'Code toolbar toggle off');
+  await waitFor(() => editor.value.includes('==epsilon== zeta\n\nReference: field manual'), 'Code toolbar toggle off');
   await waitFor(() => editor.value.slice(editor.selectionStart, editor.selectionEnd) === 'zeta',
     'Code toggle-off selection restoration');
   formatButton('Code').click();

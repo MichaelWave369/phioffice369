@@ -61,9 +61,9 @@ test('nested syntax is rejected instead of advertising unsupported compound mark
 });
 
 test('a selected literal backtick is not wrapped in an invalid single-backtick code span', () => {
-  const source = 'paste `abc` now';
-  const from = source.indexOf('`');
-  const result = formatPhiWriteSelection(source, from, from + 5, 'code');
+  const source = 'paste a`b now';
+  const from = source.indexOf('a`b');
+  const result = formatPhiWriteSelection(source, from, from + 3, 'code');
   assert.equal(result.changed, false);
   assert.equal(result.reason, 'nested');
   assert.equal(result.content, source);

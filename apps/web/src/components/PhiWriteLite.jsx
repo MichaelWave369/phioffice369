@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Bold,
@@ -159,6 +159,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   const importInputRef = useRef(null);
   const docxImportRef = useRef(null);
   const editorRef = useRef(null);
+  const pendingSelectionRef = useRef(null);
   const savedDraft = useMemo(() => loadDraft(template), [template]);
   const [title, setTitle] = useState(savedDraft?.title ?? template.title);
   const [content, setContent] = useState(savedDraft?.content ?? makeStarterContent(template));
@@ -200,6 +201,19 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   const sectionCount = template.sections.length;
   const characterCount = content.length;
 
+  // Apply focus and selection immediately after React commits a controlled
+  // textarea update. Unlike requestAnimationFrame, this works consistently
+  // in headless Chromium and when a browser tab isn't painting.
+  useLayoutEffect(() => {
+    const pending = pendingSelectionRef.current;
+    if (!pending) return;
+    pendingSelectionRef.current = null;
+    const editor = editorRef.current;
+    if (!editor || editor !== pending.target || editor.value !== content) return;
+    editor.focus({ preventScroll: true });
+    editor.setSelectionRange(pending.selectionStart, pending.selectionEnd);
+  }, [content]);
+
   function applyInlineFormat(action, target = editorRef.current) {
     if (!target) return;
     const result = formatPhiWriteSelection(
@@ -212,14 +226,9 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
       target.focus();
       return;
     }
+    pendingSelectionRef.current = { target, selectionStart: result.selectionStart, selectionEnd: result.selectionEnd };
     setContent(result.content);
     setFormatStatus(PHIWRITE_FORMATS[action].label + ' applied locally. Select the text and apply it again to remove.');
-    // Let React commit the controlled textarea value before restoring selection.
-    window.requestAnimationFrame(() => {
-      if (editorRef.current !== target || !target.isConnected) return;
-      target.focus();
-      target.setSelectionRange(result.selectionStart, result.selectionEnd);
-    });
   }
 
   function handleEditorShortcut(event) {

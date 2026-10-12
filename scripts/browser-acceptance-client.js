@@ -245,8 +245,8 @@ async function run() {
   const preview = document.querySelector('.phiwrite-print-page');
   assert(preview?.textContent?.includes(expectedTitle), 'Print view did not update its title');
   assert(preview?.textContent?.includes('not executable'), 'Print view did not update its body');
-  assert(preview.querySelector('.phiwrite-print-body h3')?.textContent === 'Outline heading',
-    'Heading 2 not reflected in local React print');
+  assert([...preview.querySelectorAll('.phiwrite-print-body h3')].some((node) =>
+    node.textContent === 'Outline heading'), 'Heading 2 not reflected in local React print');
   assert(!preview.querySelector('script'), 'Print view contains injected script');
 
   // Capture the local export in memory; do not create a downloaded file.

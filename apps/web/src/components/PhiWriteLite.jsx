@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   Sparkles,
   Strikethrough,
+  Table2,
   Underline,
   Upload,
   Wand2,
@@ -39,6 +40,7 @@ import { preparePhiWriteLinkSelection, insertPhiWriteSafeLink } from '../lib/phi
 import { formatPhiWriteBlockSelection, PHIWRITE_BLOCK_ACTIONS } from '../lib/phiwriteEditorBlocks.js';
 import { formatPhiWriteSpecialBlock, PHIWRITE_SPECIAL_BLOCKS } from '../lib/phiwriteEditorSpecialBlocks.js';
 import { findPhiWriteMatches, choosePhiWriteMatch, replacePhiWriteMatch, replaceAllPhiWriteMatches, undoPhiWriteReplace } from '../lib/phiwriteFindReplace.js';
+import { preparePhiWriteTableInsertion, insertPhiWriteTable, PHIWRITE_TABLE_LIMITS } from '../lib/phiwriteEditorTables.js';
 import PhiWritePrintDocument from './PhiWritePrintDocument.jsx';
 import { saveLocalExportReceipt } from '../lib/localReceipts.js';
 import { createPhiWriteToPhiDeckPayload, getTransformIds } from '../lib/transformRegistry.js';
@@ -192,6 +194,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   const [findStatus, setFindStatus] = useState('Find literal text in this local document.');
   const [lastReplace, setLastReplace] = useState(null);
   const [linkDraft, setLinkDraft] = useState(null);
+  const [tableDraft, setTableDraft] = useState(null);
 
   const activeLabel = trustLabels.find((label) => label.id === activeLabelId) ?? trustLabels[0];
   const receipt = useMemo(() => createArtifactReceipt({
@@ -299,6 +302,101 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
     setLinkDraft(null);
     setContent(result.content);
     setFormatStatus(PHIWRITE_SPECIAL_BLOCKS[action].label + ' applied locally. Apply again to toggle off.');
+  }
+
+  function openTableComposer(target = editorRef.current) {
+    if (!target) return;
+    const snapshot = preparePhiWriteTableInsertion(
+      target.value, target.selectionStart, target.selectionEnd,
+    );
+    if (snapshot.reason) {
+      const reasons = {
+        selection: 'Place the cursor on an empty line without selecting other text.',
+        line: 'Place the cursor on a completely empty line to insert a new table.',
+        code: 'Cannot insert a table inside a fenced code block.',
+      };
+      setFormatStatus(reasons[snapshot.reason] ?? 'Unable to start table insertion.');
+      target.focus({ preventScroll: true });
+      return;
+    }
+    setTableDraft({
+      snapshot, headers: ['Column 1', 'Column 2'],
+      rows: [['', ''], ['', '']], error: '',
+    });
+    setFormatStatus('Review the table dimensions and cells, then select Insert table.');
+  }
+
+  function resizeTable(axis, size) {
+    setTableDraft((draft) => {
+      if (!draft) return draft;
+      if (axis === 'columns') {
+        const count = Math.max(PHIWRITE_TABLE_LIMITS.minColumns,
+          Math.min(PHIWRITE_TABLE_LIMITS.maxColumns, size));
+        return {
+          ...draft,
+          headers: Array.from({ length: count }, (_, index) => draft.headers[index] ?? 'Column ' + (index + 1)),
+          rows: draft.rows.map((row) =>
+            Array.from({ length: count }, (_, index) => row[index] ?? '')),
+          error: '',
+        };
+      }
+      const count = Math.max(PHIWRITE_TABLE_LIMITS.minRows,
+        Math.min(PHIWRITE_TABLE_LIMITS.maxRows, size));
+      return {
+        ...draft,
+        rows: Array.from({ length: count }, (_, index) =>
+          draft.rows[index] ?? Array(draft.headers.length).fill('')),
+        error: '',
+      };
+    });
+  }
+
+  function changeTableCell(rowIndex, columnIndex, nextValue) {
+    setTableDraft((draft) => {
+      if (!draft) return draft;
+      if (rowIndex === -1) {
+        const headers = [...draft.headers];
+        headers[columnIndex] = nextValue;
+        return { ...draft, headers, error: '' };
+      }
+      const rows = draft.rows.map((row) => [...row]);
+      rows[rowIndex][columnIndex] = nextValue;
+      return { ...draft, rows, error: '' };
+    });
+  }
+
+  function submitTableComposer(event) {
+    event.preventDefault();
+    if (!tableDraft) return;
+    const result = insertPhiWriteTable(
+      content, tableDraft.snapshot, tableDraft.headers, tableDraft.rows,
+    );
+    if (!result.changed) {
+      const reasons = {
+        stale: 'The document changed while the table was being reviewed. Close and select the insertion point again.',
+        line: 'Insert a table on an empty line only.',
+        code: 'A fenced code block cannot contain a table.',
+        shape: 'Table dimensions must be 2–8 columns and 1–12 body rows.',
+        cell: 'Cells must contain one line of text, at most 160 characters each.',
+      };
+      setTableDraft((draft) => draft ? {
+        ...draft, error: reasons[result.reason] ?? 'Table insertion was not permitted.',
+      } : null);
+      return;
+    }
+    pendingSelectionRef.current = {
+      target: editorRef.current, selectionStart: result.selectionStart,
+      selectionEnd: result.selectionEnd,
+    };
+    setContent(result.content);
+    setTableDraft(null);
+    setFormatStatus('Editable table inserted locally with an explicit header row.');
+  }
+
+  function cancelTableComposer() {
+    setTableDraft(null);
+    setFormatStatus('Table insertion cancelled. The document was not changed.');
+    editorRef.current?.focus({ preventScroll: true });
   }
 
   function openLinkComposer(target = editorRef.current) {
@@ -438,6 +536,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   function handleResetDraft() {
     setPendingDocxImport(null);
     setLinkDraft(null);
+    setTableDraft(null);
     setFindOpen(false);
     setLastReplace(null);
     setTitle(template.title);
@@ -811,7 +910,70 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
               onClick={() => applySpecialBlock('codeblock')}>
               <Code2 aria-hidden="true" /><span>Code block</span>
             </button>
+            <button type="button" className="phiwrite-format-action"
+              aria-label="Insert Table" aria-expanded={Boolean(tableDraft)}
+              aria-controls="phiwrite-table-composer" title="Insert an editable table at an empty line"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => openTableComposer()}>
+              <Table2 aria-hidden="true" /><span>Table</span>
+            </button>
           </div>
+          {tableDraft && (
+            <form className="phiwrite-table-composer" id="phiwrite-table-composer"
+              aria-label="Insert editable table" onSubmit={submitTableComposer}>
+              <div className="phiwrite-table-dimensions">
+                <label>Columns
+                  <select aria-label="Table columns" value={tableDraft.headers.length}
+                    onChange={(event) => resizeTable('columns', Number(event.target.value))}>
+                    {Array.from({ length: 7 }, (_, index) => index + 2).map((count) =>
+                      <option value={count} key={count}>{count}</option>)}
+                  </select>
+                </label>
+                <label>Body rows
+                  <select aria-label="Table body rows" value={tableDraft.rows.length}
+                    onChange={(event) => resizeTable('rows', Number(event.target.value))}>
+                    {Array.from({ length: 12 }, (_, index) => index + 1).map((count) =>
+                      <option value={count} key={count}>{count}</option>)}
+                  </select>
+                </label>
+              </div>
+              <p className="phiwrite-table-caption">First row is the header. Blank cells are allowed. All content remains local.</p>
+              <div className="phiwrite-table-grid-wrap">
+                <table className="phiwrite-table-grid">
+                  <thead>
+                    <tr>{tableDraft.headers.map((header, column) => (
+                      <th key={column}>
+                        <label>
+                          <span>Header {column + 1}</span>
+                          <input aria-label={'Table header ' + (column + 1)}
+                            maxLength={PHIWRITE_TABLE_LIMITS.maxCellLength} value={header}
+                            onChange={(event) => changeTableCell(-1, column, event.target.value)}/>
+                        </label>
+                      </th>
+                    ))}</tr>
+                  </thead>
+                  <tbody>{tableDraft.rows.map((row, index) => (
+                    <tr key={index}>{row.map((cell, column) => (
+                      <td key={column}>
+                        <label>
+                          <span>Row {index + 1}, column {column + 1}</span>
+                          <input aria-label={'Table row ' + (index + 1) + ' column ' + (column + 1)}
+                            maxLength={PHIWRITE_TABLE_LIMITS.maxCellLength} value={cell}
+                            onChange={(event) => changeTableCell(index, column, event.target.value)} />
+                        </label>
+                      </td>
+                    ))}</tr>
+                  ))}</tbody>
+                </table>
+              </div>
+              {tableDraft.error && <p role="alert" className="phiwrite-table-error">{tableDraft.error}</p>}
+              <div className="phiwrite-table-actions">
+                <button type="button" onClick={cancelTableComposer}>Cancel table</button>
+                <button type="submit">Insert table</button>
+              </div>
+              <small>Creates a simple 2–8 column table with 1–12 data rows. Merged cells, alignment and inline rich editing are not supported.</small>
+            </form>
+          )}
           <p className="phiwrite-format-help" role="status" aria-live="polite">{formatStatus}</p>
           <label className="editor-field"><span>Draft content</span>
             <textarea ref={editorRef} value={content}

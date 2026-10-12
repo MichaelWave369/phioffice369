@@ -68,7 +68,7 @@ test('multiline code block uses literal code, not nested Markdown formatting', (
   const result = formatPhiWriteSpecialBlock(source, 0, source.length, 'codeblock');
   assert.equal(result.content, '~~~\n' + source + '\n~~~');
   const html = renderPhiWritePrintBlocksHtml(parsePhiWritePrintBlocks(result.content));
-  assert.match(html, /<pre><code>const x = "&quot;\*\*not bold\*\*&quot;";\nconst y = 5;<\/code><\/pre>/);
+  assert.match(html, /<pre><code>const x = &quot;\*\*not bold\*\*&quot;;\nconst y = 5;<\/code><\/pre>/);
   assert.doesNotMatch(html, /<strong>/);
   const restored = formatPhiWriteSpecialBlock(result.content, result.selectionStart,
     result.selectionEnd, 'codeblock');

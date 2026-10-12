@@ -12,6 +12,7 @@ const expectedQuotedContent = expectedFinalContent.replace(
   'Evidence from technician', '> Evidence from technician');
 const expectedSpecialContent = expectedQuotedContent.replace(
   'const port = 42;', '~~~\nconst port = 42;\n~~~');
+const expectedAfterReplace = expectedSpecialContent.replaceAll('port', 'socket');
 
 function assert(condition, description) {
   if (!condition) throw new Error(description);
@@ -82,7 +83,7 @@ async function run() {
     const editor = await openPhiWrite();
     const title = document.querySelector('.title-field input');
     assert(title?.value === expectedTitle, 'Saved title was not restored after reload');
-    assert(editor.value === expectedSpecialContent, 'Saved document body was not restored after reload');
+    assert(editor.value === expectedAfterReplace, 'Saved document body was not restored after reload');
     const printable = document.querySelector('.phiwrite-print-page');
     assert(printable?.textContent?.includes(expectedTitle), 'Restored print view has wrong title');
     assert(printable?.textContent?.includes('not executable'), 'Restored print view lost content');
@@ -98,17 +99,17 @@ async function run() {
     assert([...printable.querySelectorAll('.phiwrite-print-body h3')].some((node) =>
       node.textContent === 'Outline heading'), 'Heading 2 toolbar output did not survive reload');
     assert([...printable.querySelectorAll('.phiwrite-print-body ul')].some((node) =>
-      node.textContent.includes('Inspect cable') && node.textContent.includes('Verify port')),
+      node.textContent.includes('Inspect cable') && node.textContent.includes('Verify socket')),
       'Bullet list toolbar output did not survive reload');
     assert([...printable.querySelectorAll('.phiwrite-print-body blockquote')].some((node) =>
       node.textContent.includes('Evidence from technician')),
       'Quote toolbar output did not survive reload');
     assert([...printable.querySelectorAll('.phiwrite-print-body pre code')].some((node) =>
-      node.textContent.includes('const port = 42;')),
+      node.textContent.includes('const socket = 42;')),
       'Code block toolbar output did not survive reload');
     const stored = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
     assert(stored?.title === expectedTitle, 'Persisted local draft missing title');
-    assert(stored?.content === expectedSpecialContent, 'Persisted local draft missing content');
+    assert(stored?.content === expectedAfterReplace, 'Persisted local draft missing content');
     sessionStorage.removeItem(phaseKey);
     publish('PASS', 'edit, autosave, HTML output, print control and reload/restore verified');
     return;
@@ -270,9 +271,85 @@ async function run() {
   await waitFor(() => document.querySelector('.phiwrite-format-help')?.textContent.includes('code fence'),
     'Protected fenced code did not explain the refusal');
 
+  // Literal local Find & Replace: case option, navigation, selected edit,
+  // verified undo, explicit Replace All, persisted reload and safe export.
+  editor.focus();
+  editor.setSelectionRange(0, 0);
+  editor.dispatchEvent(new KeyboardEvent('keydown', {
+    key: 'f', ctrlKey: true, bubbles: true, cancelable: true,
+  }));
+  const finder = await waitFor(() =>
+    document.querySelector('[aria-label="Find and replace in local draft"]'),
+    'Ctrl+F local Find & Replace');
+  const findActions = [...finder.querySelectorAll('.phiwrite-find-actions button')];
+  const findAction = (label) => findActions.find((button) =>
+    button.textContent?.trim() === label && !button.disabled);
+  changeInput(finder.querySelector('input[aria-label="Find literal text"]'), 'port');
+  await waitFor(() => finder.querySelector('.phiwrite-find-count')?.textContent.includes('2 matches'),
+    'Two literal port matches shown');
+  assert(editor.value === expectedSpecialContent, 'Opening Find mutated local document');
+
+  const next = findAction('Next'), previous = findAction('Previous');
+  assert(next && previous, 'Find match navigation buttons missing');
+  next.click();
+  await waitFor(() => editor.value.slice(editor.selectionStart, editor.selectionEnd) === 'port' &&
+    editor.selectionStart === expectedSpecialContent.indexOf('Verify port') + 'Verify '.length,
+    'Find Next selects first matching text');
+  next.click();
+  await waitFor(() => editor.value.slice(editor.selectionStart, editor.selectionEnd) === 'port' &&
+    editor.selectionStart === expectedSpecialContent.indexOf('const port') + 'const '.length,
+    'Find Next advances to second match');
+  previous.click();
+  await waitFor(() => editor.value.slice(editor.selectionStart, editor.selectionEnd) === 'port' &&
+    editor.selectionStart === expectedSpecialContent.indexOf('Verify port') + 'Verify '.length,
+    'Find Previous navigates backward');
+
+  const matchCaseInput = finder.querySelector('input[type="checkbox"]');
+  assert(matchCaseInput, 'Match case checkbox missing');
+  matchCaseInput.click();
+  await waitFor(() => finder.querySelector('.phiwrite-find-count')?.textContent.includes('2 matches'),
+    'Case-sensitive lowercase port matches');
+  changeInput(finder.querySelector('input[aria-label="Find literal text"]'), 'PORT');
+  await waitFor(() => finder.querySelector('.phiwrite-find-count')?.textContent.includes('0 matches'),
+    'Case-sensitive uppercase search has no hits');
+  matchCaseInput.click();
+  await waitFor(() => finder.querySelector('.phiwrite-find-count')?.textContent.includes('2 matches'),
+    'Case-insensitive uppercase search finds matches');
+
+  changeInput(finder.querySelector('input[aria-label="Replace with"]'), 'socket');
+  editor.focus();
+  editor.setSelectionRange(0, 0);
+  next.click();
+  await waitFor(() => editor.value.slice(editor.selectionStart, editor.selectionEnd) === 'port',
+    'Match selected before single replacement');
+  const selectedReplace = findAction('Replace selected');
+  assert(selectedReplace, 'Replace selected missing');
+  selectedReplace.click();
+  await waitFor(() => editor.value === expectedSpecialContent.replace('port', 'socket'),
+    'Single replacement modifies only selected match');
+  findAction('Undo Last Replace')?.click();
+  await waitFor(() => editor.value === expectedSpecialContent,
+    'Single replacement undo restores original source');
+
+  const replaceAll = findAction('Replace all (2)');
+  assert(replaceAll, 'Replace all count button missing');
+  replaceAll.click();
+  await waitFor(() => editor.value === expectedAfterReplace,
+    'Explicit Replace All updates both literal matches');
+  await waitFor(() => finder.querySelector('.phiwrite-find-count')?.textContent.includes('0 matches'),
+    'Replacements are reflected in find counter');
+  findAction('Undo Last Replace')?.click();
+  await waitFor(() => editor.value === expectedSpecialContent,
+    'Replace All undo restores original source');
+  await waitFor(() => Boolean(findAction('Replace all (2)')),
+    'Replace All becomes available again after undo');
+  findAction('Replace all (2)')?.click();
+  await waitFor(() => editor.value === expectedAfterReplace,
+    'Reapplying Replace All produces saved final document');
+
   await waitFor(() => {
     const stored = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
-    return stored?.title === expectedTitle && stored?.content === expectedSpecialContent;
+    return stored?.title === expectedTitle && stored?.content === expectedAfterReplace;
   }, 'PhiWrite local autosave');
 
   const preview = document.querySelector('.phiwrite-print-page');
@@ -281,7 +358,7 @@ async function run() {
   assert([...preview.querySelectorAll('.phiwrite-print-body blockquote')].some((node) =>
     node.textContent.includes('Evidence from technician')), 'Quote missing from live print');
   assert([...preview.querySelectorAll('.phiwrite-print-body pre code')].some((node) =>
-    node.textContent.includes('const port = 42;')), 'Code block missing from live print');
+    node.textContent.includes('const socket = 42;')), 'Code block missing from live print');
   assert([...preview.querySelectorAll('.phiwrite-print-body h3')].some((node) =>
     node.textContent === 'Outline heading'), 'Heading 2 not reflected in local React print');
   assert(!preview.querySelector('script'), 'Print view contains injected script');
@@ -317,11 +394,11 @@ async function run() {
   assert(html.includes('Trust label:'), 'Exported HTML is missing trust metadata');
   assert(html.includes('href="https://example.org/docs"'), 'Safe link lost from HTML export');
   assert(html.includes('<h3>Outline heading</h3>'), 'Heading 2 absent from exported HTML');
-  assert(html.includes('<li>Inspect cable</li>') && html.includes('<li>Verify port</li>'),
+  assert(html.includes('<li>Inspect cable</li>') && html.includes('<li>Verify socket</li>'),
     'Bullet list absent from exported HTML');
   assert(html.includes('<blockquote>Evidence from technician</blockquote>'),
     'Quote absent from exported HTML');
-  assert(html.includes('<pre><code>const port = 42;</code></pre>'),
+  assert(html.includes('<pre><code>const socket = 42;</code></pre>'),
     'Fenced literal code absent from exported HTML');
   assert(!html.includes('href="javascript:'), 'Unsafe link was introduced into HTML export');
 

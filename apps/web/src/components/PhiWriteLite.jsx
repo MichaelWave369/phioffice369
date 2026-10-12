@@ -5,12 +5,17 @@ import {
   Bot,
   Code2,
   Highlighter,
+  Heading1,
+  Heading2,
+  Heading3,
   Italic,
   ClipboardCopy,
   Download,
   FileText,
   Layers3,
   Link2,
+  List,
+  ListOrdered,
   Printer,
   ListChecks,
   RotateCcw,
@@ -28,6 +33,7 @@ import { buildPhiWriteDocx } from '../lib/docxExport.js';
 import { buildPhiWriteHtmlDocument } from '../lib/phiwritePrint.js';
 import { formatPhiWriteSelection, PHIWRITE_FORMATS, phiWriteShortcutForKey } from '../lib/phiwriteEditorFormatting.js';
 import { preparePhiWriteLinkSelection, insertPhiWriteSafeLink } from '../lib/phiwriteEditorLinks.js';
+import { formatPhiWriteBlockSelection, PHIWRITE_BLOCK_ACTIONS } from '../lib/phiwriteEditorBlocks.js';
 import PhiWritePrintDocument from './PhiWritePrintDocument.jsx';
 import { saveLocalExportReceipt } from '../lib/localReceipts.js';
 import { createPhiWriteToPhiDeckPayload, getTransformIds } from '../lib/transformRegistry.js';
@@ -232,6 +238,30 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
     pendingSelectionRef.current = { target, selectionStart: result.selectionStart, selectionEnd: result.selectionEnd };
     setContent(result.content);
     setFormatStatus(PHIWRITE_FORMATS[action].label + ' applied locally. Select the text and apply it again to remove.');
+  }
+
+  function applyBlockFormat(action, target = editorRef.current) {
+    if (!target) return;
+    const result = formatPhiWriteBlockSelection(
+      target.value, target.selectionStart, target.selectionEnd, action,
+    );
+    if (!result.changed) {
+      const reasons = {
+        multiline: 'Headings require a single paragraph. Select one line.',
+        blank: 'Paragraph tools need contiguous, nonempty lines (maximum 100).',
+        code: 'Fenced code is protected from paragraph formatting.',
+        structured: 'Tables, blockquotes and nested items need specialized editing.',
+      };
+      setFormatStatus(reasons[result.reason] ?? 'This paragraph structure cannot be formatted safely.');
+      target.focus();
+      return;
+    }
+    pendingSelectionRef.current = {
+      target, selectionStart: result.selectionStart, selectionEnd: result.selectionEnd,
+    };
+    setLinkDraft(null);
+    setContent(result.content);
+    setFormatStatus(PHIWRITE_BLOCK_ACTIONS[action].label + ' applied locally. Apply again to toggle off.');
   }
 
   function openLinkComposer(target = editorRef.current) {
@@ -588,6 +618,24 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
               <small>Only safe HTTP(S) links are supported. No file, script or data URLs.</small>
             </form>
           )}
+          <div className="phiwrite-formatting-toolbar phiwrite-block-toolbar"
+            role="toolbar" aria-label="PhiWrite paragraph formatting">
+            {[
+              { name: 'h1', Icon: Heading1 },
+              { name: 'h2', Icon: Heading2 },
+              { name: 'h3', Icon: Heading3 },
+              { name: 'bullet', Icon: List },
+              { name: 'numbered', Icon: ListOrdered },
+            ].map(({ name, Icon }) => (
+              <button key={name} type="button" className="phiwrite-format-action"
+                aria-label={PHIWRITE_BLOCK_ACTIONS[name].label}
+                title={PHIWRITE_BLOCK_ACTIONS[name].label}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => applyBlockFormat(name)}>
+                <Icon aria-hidden="true" /><span>{PHIWRITE_BLOCK_ACTIONS[name].label}</span>
+              </button>
+            ))}
+          </div>
           <p className="phiwrite-format-help" role="status" aria-live="polite">{formatStatus}</p>
           <label className="editor-field"><span>Draft content</span>
             <textarea ref={editorRef} value={content}

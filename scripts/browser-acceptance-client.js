@@ -3,8 +3,9 @@
 const phaseKey = '__phioffice369_acceptance_phase_v1';
 const storageKey = 'phioffice369:phiwrite:basic_project_spec';
 const expectedTitle = 'PhiOffice Browser Acceptance';
-const rawContent = '## Real Browser Check\n\nLocal autosave survives reload.\n\n<script>alert("not executable")</script>\n\nFormatting: alpha beta gamma delta epsilon zeta';
-const expectedContent = '## Real Browser Check\n\nLocal autosave survives reload.\n\n<script>alert("not executable")</script>\n\nFormatting: **alpha** *beta* ++gamma++ ~~delta~~ ==epsilon== `zeta`';
+const rawContent = '## Real Browser Check\n\nLocal autosave survives reload.\n\n<script>alert("not executable")</script>\n\nFormatting: alpha beta gamma delta epsilon zeta\n\nReference: field manual';
+const expectedFormatting = '## Real Browser Check\n\nLocal autosave survives reload.\n\n<script>alert("not executable")</script>\n\nFormatting: **alpha** *beta* ++gamma++ ~~delta~~ ==epsilon== `zeta`\n\nReference: field manual';
+const expectedContent = expectedFormatting.replace('field manual', '[field manual](https://example.org/docs)');
 
 function assert(condition, description) {
   if (!condition) throw new Error(description);
@@ -86,6 +87,8 @@ async function run() {
     assert(printable.querySelector('del')?.textContent === 'delta', 'Strikethrough toolbar formatting not preserved on reload');
     assert(printable.querySelector('mark')?.textContent === 'epsilon', 'Highlight toolbar formatting not preserved on reload');
     assert(printable.querySelector('code')?.textContent === 'zeta', 'Code toolbar formatting not preserved on reload');
+    assert(printable.querySelector('a[href="https://example.org/docs"]')?.textContent === 'field manual',
+      'Safe external link not present in React print after reload');
     const stored = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
     assert(stored?.title === expectedTitle, 'Persisted local draft missing title');
     assert(stored?.content === expectedContent, 'Persisted local draft missing content');
@@ -130,7 +133,7 @@ async function run() {
   await formatWord('delta', 'Strikethrough');
   await formatWord('epsilon', 'Highlight');
   await formatWord('zeta', 'Code');
-  assert(editor.value === expectedContent, 'Formatting toolbar produced incorrect Markdown');
+  assert(editor.value === expectedFormatting, 'Formatting toolbar produced incorrect Markdown');
 
   // A second click with text still selected removes the same markup.
   formatButton('Code').click();
@@ -138,9 +141,51 @@ async function run() {
   await waitFor(() => editor.value.slice(editor.selectionStart, editor.selectionEnd) === 'zeta',
     'Code toggle-off selection restoration');
   formatButton('Code').click();
-  await waitFor(() => editor.value === expectedContent, 'Code toolbar toggle back on');
+  await waitFor(() => editor.value === expectedFormatting, 'Code toolbar toggle back on');
   await waitFor(() => editor.value.slice(editor.selectionStart, editor.selectionEnd) === 'zeta',
     'Code toggle-on selection restoration');
+
+  // Review a prospective hyperlink without modifying the active draft.
+  const linkWord = 'field manual';
+  const linkStart = editor.value.indexOf(linkWord);
+  editor.focus();
+  editor.setSelectionRange(linkStart, linkStart + linkWord.length);
+  const insertLink = await waitFor(() => findButton('Link'), 'Insert Link toolbar action');
+  insertLink.click();
+  const linkForm = await waitFor(() =>
+    document.querySelector('form[aria-label="Insert safe external link"]'), 'Link review panel');
+  assert(linkForm.querySelector('input[aria-label="Link text"]')?.value === linkWord,
+    'Selected text did not initialize the link label');
+  assert(editor.value === expectedFormatting, 'Opening link review mutated the draft');
+  changeInput(linkForm.querySelector('input[aria-label="HTTP(S) address"]'), 'javascript:alert(1)');
+  findButton('Insert link')?.click();
+  await waitFor(() => linkForm.querySelector('[role="alert"]')?.textContent.includes('valid HTTP(S)'),
+    'Unsafe link was not rejected with a visible explanation');
+  assert(editor.value === expectedFormatting, 'Unsafe URL changed the draft');
+  findButton('Cancel link')?.click();
+  await waitFor(() => !document.querySelector('form[aria-label="Insert safe external link"]'),
+    'Link cancellation');
+  assert(editor.value === expectedFormatting, 'Cancel link changed the document');
+
+  // Ctrl+K must restore the selected label as a safe HTTPS hyperlink.
+  editor.focus();
+  editor.setSelectionRange(linkStart, linkStart + linkWord.length);
+  editor.dispatchEvent(new KeyboardEvent('keydown', {
+    bubbles: true, cancelable: true, ctrlKey: true, key: 'k',
+  }));
+  const approved = await waitFor(() =>
+    document.querySelector('form[aria-label="Insert safe external link"]'),
+    'Ctrl+K link editor');
+  assert(approved.querySelector('input[aria-label="Link text"]')?.value === linkWord,
+    'Ctrl+K did not preserve selection');
+  changeInput(approved.querySelector('input[aria-label="HTTP(S) address"]'), 'https://example.org/docs');
+  findButton('Insert link')?.click();
+  await waitFor(() => editor.value === expectedContent, 'Approved link insertion');
+  await waitFor(() => document.activeElement === editor &&
+    editor.value.slice(editor.selectionStart, editor.selectionEnd) === linkWord,
+    'Approved link selection restored');
+  await waitFor(() => document.querySelector('.phiwrite-print-body a[href="https://example.org/docs"]')
+      ?.textContent === linkWord, 'Safe link visible in React print');
 
   // Reject multiline selections and preserve the working draft.
   editor.setSelectionRange(0, editor.value.indexOf('Local'));
@@ -188,6 +233,8 @@ async function run() {
   assert(html.includes('&lt;script&gt;alert'), 'Exported HTML did not escape user script');
   assert(!html.includes('<script>alert'), 'Exported HTML contains executable user script');
   assert(html.includes('Trust label:'), 'Exported HTML is missing trust metadata');
+  assert(html.includes('href="https://example.org/docs"'), 'Safe link lost from HTML export');
+  assert(!html.includes('href="javascript:'), 'Unsafe link was introduced into HTML export');
 
   let printCalled = false;
   const originalPrint = window.print;

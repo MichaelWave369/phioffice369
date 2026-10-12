@@ -136,7 +136,7 @@ async function runGrid() {
   // review panel and later confirmation/persistence before marking PASS.
   async function uploadCsvAndReview(label) {
     for (let attempt = 0; attempt < 2; attempt += 1) {
-      upload(chooser, label + '-' + attempt + '.csv', validCsv, 'text/csv');
+      upload(chooser, label + '.csv', validCsv, 'text/csv');
       try {
         await waitFor(() => document.querySelector('.grid-import-preview'),
           'PhiGrid import preview ' + label + ' attempt ' + (attempt + 1), 7000);

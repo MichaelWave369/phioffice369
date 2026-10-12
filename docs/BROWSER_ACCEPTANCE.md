@@ -24,6 +24,8 @@ Each scenario runs against the compiled Vite app with a **separate disposable Ch
 - Closes first-run onboarding, enters Templates, and opens the Basic Project Spec in PhiWrite.
 - Updates the document title and body via actual browser input events.
 - Uses the PhiWrite inline-formatting toolbar and Ctrl/Cmd+B, I, U shortcuts on actual textarea selections; verifies bold, italic, underline, strikethrough, highlight and code, selection restoration, toggle removal/reapplication, and rejection of multiline selections.
+- Reviews selected link text without changing the working draft; rejects a script-scheme URL with visible feedback, cancels safely, then inserts an HTTPS hyperlink via Ctrl/Cmd+K.
+- Verifies the approved Markdown link reaches local autosave, HTML export, semantic print rendering, and survives reload, with no unsafe href.
 - Verifies the resulting Markdown markup is saved and the semantic print nodes survive reload.
 - Verifies the updated values reach browser-local autosave storage.
 - Verifies the safe document print component updates from the actual editor.

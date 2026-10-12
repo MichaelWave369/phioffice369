@@ -3,7 +3,8 @@
 const phaseKey = '__phioffice369_acceptance_phase_v1';
 const storageKey = 'phioffice369:phiwrite:basic_project_spec';
 const expectedTitle = 'PhiOffice Browser Acceptance';
-const expectedContent = '## Real Browser Check\n\nLocal autosave survives reload.\n\n<script>alert("not executable")</script>';
+const rawContent = '## Real Browser Check\n\nLocal autosave survives reload.\n\n<script>alert("not executable")</script>\n\nFormatting: alpha beta gamma delta epsilon zeta';
+const expectedContent = '## Real Browser Check\n\nLocal autosave survives reload.\n\n<script>alert("not executable")</script>\n\nFormatting: **alpha** *beta* ++gamma++ ~~delta~~ ==epsilon== `zeta`';
 
 function assert(condition, description) {
   if (!condition) throw new Error(description);
@@ -79,6 +80,12 @@ async function run() {
     assert(printable?.textContent?.includes(expectedTitle), 'Restored print view has wrong title');
     assert(printable?.textContent?.includes('not executable'), 'Restored print view lost content');
     assert(!printable.querySelector('script'), 'User text executed as a script in print view');
+    assert(printable.querySelector('strong')?.textContent === 'alpha', 'Bold toolbar formatting not preserved on reload');
+    assert(printable.querySelector('em')?.textContent === 'beta', 'Italic toolbar formatting not preserved on reload');
+    assert(printable.querySelector('u')?.textContent === 'gamma', 'Underline toolbar formatting not preserved on reload');
+    assert(printable.querySelector('del')?.textContent === 'delta', 'Strikethrough toolbar formatting not preserved on reload');
+    assert(printable.querySelector('mark')?.textContent === 'epsilon', 'Highlight toolbar formatting not preserved on reload');
+    assert(printable.querySelector('code')?.textContent === 'zeta', 'Code toolbar formatting not preserved on reload');
     const stored = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
     assert(stored?.title === expectedTitle, 'Persisted local draft missing title');
     assert(stored?.content === expectedContent, 'Persisted local draft missing content');
@@ -87,9 +94,60 @@ async function run() {
     return;
   }
 
-  await openPhiWrite();
+  const editor = await openPhiWrite();
   changeInput(document.querySelector('.title-field input'), expectedTitle);
-  changeInput(document.querySelector('.editor-field textarea'), expectedContent);
+  changeInput(editor, rawContent);
+
+  const toolbar = await waitFor(() => document.querySelector('[role="toolbar"][aria-label="PhiWrite text formatting"]'),
+    'PhiWrite formatting toolbar');
+  const formatButton = (label) => [...toolbar.querySelectorAll('button')].find((btn) =>
+    btn.getAttribute('aria-label')?.startsWith(label));
+  async function formatWord(word, buttonLabel, shortcutKey = null) {
+    const start = editor.value.lastIndexOf('Formatting:') + editor.value.split('Formatting:')[1].indexOf(word) + 'Formatting:'.length;
+    assert(editor.value.slice(start, start + word.length) === word, 'Could not locate ' + word);
+    editor.focus();
+    editor.setSelectionRange(start, start + word.length);
+    if (shortcutKey) {
+      editor.dispatchEvent(new KeyboardEvent('keydown', {
+        bubbles: true, cancelable: true, ctrlKey: true, key: shortcutKey,
+      }));
+    } else {
+      const button = formatButton(buttonLabel);
+      assert(button, 'Missing format button ' + buttonLabel);
+      button.click();
+    }
+    const marker = { Bold: '**', Italic: '*', Underline: '++',
+      Strikethrough: '~~', Highlight: '==', Code: '`' }[buttonLabel];
+    await waitFor(() => editor.value.includes(marker + word + marker),
+      'Formatting applied to ' + word);
+    await waitFor(() => document.activeElement === editor &&
+      editor.value.slice(editor.selectionStart, editor.selectionEnd) === word,
+      'Formatting focus and selection restoration for ' + word);
+  }
+  await formatWord('alpha', 'Bold', 'b');
+  await formatWord('beta', 'Italic', 'i');
+  await formatWord('gamma', 'Underline', 'u');
+  await formatWord('delta', 'Strikethrough');
+  await formatWord('epsilon', 'Highlight');
+  await formatWord('zeta', 'Code');
+  assert(editor.value === expectedContent, 'Formatting toolbar produced incorrect Markdown');
+
+  // A second click with text still selected removes the same markup.
+  formatButton('Code').click();
+  await waitFor(() => editor.value.endsWith('==epsilon== zeta'), 'Code toolbar toggle off');
+  await waitFor(() => editor.value.slice(editor.selectionStart, editor.selectionEnd) === 'zeta',
+    'Code toggle-off selection restoration');
+  formatButton('Code').click();
+  await waitFor(() => editor.value === expectedContent, 'Code toolbar toggle back on');
+  await waitFor(() => editor.value.slice(editor.selectionStart, editor.selectionEnd) === 'zeta',
+    'Code toggle-on selection restoration');
+
+  // Reject multiline selections and preserve the working draft.
+  editor.setSelectionRange(0, editor.value.indexOf('Local'));
+  formatButton('Highlight').click();
+  assert(editor.value === expectedContent, 'Multiline selection was unexpectedly changed');
+  await waitFor(() => document.querySelector('.phiwrite-format-help')?.textContent.includes('single-line'),
+    'Multiline selection did not explain the limit');
 
   await waitFor(() => {
     const stored = JSON.parse(localStorage.getItem(storageKey) ?? 'null');

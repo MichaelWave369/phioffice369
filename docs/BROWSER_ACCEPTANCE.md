@@ -23,6 +23,8 @@ Each scenario runs against the compiled Vite app with a **separate disposable Ch
 - A disposable Chromium profile loads the compiled `/phioffice369/` app from a temporary localhost HTTP server.
 - Closes first-run onboarding, enters Templates, and opens the Basic Project Spec in PhiWrite.
 - Updates the document title and body via actual browser input events.
+- Uses the PhiWrite inline-formatting toolbar and Ctrl/Cmd+B, I, U shortcuts on actual textarea selections; verifies bold, italic, underline, strikethrough, highlight and code, selection restoration, toggle removal/reapplication, and rejection of multiline selections.
+- Verifies the resulting Markdown markup is saved and the semantic print nodes survive reload.
 - Verifies the updated values reach browser-local autosave storage.
 - Verifies the safe document print component updates from the actual editor.
 - Clicks Export HTML, captures the Blob in memory, and checks its filename, HTML escaping and trust metadata.

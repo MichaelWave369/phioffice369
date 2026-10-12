@@ -230,14 +230,27 @@ async function runDeck() {
     title: finalTitle,
     slides: [{ id: 'fixture-slide', title: 'Imported slide', bullets: ['Verified locally'] }],
   };
-  upload(document.querySelector('.deck-file-input'), 'valid.json', JSON.stringify(payload), 'application/json');
-  // File.text(), React state updates and debounced localStorage writes are
-  // independently asynchronous. Assert the visible import before persistence,
-  // rather than attributing an input/event race to a failed autosave.
-  await waitFor(() => document.querySelector('.deck-title-field input')?.value === finalTitle &&
-    document.querySelector('.deck-slide-editor input')?.value === 'Imported slide',
-    'PhiDeck imported JSON visible; status=' +
-      document.querySelector('.deck-save-status')?.textContent, 12000);
+  // Headless Chromium occasionally stalls its first synthetic File.text()
+  // resolve. Retry the same local fixture once as a second user file-choice,
+  // but still require visible content AND persisted state before PASS.
+  const deckChooser = await waitFor(() => document.querySelector('.deck-file-input'),
+    'PhiDeck native file chooser');
+  let importVisible = false;
+  for (let attempt = 0; attempt < 2 && !importVisible; attempt += 1) {
+    upload(deckChooser, 'valid-' + attempt + '.json', JSON.stringify(payload), 'application/json');
+    try {
+      await waitFor(() => document.querySelector('.deck-title-field input')?.value === finalTitle &&
+        document.querySelector('.deck-slide-editor input')?.value === 'Imported slide',
+        'PhiDeck JSON import visible, attempt ' + (attempt + 1), 6500);
+      importVisible = true;
+    } catch (error) {
+      if (attempt === 1) {
+        throw new Error(error.message + '; status=' +
+          document.querySelector('.deck-save-status')?.textContent +
+          '; selected input=' + deckChooser.value);
+      }
+    }
+  }
   await waitFor(() => {
     const deck = stored(key);
     return deck?.title === finalTitle &&

@@ -116,7 +116,9 @@ async function run() {
       assert(button, 'Missing format button ' + buttonLabel);
       button.click();
     }
-    await waitFor(() => editor.value !== rawContent && editor.value.includes(word),
+    const marker = { Bold: '**', Italic: '*', Underline: '++',
+      Strikethrough: '~~', Highlight: '==', Code: '`' }[buttonLabel];
+    await waitFor(() => editor.value.includes(marker + word + marker),
       'Formatting applied to ' + word);
     await new Promise((resolve) => requestAnimationFrame(resolve));
     assert(document.activeElement === editor, 'Toolbar failed to restore focus to editor');

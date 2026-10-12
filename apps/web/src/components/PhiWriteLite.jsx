@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
+  Bold,
   Bot,
+  Code2,
+  Highlighter,
+  Italic,
   ClipboardCopy,
   Download,
   FileText,
@@ -11,6 +15,8 @@ import {
   RotateCcw,
   ShieldCheck,
   Sparkles,
+  Strikethrough,
+  Underline,
   Upload,
   Wand2,
 } from 'lucide-react';
@@ -19,6 +25,7 @@ import { parseMarkdownImport } from '../lib/localImporters.js';
 import { previewDocxFile } from '../lib/docxImport.js';
 import { buildPhiWriteDocx } from '../lib/docxExport.js';
 import { buildPhiWriteHtmlDocument } from '../lib/phiwritePrint.js';
+import { formatPhiWriteSelection, PHIWRITE_FORMATS, phiWriteShortcutForKey } from '../lib/phiwriteEditorFormatting.js';
 import PhiWritePrintDocument from './PhiWritePrintDocument.jsx';
 import { saveLocalExportReceipt } from '../lib/localReceipts.js';
 import { createPhiWriteToPhiDeckPayload, getTransformIds } from '../lib/transformRegistry.js';
@@ -151,6 +158,7 @@ function getPacketExportMime(packet) {
 export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   const importInputRef = useRef(null);
   const docxImportRef = useRef(null);
+  const editorRef = useRef(null);
   const savedDraft = useMemo(() => loadDraft(template), [template]);
   const [title, setTitle] = useState(savedDraft?.title ?? template.title);
   const [content, setContent] = useState(savedDraft?.content ?? makeStarterContent(template));
@@ -161,6 +169,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   const [deckSlides, setDeckSlides] = useState([]);
   const [transformSet, setTransformSet] = useState(null);
   const [pendingDocxImport, setPendingDocxImport] = useState(null);
+  const [formatStatus, setFormatStatus] = useState('Select text to format, or insert a placeholder.');
 
   const activeLabel = trustLabels.find((label) => label.id === activeLabelId) ?? trustLabels[0];
   const receipt = useMemo(() => createArtifactReceipt({
@@ -190,6 +199,35 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
   const sectionCount = template.sections.length;
   const characterCount = content.length;
+
+  function applyInlineFormat(action, target = editorRef.current) {
+    if (!target) return;
+    const result = formatPhiWriteSelection(
+      target.value, target.selectionStart, target.selectionEnd, action,
+    );
+    if (!result.changed) {
+      setFormatStatus(result.reason === 'multiline'
+        ? 'Inline formatting requires a single-line selection.'
+        : 'Nested or conflicting inline styles are unsupported. Select plain text.');
+      target.focus();
+      return;
+    }
+    setContent(result.content);
+    setFormatStatus(PHIWRITE_FORMATS[action].label + ' applied locally. Select the text and apply it again to remove.');
+    // Let React commit the controlled textarea value before restoring selection.
+    window.requestAnimationFrame(() => {
+      if (editorRef.current !== target || !target.isConnected) return;
+      target.focus();
+      target.setSelectionRange(result.selectionStart, result.selectionEnd);
+    });
+  }
+
+  function handleEditorShortcut(event) {
+    const action = phiWriteShortcutForKey(event);
+    if (!action || event.isComposing) return;
+    event.preventDefault();
+    applyInlineFormat(action, event.currentTarget);
+  }
 
   function appendAssistantBlock(label, block) {
     setContent((current) => `${current.trim()}\n\n${block.trim()}\n`);
@@ -442,7 +480,34 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
           <div className="assistant-actions"><button type="button" onClick={() => handleAssistantAction('draft')}><Sparkles aria-hidden="true" /> Draft Section</button><button type="button" onClick={() => handleAssistantAction('polish')}><Wand2 aria-hidden="true" /> Light Polish</button><button type="button" onClick={() => handleAssistantAction('summary')}><ListChecks aria-hidden="true" /> Summarize</button><button type="button" onClick={() => handleAssistantAction('claim-check')}><ShieldCheck aria-hidden="true" /> Claim-check</button><button type="button" onClick={() => handleAssistantAction('deck')}><FileText aria-hidden="true" /> Deck Outline</button><button type="button" onClick={handleGenerateTransformPreview}><Layers3 aria-hidden="true" /> v0.2 Transform Preview</button></div>
         </aside>
 
-        <section className="panel editor-panel"><label className="title-field"><span>Artifact title</span><input value={title} onChange={(event) => setTitle(event.target.value)} /></label><label className="editor-field"><span>Draft content</span><textarea value={content} onChange={(event) => setContent(event.target.value)} spellCheck="true" /></label></section>
+        <section className="panel editor-panel">
+          <label className="title-field"><span>Artifact title</span><input value={title} onChange={(event) => setTitle(event.target.value)} /></label>
+          <div className="phiwrite-formatting-toolbar" role="toolbar" aria-label="PhiWrite text formatting">
+            {[
+              { name: 'bold', Icon: Bold, shortcut: 'Ctrl/Cmd+B' },
+              { name: 'italic', Icon: Italic, shortcut: 'Ctrl/Cmd+I' },
+              { name: 'underline', Icon: Underline, shortcut: 'Ctrl/Cmd+U' },
+              { name: 'strike', Icon: Strikethrough },
+              { name: 'highlight', Icon: Highlighter },
+              { name: 'code', Icon: Code2 },
+            ].map(({ name, Icon, shortcut }) => (
+              <button key={name} type="button" className="phiwrite-format-action"
+                aria-label={PHIWRITE_FORMATS[name].label + (shortcut ? ' (' + shortcut + ')' : '')}
+                title={PHIWRITE_FORMATS[name].label + (shortcut ? ' · ' + shortcut : '')}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => applyInlineFormat(name)}>
+                <Icon aria-hidden="true" />
+                <span>{PHIWRITE_FORMATS[name].label}</span>
+              </button>
+            ))}
+          </div>
+          <p className="phiwrite-format-help" role="status" aria-live="polite">{formatStatus}</p>
+          <label className="editor-field"><span>Draft content</span>
+            <textarea ref={editorRef} value={content}
+              onChange={(event) => { setContent(event.target.value); setFormatStatus('Select text to format, or insert a placeholder.'); }}
+              onKeyDown={handleEditorShortcut} spellCheck="true" />
+          </label>
+        </section>
 
         <aside className="panel trust-dock">
           <ShieldCheck aria-hidden="true" />

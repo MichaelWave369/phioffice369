@@ -10,6 +10,7 @@ import {
   removeStorageValue,
   writeStorageJson,
 } from '../lib/workspaceStorageAccess.js';
+import { persistDraftSnapshot } from '../lib/draftPersistence.js';
 import './PhiDeckLite.css';
 
 function slugify(value) {
@@ -102,23 +103,34 @@ export default function PhiDeckLite({ template, onBack, initialDeck = null }) {
     transformations: getTransformIds([transformId]),
   }), [activeLabelId, template, title, transformId]);
 
+  function getDraftSnapshot() {
+    return { templateId: template.id, title, slides, activeLabelId, transformId, transformTrace: initialDeck?.trace ?? null };
+  }
+
   useEffect(() => {
-    if (!canUseBrowserLocalStorage()) return undefined;
     setSaveStatus('Unsaved changes...');
     const timeout = window.setTimeout(() => {
-      writeStorageJson(createPhiDeckStorageKey(template.id), {
-        templateId: template.id,
-        title,
-        slides,
-        activeLabelId,
-        transformId,
-        transformTrace: initialDeck?.trace ?? null,
-        updatedAt: new Date().toISOString(),
-      });
-      setSaveStatus('Autosaved locally');
+      const result = persistDraftSnapshot(createPhiDeckStorageKey(template.id), getDraftSnapshot());
+      setSaveStatus(result.ok ? 'Autosaved locally' : result.message);
     }, 450);
     return () => window.clearTimeout(timeout);
   }, [activeLabelId, initialDeck, slides, template.id, title, transformId]);
+
+  // A refresh or tab close must not discard a recent edit still waiting for debounce.
+  useEffect(() => {
+    const flush = () => persistDraftSnapshot(createPhiDeckStorageKey(template.id), getDraftSnapshot());
+    window.addEventListener('pagehide', flush);
+    return () => window.removeEventListener('pagehide', flush);
+  }, [activeLabelId, initialDeck, slides, template.id, title, transformId]);
+
+  function backToPhiOffice() {
+    const result = persistDraftSnapshot(createPhiDeckStorageKey(template.id), getDraftSnapshot());
+    if (!result.ok) {
+      setSaveStatus(result.message);
+      return;
+    }
+    onBack();
+  }
 
   function updateActiveSlideTitle(value) {
     setSlides((currentSlides) => currentSlides.map((slide) => (slide.id === activeSlide.id ? { ...slide, title: value } : slide)));
@@ -222,7 +234,7 @@ export default function PhiDeckLite({ template, onBack, initialDeck = null }) {
   return (
     <section className="phideck-workspace fade-in">
       <div className="deck-topbar panel">
-        <button className="deck-ghost-button" type="button" onClick={onBack}><ArrowLeft aria-hidden="true" /> Back to templates</button>
+        <button className="deck-ghost-button" type="button" onClick={backToPhiOffice}><ArrowLeft aria-hidden="true" /> Back to PhiOffice</button>
         <div>
           <p className="eyebrow">PhiDeck-lite</p>
           <h2>{template.title}</h2>

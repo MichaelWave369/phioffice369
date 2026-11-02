@@ -141,6 +141,7 @@ export default function App() {
   const [query, setQuery] = useState('');
   const [templateQuery, setTemplateQuery] = useState('');
   const [selectedApp, setSelectedApp] = useState(apps[0]);
+  const [suiteTemplateId, setSuiteTemplateId] = useState('');
   const [selectedTrustLabel, setSelectedTrustLabel] = useState(trustLabels[0]);
   const [selectedTemplate, setSelectedTemplate] = useState(starterTemplates[0]);
   const [selectedMode, setSelectedMode] = useState(professorPhiModes[0]);
@@ -159,6 +160,12 @@ export default function App() {
     return starterTemplates.filter((template) => `${template.title} ${template.app} ${template.purpose} ${template.sections.join(' ')}`.toLowerCase().includes(needle));
   }, [templateQuery]);
 
+  const suiteTemplates = useMemo(
+    () => starterTemplates.filter((template) => template.app === selectedApp.name),
+    [selectedApp],
+  );
+  const suiteTemplate = suiteTemplates.find((template) => template.id === suiteTemplateId) ?? suiteTemplates[0];
+
   const receiptPreview = useMemo(() => createArtifactReceipt({
     artifactId: selectedTemplate.id,
     title: selectedTemplate.title,
@@ -166,6 +173,15 @@ export default function App() {
     labels: selectedTemplate.trustDefaults,
     transformations: ['template_to_artifact_preview'],
   }), [selectedTemplate]);
+
+  function openSelectedApp() {
+    if (selectedApp.name === 'PhiVault' || selectedApp.name === 'Professor Phi') {
+      setActiveTab(selectedApp.name === 'PhiVault' ? 'Vault' : 'Professor Phi');
+      return;
+    }
+    if (!suiteTemplate) return;
+    setActiveWorkspace({ kind: getWorkspaceKind(suiteTemplate), template: suiteTemplate });
+  }
 
   function openBridgeDeck(deckPayload) {
     setActiveWorkspace({ kind: 'deck', template: createBridgeDeckTemplate(deckPayload), initialDeck: deckPayload });
@@ -248,7 +264,27 @@ export default function App() {
         <section className="section-block fade-in">
           <div className="section-heading split-heading"><div><p className="eyebrow">Core apps</p><h2>Build once. Transform ethically. Work sovereign.</h2></div><label className="search-box"><Search aria-hidden="true" /><input ref={suiteSearchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search apps, roles, workflows..." /></label></div>
           <div className="app-grid">{filteredApps.map((app) => <AppCard key={app.name} app={app} isSelected={selectedApp.name === app.name} onSelect={() => setSelectedApp(app)} />)}</div>
-          <aside className="detail-panel panel"><p className="eyebrow">Selected app</p><h2>{selectedApp.name}</h2><p>{selectedApp.detail}</p><div className="metadata-row"><span>{selectedApp.category}</span><span>{getAppReadinessBadge(selectedApp)}</span></div><p className="note">{getAppReadinessMessage(selectedApp)}</p></aside>
+          <aside className="detail-panel panel">
+            <p className="eyebrow">Selected app</p><h2>{selectedApp.name}</h2><p>{selectedApp.detail}</p>
+            <div className="metadata-row"><span>{selectedApp.category}</span><span>{getAppReadinessBadge(selectedApp)}</span></div>
+            <p className="note">{getAppReadinessMessage(selectedApp)}</p>
+            {suiteTemplate && (
+              <div className="suite-launch-controls">
+                <label htmlFor="suite-template-picker">Choose a starter template</label>
+                <select id="suite-template-picker" className="suite-template-picker" value={suiteTemplate.id}
+                  onChange={(event) => setSuiteTemplateId(event.target.value)}>
+                  {suiteTemplates.map((template) => <option key={template.id} value={template.id}>{template.title}</option>)}
+                </select>
+                <p className="note">Opening a template resumes its saved draft in this browser. Export a backup before clearing browser data.</p>
+                <button className="open-workspace-button" type="button" onClick={openSelectedApp}>
+                  Open {selectedApp.name}
+                </button>
+              </div>
+            )}
+            {(selectedApp.name === 'PhiVault' || selectedApp.name === 'Professor Phi') && (
+              <button className="open-workspace-button" type="button" onClick={openSelectedApp}>Open {selectedApp.name}</button>
+            )}
+          </aside>
         </section>
       )}
 

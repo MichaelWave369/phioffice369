@@ -56,6 +56,27 @@ async function openTemplate(templateName, openLabel, editorSelector) {
   return waitFor(() => document.querySelector(editorSelector), 'editor: ' + editorSelector);
 }
 
+async function openFromSuite(appName, templateTitle, editorSelector) {
+  const tabs = await waitFor(() => document.querySelector('nav.tabs'), 'suite tabs');
+  await sleep(100);
+  document.querySelector('button[aria-label="Close onboarding"]')?.click();
+  const suite = [...tabs.querySelectorAll('button')].find((button) => button.textContent.trim() === 'Suite');
+  assert(suite, 'Suite tab missing');
+  suite.click();
+  const card = await waitFor(() => [...document.querySelectorAll('.app-card')].find(
+    (button) => button.querySelector('.app-name')?.textContent === appName,
+  ), 'Suite card ' + appName);
+  card.click();
+  const picker = await waitFor(() => document.querySelector('#suite-template-picker'), 'Suite template picker');
+  const option = [...picker.options].find((item) => item.textContent === templateTitle);
+  assert(option, 'Suite template missing: ' + templateTitle);
+  picker.value = option.value;
+  picker.dispatchEvent(new Event('change', { bubbles: true }));
+  const open = await waitFor(() => findButton('Open ' + appName), 'Suite open ' + appName);
+  open.click();
+  return waitFor(() => document.querySelector(editorSelector), 'Suite opened editor: ' + editorSelector);
+}
+
 function stored(key) {
   return JSON.parse(localStorage.getItem(key) ?? 'null');
 }
@@ -106,7 +127,17 @@ async function runGrid() {
     return 'PhiGrid edit, autosave, CSV/JSON export, safe import review, cancel, confirm and reload';
   }
 
+  await openFromSuite('PhiGrid', 'Simple Family Budget', '.grid-title-field input');
+  edit(document.querySelector('.grid-title-field input'), 'PhiGrid quick exit checkpoint');
+  await sleep(75); // Must be shorter than the 450 ms autosave debounce.
+  const gridBack = findButton('Back to PhiOffice');
+  assert(gridBack, 'Safe PhiGrid back action missing');
+  gridBack.click();
+  await waitFor(() => document.querySelector('nav.tabs'), 'PhiGrid returned to Suite');
+  assert(stored(key)?.title === 'PhiGrid quick exit checkpoint', 'PhiGrid quick exit discarded a pending change');
   await openTemplate('Simple Family Budget', 'Open in PhiGrid-lite', '.grid-title-field input');
+  assert(document.querySelector('.grid-title-field input')?.value === 'PhiGrid quick exit checkpoint',
+    'PhiGrid quick exit not restored in editor');
   edit(document.querySelector('.grid-title-field input'), 'Grid before import');
   const firstRow = document.querySelectorAll('.table-wrap tbody tr')[0];
   assert(firstRow, 'No editable grid row');
@@ -217,7 +248,17 @@ async function runDeck() {
     return 'PhiDeck edit, add, autosave, JSON export, JSON import and reload';
   }
 
+  await openFromSuite('PhiDeck', 'Pitch Deck Outline', '.deck-title-field input');
+  edit(document.querySelector('.deck-title-field input'), 'PhiDeck quick exit checkpoint');
+  await sleep(75);
+  const deckBack = findButton('Back to PhiOffice');
+  assert(deckBack, 'Safe PhiDeck back action missing');
+  deckBack.click();
+  await waitFor(() => document.querySelector('nav.tabs'), 'PhiDeck returned to Suite');
+  assert(stored(key)?.title === 'PhiDeck quick exit checkpoint', 'PhiDeck quick exit discarded a pending change');
   await openTemplate('Pitch Deck Outline', 'Open in PhiDeck-lite', '.deck-title-field input');
+  assert(document.querySelector('.deck-title-field input')?.value === 'PhiDeck quick exit checkpoint',
+    'PhiDeck quick exit not restored in editor');
   edit(document.querySelector('.deck-title-field input'), 'Deck before import');
   edit(document.querySelector('.deck-slide-editor input'), 'Edited title');
   edit(document.querySelector('.deck-slide-editor textarea'), 'Point A\nPoint B');

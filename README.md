@@ -78,6 +78,15 @@ PhiOffice369 aims to provide a free core suite with:
 - Storage adapter foundation with localStorage default, IndexedDB pilot path, safe migration planning, safe copy, verification reports, readiness gate, and resettable storage preference.
 - Shared local artifact registry for drafts, grids, decks, and export receipts.
 
+## Independent files and Recent Files (PR #40 candidate)
+
+- The **Suite** launcher offers **New PhiWrite file**, **New PhiGrid file**, and **New PhiDeck file** actions. New files receive their own browser-local storage keys, so people can create multiple independent artifacts from the same starter template.
+- The **Templates** view keeps its existing **Open in ...** behavior for legacy template-bound drafts, and now offers **Create independent file** for supported editors.
+- The **Recent files** panel on the Suite screen lists saved documents, grids, and decks by last saved timestamp. It can reopen both new independent files and preexisting template-bound drafts without an automatic data migration.
+- Original template IDs and previously saved data remain unchanged. Source-template information travels with new files and is visible in PhiVault's local registry.
+- A file is saved in this browser's storage, not in an account or another device. Export from the editor and back up the full workspace in **PhiVault** before clearing browser storage.
+- This is still a prototype. New files are local-only; there is no live collaborative editing, remote sync, or fully interoperable XLSX/PPTX round trip.
+
 ## Storage pilot guide
 
 PhiOffice369 currently keeps localStorage as the safe default. IndexedDB support is being introduced through a gated pilot path.

@@ -59,24 +59,30 @@ function changeInput(element, value) {
   element.dispatchEvent(new Event('change', { bubbles: true }));
 }
 
-async function openPhiWrite() {
+async function openPhiWrite(viaSuite = false) {
   // Onboarding appears after an effect; the smoke profile has no user data.
   const tabs = await waitFor(() => document.querySelector('nav.tabs'), 'suite tabs');
   await sleep(100);
   const close = document.querySelector('button[aria-label="Close onboarding"]');
   close?.click();
 
-  const templates = Array.from(tabs.querySelectorAll('button')).find(
-    (button) => button.textContent?.trim() === 'Templates',
-  );
-  assert(templates, 'Templates tab is absent');
-  templates.click();
-
-  const open = await waitFor(
-    () => findButton('Open in PhiWrite-lite'),
-    'template launcher button',
-  );
-  open.click();
+  if (viaSuite) {
+    const suite = Array.from(tabs.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Suite',
+    );
+    assert(suite, 'Suite tab is absent');
+    suite.click();
+    const open = await waitFor(() => findButton('Open PhiWrite'), 'direct Suite PhiWrite launch');
+    open.click();
+  } else {
+    const templates = Array.from(tabs.querySelectorAll('button')).find(
+      (button) => button.textContent?.trim() === 'Templates',
+    );
+    assert(templates, 'Templates tab is absent');
+    templates.click();
+    const open = await waitFor(() => findButton('Open in PhiWrite-lite'), 'template launcher button');
+    open.click();
+  }
   return waitFor(() => document.querySelector('.editor-field textarea'), 'PhiWrite editor');
 }
 
@@ -129,7 +135,19 @@ async function run() {
     return;
   }
 
-  const editor = await openPhiWrite();
+  let editor = await openPhiWrite(true);
+  changeInput(document.querySelector('.title-field input'), 'PhiWrite quick exit checkpoint');
+  changeInput(editor, 'Latest unsaved text');
+  await sleep(75); // Must exit before the 450 ms autosave debounce.
+  const back = findButton('Back to PhiOffice');
+  assert(back, 'Safe PhiWrite back action missing');
+  back.click();
+  await waitFor(() => document.querySelector('nav.tabs'), 'PhiWrite returned to Suite');
+  const quickDraft = JSON.parse(localStorage.getItem(storageKey) ?? 'null');
+  assert(quickDraft?.content === 'Latest unsaved text' &&
+    quickDraft?.title === 'PhiWrite quick exit checkpoint', 'PhiWrite immediate exit lost unsaved content');
+  editor = await openPhiWrite();
+  assert(editor.value === 'Latest unsaved text', 'PhiWrite checkpoint did not reopen');
   changeInput(document.querySelector('.title-field input'), expectedTitle);
   changeInput(editor, rawContent);
 

@@ -9,6 +9,7 @@ import {
   removeStorageValue,
   writeStorageJson,
 } from '../lib/workspaceStorageAccess.js';
+import { persistDraftSnapshot } from '../lib/draftPersistence.js';
 import './PhiGridLite.css';
 
 function slugify(value) {
@@ -91,22 +92,34 @@ export default function PhiGridLite({ template, onBack }) {
     transformations: ['template_to_phigrid_lite_table'],
   }), [activeLabelId, template, title]);
 
+  function getDraftSnapshot() {
+    return { templateId: template.id, title, columns, rows, activeLabelId };
+  }
+
   useEffect(() => {
-    if (!canUseBrowserLocalStorage()) return undefined;
     setSaveStatus('Unsaved changes...');
     const timeout = window.setTimeout(() => {
-      writeStorageJson(createPhiGridStorageKey(template.id), {
-        templateId: template.id,
-        title,
-        columns,
-        rows,
-        activeLabelId,
-        updatedAt: new Date().toISOString(),
-      });
-      setSaveStatus('Autosaved locally');
+      const result = persistDraftSnapshot(createPhiGridStorageKey(template.id), getDraftSnapshot());
+      setSaveStatus(result.ok ? 'Autosaved locally' : result.message);
     }, 450);
     return () => window.clearTimeout(timeout);
   }, [activeLabelId, columns, rows, template.id, title]);
+
+  // A refresh or tab close must not discard a recent edit still waiting for debounce.
+  useEffect(() => {
+    const flush = () => persistDraftSnapshot(createPhiGridStorageKey(template.id), getDraftSnapshot());
+    window.addEventListener('pagehide', flush);
+    return () => window.removeEventListener('pagehide', flush);
+  }, [activeLabelId, columns, rows, template.id, title]);
+
+  function backToPhiOffice() {
+    const result = persistDraftSnapshot(createPhiGridStorageKey(template.id), getDraftSnapshot());
+    if (!result.ok) {
+      setSaveStatus(result.message);
+      return;
+    }
+    onBack();
+  }
 
   const numericColumns = columns.filter((column) => rows.some((row) => String(row[column] ?? '').match(/^-?[$0-9,.]+$/)));
   const totals = numericColumns.reduce((acc, column) => ({ ...acc, [column]: rows.reduce((sum, row) => sum + numberValue(row[column]), 0) }), {});
@@ -199,7 +212,7 @@ export default function PhiGridLite({ template, onBack }) {
   return (
     <section className="phigrid-workspace fade-in">
       <div className="grid-topbar panel">
-        <button className="grid-ghost-button" type="button" onClick={onBack}><ArrowLeft aria-hidden="true" /> Back to templates</button>
+        <button className="grid-ghost-button" type="button" onClick={backToPhiOffice}><ArrowLeft aria-hidden="true" /> Back to PhiOffice</button>
         <div>
           <p className="eyebrow">PhiGrid-lite</p>
           <h2>{template.title}</h2>

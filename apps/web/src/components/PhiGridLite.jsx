@@ -21,8 +21,8 @@ function createPhiGridStorageKey(templateId) {
 }
 
 function getColumns(template) {
-  if (template.id === 'claim_boundary_matrix') return ['Claim', 'Type', 'Evidence', 'Boundary', 'Publish Status'];
-  if (template.id === 'simple_family_budget') return ['Category', 'Planned', 'Actual', 'Difference', 'Notes'];
+  if ((template.sourceTemplateId ?? template.id) === 'claim_boundary_matrix') return ['Claim', 'Type', 'Evidence', 'Boundary', 'Publish Status'];
+  if ((template.sourceTemplateId ?? template.id) === 'simple_family_budget') return ['Category', 'Planned', 'Actual', 'Difference', 'Notes'];
   return template.sections.slice(0, 5).length ? template.sections.slice(0, 5) : ['Item', 'Value', 'Notes'];
 }
 
@@ -31,10 +31,10 @@ function blankRow(columns) {
 }
 
 function starterRows(template, columns) {
-  if (template.id === 'simple_family_budget') {
+  if ((template.sourceTemplateId ?? template.id) === 'simple_family_budget') {
     return ['Income', 'Bills', 'Food', 'Savings', 'Kindness Money'].map((category) => ({ Category: category, Planned: '0', Actual: '0', Difference: '0', Notes: '' }));
   }
-  if (template.id === 'claim_boundary_matrix') {
+  if ((template.sourceTemplateId ?? template.id) === 'claim_boundary_matrix') {
     return [
       { Claim: 'Example claim', Type: 'Needs review', Evidence: '', Boundary: '', 'Publish Status': 'Draft' },
       { Claim: 'Symbolic idea', Type: 'Symbolic', Evidence: 'N/A', Boundary: 'Do not present as verified fact', 'Publish Status': 'Private' },
@@ -93,7 +93,7 @@ export default function PhiGridLite({ template, onBack }) {
   }), [activeLabelId, template, title]);
 
   function getDraftSnapshot() {
-    return { templateId: template.id, title, columns, rows, activeLabelId };
+    return { templateId: template.id, sourceTemplateId: template.sourceTemplateId ?? template.id, title, columns, rows, activeLabelId };
   }
 
   useEffect(() => {

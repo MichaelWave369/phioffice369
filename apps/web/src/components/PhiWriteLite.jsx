@@ -208,7 +208,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   }), [activeLabelId, template, title]);
 
   function getDraftSnapshot() {
-    return { templateId: template.id, title, content, activeLabelId };
+    return { templateId: template.id, sourceTemplateId: template.sourceTemplateId ?? template.id, title, content, activeLabelId };
   }
 
   useEffect(() => {

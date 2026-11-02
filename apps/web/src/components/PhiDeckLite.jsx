@@ -104,7 +104,7 @@ export default function PhiDeckLite({ template, onBack, initialDeck = null }) {
   }), [activeLabelId, template, title, transformId]);
 
   function getDraftSnapshot() {
-    return { templateId: template.id, title, slides, activeLabelId, transformId, transformTrace: initialDeck?.trace ?? null };
+    return { templateId: template.id, sourceTemplateId: template.sourceTemplateId ?? template.id, title, slides, activeLabelId, transformId, transformTrace: initialDeck?.trace ?? null };
   }
 
   useEffect(() => {

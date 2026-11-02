@@ -1,3 +1,32 @@
+
+.suite-launch-controls {
+  display: grid;
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.suite-launch-controls label {
+  color: #f1e2b8;
+  font-weight: 750;
+}
+
+.suite-template-picker {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid rgba(214, 168, 61, 0.48);
+  border-radius: 12px;
+  background: #0d1727;
+  color: #fff8dc;
+  font: inherit;
+}
+
+.suite-template-picker:focus-visible,
+.suite-launch-controls .open-workspace-button:focus-visible {
+  outline: 2px solid #f1e2b8;
+  outline-offset: 3px;
+}
+
 .shortcut-help-button {
   position: fixed;
   right: 18px;

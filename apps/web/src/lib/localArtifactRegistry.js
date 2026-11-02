@@ -70,7 +70,7 @@ export function scanLocalDraftArtifacts() {
         app,
         path: key,
         labels: storedValue?.activeLabelId ? [storedValue.activeLabelId] : [],
-        sourceTemplateId: storedValue?.templateId ?? null,
+        sourceTemplateId: storedValue?.sourceTemplateId ?? storedValue?.templateId ?? null,
         status: getArtifactStatusFromStorageKey(key),
       }));
     });

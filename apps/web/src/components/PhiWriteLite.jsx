@@ -52,6 +52,7 @@ import {
   removeStorageValue,
   writeStorageJson,
 } from '../lib/workspaceStorageAccess.js';
+import { persistDraftSnapshot } from '../lib/draftPersistence.js';
 import './PhiWriteLite.css';
 import './PhiWriteTransformPreview.css';
 
@@ -206,21 +207,34 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
     transformations: getTransformIds(['template_to_phiwrite_lite_draft']),
   }), [activeLabelId, template, title]);
 
+  function getDraftSnapshot() {
+    return { templateId: template.id, title, content, activeLabelId };
+  }
+
   useEffect(() => {
-    if (!canUseBrowserLocalStorage()) return undefined;
     setSaveStatus('Unsaved changes...');
     const timeout = window.setTimeout(() => {
-      writeStorageJson(createPhiWriteStorageKey(template.id), {
-        templateId: template.id,
-        title,
-        content,
-        activeLabelId,
-        updatedAt: new Date().toISOString(),
-      });
-      setSaveStatus('Autosaved locally');
+      const result = persistDraftSnapshot(createPhiWriteStorageKey(template.id), getDraftSnapshot());
+      setSaveStatus(result.ok ? 'Autosaved locally' : result.message);
     }, 450);
     return () => window.clearTimeout(timeout);
   }, [activeLabelId, content, template.id, title]);
+
+  // A refresh or tab close must not discard a recent edit still waiting for debounce.
+  useEffect(() => {
+    const flush = () => persistDraftSnapshot(createPhiWriteStorageKey(template.id), getDraftSnapshot());
+    window.addEventListener('pagehide', flush);
+    return () => window.removeEventListener('pagehide', flush);
+  }, [activeLabelId, content, template.id, title]);
+
+  function backToPhiOffice() {
+    const result = persistDraftSnapshot(createPhiWriteStorageKey(template.id), getDraftSnapshot());
+    if (!result.ok) {
+      setSaveStatus(result.message);
+      return;
+    }
+    onBack();
+  }
 
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
   const sectionCount = template.sections.length;
@@ -771,7 +785,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   return (
     <section className="phiwrite-workspace fade-in">
       <div className="workspace-topbar panel">
-        <button className="ghost-button" type="button" onClick={onBack}><ArrowLeft aria-hidden="true" />Back to templates</button>
+        <button className="ghost-button" type="button" onClick={backToPhiOffice}><ArrowLeft aria-hidden="true" />Back to PhiOffice</button>
         <div><p className="eyebrow">PhiWrite-lite</p><h2>{template.title}</h2><p className="save-status">{saveStatus}</p></div>
         <div className="workspace-actions">
           <button className="ghost-button" type="button" onClick={handleResetDraft}><RotateCcw aria-hidden="true" />Reset</button>

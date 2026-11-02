@@ -5,6 +5,8 @@ import {
   CheckCircle2,
   Database,
   FileText,
+  FilePlus2,
+  Clock3,
   FolderLock,
   Grid3X3,
   Layers3,
@@ -38,6 +40,11 @@ import {
   shouldFocusSearch,
   shouldOpenShortcutHelp,
 } from './lib/keyboardShortcuts.js';
+import {
+  makeIndependentWorkspaceTemplate,
+  resolveRecentWorkspaceTemplate,
+  scanRecentWorkspaces,
+} from './lib/recentWorkspaces.js';
 import './interactive.css';
 
 const appIcons = {
@@ -147,6 +154,7 @@ export default function App() {
   const [selectedMode, setSelectedMode] = useState(professorPhiModes[0]);
   const [activeWorkspace, setActiveWorkspace] = useState(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [recentFiles, setRecentFiles] = useState(() => scanRecentWorkspaces());
 
   const filteredApps = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -181,6 +189,22 @@ export default function App() {
     }
     if (!suiteTemplate) return;
     setActiveWorkspace({ kind: getWorkspaceKind(suiteTemplate), template: suiteTemplate });
+  }
+
+  function createNewFile(template) {
+    const newTemplate = makeIndependentWorkspaceTemplate(template);
+    setActiveWorkspace({ kind: getWorkspaceKind(newTemplate), template: newTemplate });
+  }
+
+  function openRecentFile(entry) {
+    const template = resolveRecentWorkspaceTemplate(entry);
+    setActiveWorkspace({ kind: getWorkspaceKind(template), template });
+  }
+
+  function closeWorkspace() {
+    // Editors synchronously save before invoking onBack, so the list is current.
+    setActiveWorkspace(null);
+    setRecentFiles(scanRecentWorkspaces());
   }
 
   function openBridgeDeck(deckPayload) {
@@ -228,10 +252,10 @@ export default function App() {
     return (
       <main className="shell">
         {activeWorkspace.kind === 'grid'
-          ? <PhiGridLite template={activeWorkspace.template} onBack={() => setActiveWorkspace(null)} />
+          ? <PhiGridLite template={activeWorkspace.template} onBack={closeWorkspace} />
           : activeWorkspace.kind === 'deck'
-            ? <PhiDeckLite template={activeWorkspace.template} initialDeck={activeWorkspace.initialDeck} onBack={() => setActiveWorkspace(null)} />
-            : <PhiWriteLite template={activeWorkspace.template} onOpenDeck={openBridgeDeck} onBack={() => setActiveWorkspace(null)} />}
+            ? <PhiDeckLite template={activeWorkspace.template} initialDeck={activeWorkspace.initialDeck} onBack={closeWorkspace} />
+            : <PhiWriteLite template={activeWorkspace.template} onOpenDeck={openBridgeDeck} onBack={closeWorkspace} />}
         <ShortcutHelpOverlay isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
         <DataSovereigntyStatusBar />
       </main>
@@ -279,12 +303,40 @@ export default function App() {
                 <button className="open-workspace-button" type="button" onClick={openSelectedApp}>
                   Open {selectedApp.name}
                 </button>
+                <button className="suite-new-file-button" type="button" onClick={() => createNewFile(suiteTemplate)}>
+                  <FilePlus2 aria-hidden="true" /> New {selectedApp.name} file
+                </button>
               </div>
             )}
             {(selectedApp.name === 'PhiVault' || selectedApp.name === 'Professor Phi') && (
               <button className="open-workspace-button" type="button" onClick={openSelectedApp}>Open {selectedApp.name}</button>
             )}
           </aside>
+          <section className="recent-files-panel panel" aria-label="Recent files">
+            <div className="recent-files-heading">
+              <div>
+                <p className="eyebrow">Your browser-local workspace</p>
+                <h2><Clock3 aria-hidden="true" /> Recent files</h2>
+              </div>
+              <span>{recentFiles.length} saved file{recentFiles.length === 1 ? '' : 's'}</span>
+            </div>
+            {recentFiles.length ? (
+              <div className="recent-files-list">
+                {recentFiles.slice(0, 16).map((file) => (
+                  <button className="recent-file-open" type="button" key={file.key}
+                    onClick={() => openRecentFile(file)} title={'Open ' + file.title + ' in ' + file.app}>
+                    <span className="recent-file-name">{file.title}</span>
+                    <span className="recent-file-meta">{file.app} · {file.updatedAt && file.sortTime
+                      ? new Date(file.sortTime).toLocaleString() : 'Local draft'} · {file.isIndependent ? 'Independent file' : 'Legacy template draft'}</span>
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="note">No saved files yet. Create a new file or open a starter template to begin.</p>
+            )}
+            {recentFiles.length > 16 && <p className="note">Showing the 16 most recently edited files.</p>}
+            <p className="note">Files remain in this browser. Export a workspace backup from PhiVault before clearing site data or changing devices.</p>
+          </section>
         </section>
       )}
 
@@ -298,6 +350,11 @@ export default function App() {
               <div className="section-chip-grid">{selectedTemplate.sections.map((section) => <span key={section}>{section}</span>)}</div>
               <div className="receipt-box"><ReceiptText aria-hidden="true" /><div><h3>Artifact receipt preview</h3><code>{receiptPreview.schema}</code><p>{receiptPreview.app} · {receiptPreview.labels.length} trust labels · {receiptPreview.transformations[0]}</p></div></div>
               <button className="open-workspace-button" type="button" onClick={() => setActiveWorkspace({ kind: getWorkspaceKind(selectedTemplate), template: selectedTemplate })}>{getOpenButtonLabel(selectedTemplate)}</button>
+              {['PhiWrite', 'PhiGrid', 'PhiDeck'].includes(selectedTemplate.app) && (
+                <button className="suite-new-file-button" type="button" onClick={() => createNewFile(selectedTemplate)}>
+                  <FilePlus2 aria-hidden="true" /> Create independent file
+                </button>
+              )}
             </aside>
           </div>
         </section>

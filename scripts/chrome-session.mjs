@@ -1,50 +1,67 @@
-// Drive the installed browser on wall-clock time using Chrome's debugging pipe.
+// Drive an isolated browser on wall-clock time over a loopback DevTools connection.
 import { spawn } from 'node:child_process';
-import { StringDecoder } from 'node:string_decoder';
+import { readFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 export async function openChromeSession(browser, profile) {
   const child = spawn(browser, [
     '--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
     '--disable-extensions', '--no-first-run', '--no-default-browser-check',
-    '--disable-background-networking', '--disable-sync', '--remote-debugging-pipe',
+    '--disable-background-networking', '--disable-sync',
+    '--remote-debugging-port=0', '--remote-debugging-address=127.0.0.1',
     '--user-data-dir=' + profile, 'about:blank',
-  ], { stdio: ['ignore', 'ignore', 'pipe', 'pipe', 'pipe'] });
+  ], { stdio: ['ignore', 'ignore', 'pipe'] });
   const pending = new Map();
-  const decoder = new StringDecoder('utf8');
   let sequence = 0;
-  let buffer = '';
   let diagnostics = '';
-  let closed = false;
+  let failure;
+  let socket;
 
   function disconnect(error) {
-    closed = true;
-    for (const { reject } of pending.values()) reject(error);
+    failure ??= error;
+    for (const { reject } of pending.values()) reject(failure);
   }
   child.once('error', disconnect);
-  child.once('close', (code, signal) => disconnect(new Error(`Chrome closed (${code ?? signal}): ${diagnostics}`)));
-  child.stdio[3].on('error', disconnect);
+  const exited = new Promise((resolve) => child.once('close', (code, signal) => {
+    disconnect(new Error(`Chrome closed (${code ?? signal}): ${diagnostics}`));
+    resolve();
+  }));
   child.stderr.on('data', (part) => { diagnostics = (diagnostics + part.toString()).slice(-2500); });
-  child.stdio[4].on('data', (part) => {
-    buffer += decoder.write(part);
-    let delimiter;
-    while ((delimiter = buffer.indexOf('\0')) !== -1) {
-      const response = JSON.parse(buffer.slice(0, delimiter));
-      buffer = buffer.slice(delimiter + 1);
-      const request = pending.get(response.id);
-      if (response.error) request?.reject(new Error(response.error.message));
-      else request?.resolve(response.result);
+
+  async function connect() {
+    const endpoint = join(profile, 'DevToolsActivePort');
+    const deadline = Date.now() + 30000;
+    while (Date.now() < deadline) {
+      if (failure) throw failure;
+      const text = await readFile(endpoint, 'utf8').catch((error) => {
+        if (error.code !== 'ENOENT') throw error;
+        return '';
+      });
+      const [port, path] = text.trim().split('\n');
+      if (/^\d+$/.test(port) && /^\/devtools\/browser\/[a-f0-9-]+$/i.test(path)) {
+        const url = `ws://127.0.0.1:${port}${path}`;
+        socket = new WebSocket(url);
+        await new Promise((resolve, reject) => {
+          const timer = setTimeout(() => reject(new Error('Chrome DevTools connection timed out.')), 12000);
+          socket.addEventListener('open', () => { clearTimeout(timer); resolve(); }, { once: true });
+          socket.addEventListener('error', () => { clearTimeout(timer); reject(new Error('Chrome DevTools connection failed.')); }, { once: true });
+        });
+        return;
+      }
+      await sleep(100);
     }
-  });
+    throw new Error('Chrome did not publish its local DevTools endpoint. ' + diagnostics);
+  }
 
   function send(method, params = {}, sessionId) {
-    if (closed) return Promise.reject(new Error('Chrome is closed. ' + diagnostics));
+    if (failure) return Promise.reject(failure);
     const id = ++sequence;
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         finish();
         reject(new Error(`Chrome timed out during ${method}. ${diagnostics}`));
-      }, 12000);
+      }, 18000);
       function finish() {
         clearTimeout(timer);
         pending.delete(id);
@@ -53,19 +70,29 @@ export async function openChromeSession(browser, profile) {
         resolve(value) { finish(); resolve(value); },
         reject(error) { finish(); reject(error); },
       });
-      child.stdio[3].write(JSON.stringify({ id, method, params, sessionId }) + '\0');
+      socket.send(JSON.stringify({ id, method, params, sessionId }));
     });
   }
 
-  const exited = new Promise((resolve) => child.once('close', resolve));
   async function close() {
-    if (!closed) await Promise.race([send('Browser.close').catch(() => {}), sleep(1500)]);
-    if (!closed) child.kill('SIGTERM');
-    await Promise.race([exited, sleep(1500)]);
-    if (!closed) child.kill('SIGKILL');
+    if (!failure && socket?.readyState === WebSocket.OPEN) {
+      await Promise.race([send('Browser.close').catch(() => {}), sleep(1200)]);
+      socket.close();
+    }
+    if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
+    await Promise.race([exited, sleep(1200)]);
+    if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
   }
 
   try {
+    await connect();
+    socket.addEventListener('close', () => disconnect(new Error('Chrome DevTools connection closed. ' + diagnostics)));
+    socket.addEventListener('message', (event) => {
+      const response = JSON.parse(event.data);
+      const request = pending.get(response.id);
+      if (response.error) request?.reject(new Error(response.error.message));
+      else request?.resolve(response.result);
+    });
     const { targetInfos } = await send('Target.getTargets');
     const { targetId } = targetInfos.find(({ type }) => type === 'page') ?? await send('Target.createTarget', { url: 'about:blank' });
     const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });

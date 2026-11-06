@@ -399,3 +399,28 @@
 .grid-import-review-actions button:last-child {
   background: rgba(214, 168, 61, 0.28);
 }
+
+.grid-sheet-tools {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 0.7rem;
+  margin: 0.9rem 0;
+}
+
+.grid-sheet-tools label { display: grid; gap: 0.3rem; font-size: 0.82rem; }
+.grid-sheet-tools input:not([type='range']), .grid-sheet-tools select {
+  width: 100%;
+  max-width: 16rem;
+  padding: 0.45rem;
+  color: inherit;
+  background: var(--surface-raised, #151e34);
+  border: 1px solid var(--line, #657595);
+  border-radius: 0.45rem;
+}
+
+.grid-sheet-tools button { padding: 0.45rem 0.7rem; }
+.grid-sheet-note { font-size: 0.82rem; color: var(--muted); }
+.grid-formula-toggle { display: inline-flex; align-items: center; gap: 0.45rem; }
+.grid-column-letter { display: block; font-size: 0.73rem; color: var(--muted); }
+.formula-cell input { font-variant-numeric: tabular-nums; }

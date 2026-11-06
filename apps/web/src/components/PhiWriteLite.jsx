@@ -1,4 +1,4 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useReducer, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Bold,
@@ -22,6 +22,8 @@ import {
   Replace,
   ListChecks,
   RotateCcw,
+  Undo2,
+  Redo2,
   ShieldCheck,
   Sparkles,
   Strikethrough,
@@ -31,6 +33,7 @@ import {
   Wand2,
 } from 'lucide-react';
 import { createArtifactReceipt, trustLabels } from '@phioffice369/core';
+import { createDocumentHistory, updateDocumentHistory } from '../lib/documentHistory.js';
 import { parseMarkdownImport } from '../lib/localImporters.js';
 import { previewDocxFile } from '../lib/docxImport.js';
 import { buildPhiWriteDocx } from '../lib/docxExport.js';
@@ -172,13 +175,20 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   const [loaded] = useState(() => readWorkspaceRecord(storageKey));
   const savedDraft = loaded.record;
   const [title, setTitle] = useState(savedDraft?.title ?? template.title);
-  const [content, setContent] = useState(savedDraft?.content ?? makeStarterContent(template));
+  const [history, editContent] = useReducer(updateDocumentHistory,
+    savedDraft?.content ?? makeStarterContent(template), createDocumentHistory);
+  const { content } = history;
+  function setContent(next) {
+    editContent({ type: 'edit', next });
+  }
   const [activeLabelId, setActiveLabelId] = useState(savedDraft?.activeLabelId ?? template.trustDefaults[0] ?? 'human_written');
   const [copyStatus, setCopyStatus] = useState('');
   const [assistantStatus, setAssistantStatus] = useState('Local mock assistant ready');
   const [deckSlides, setDeckSlides] = useState([]);
   const [transformSet, setTransformSet] = useState(null);
   const [pendingDocxImport, setPendingDocxImport] = useState(null);
+  const [pendingMarkdown, setPendingMarkdown] = useState(null);
+  const importRevision = useRef(0);
   const [formatStatus, setFormatStatus] = useState('Select text to format, or insert a placeholder.');
   const [findOpen, setFindOpen] = useState(false);
   const [findQuery, setFindQuery] = useState('');
@@ -532,7 +542,20 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
     editorRef.current?.focus({ preventScroll: true });
   }
 
+  function moveDocumentHistory(type) {
+    editContent({ type });
+    setLastReplace(null);
+    editorRef.current?.focus();
+  }
+
   function handleEditorShortcut(event) {
+    const modifier = event.ctrlKey || event.metaKey;
+    const key = event.key.toLowerCase();
+    if (modifier && !event.altKey && !event.nativeEvent?.isComposing && (key === 'z' || key === 'y')) {
+      event.preventDefault();
+      moveDocumentHistory(key === 'y' || event.shiftKey ? 'redo' : 'undo');
+      return;
+    }
     if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey &&
       event.key.toLowerCase() === 'f' && !event.isComposing) {
       event.preventDefault();
@@ -553,6 +576,8 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
 
   function handleResetDraft() {
     if (!window.confirm('Reset this file to its starter template? This replaces the current content.')) return;
+    importRevision.current += 1;
+    setPendingMarkdown(null);
     setPendingDocxImport(null);
     setLinkDraft(null);
     setTableDraft(null);
@@ -670,16 +695,18 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
 
   async function handleDocxImport(event) {
     const file = event.target.files?.[0];
+    event.target.value = '';
     if (!file) return;
+    const revision = ++importRevision.current;
     setPendingDocxImport(null);
+    setPendingMarkdown(null);
     try {
       const imported = await previewDocxFile(file);
+      if (revision !== importRevision.current) return;
       setPendingDocxImport(imported);
       setSaveStatus('DOCX text preview ready. Existing draft unchanged.');
     } catch (error) {
-      setSaveStatus(error instanceof Error ? error.message : 'Could not read DOCX.');
-    } finally {
-      event.target.value = '';
+      if (revision === importRevision.current) setSaveStatus(error instanceof Error ? error.message : 'Could not read DOCX.');
     }
   }
 
@@ -703,25 +730,34 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
 
   async function handleImportMarkdown(event) {
     const file = event.target.files?.[0];
+    event.target.value = '';
     if (!file) return;
-
+    const revision = ++importRevision.current;
+    setPendingDocxImport(null);
+    setPendingMarkdown(null);
     try {
-      const text = await file.text();
-      const imported = parseMarkdownImport(text, file.name.replace(/\.(md|markdown)$/i, ''));
-      setPendingDocxImport(null);
-      setLinkDraft(null);
-      setTitle(imported.title);
-      setContent(imported.content);
-      setDeckSlides([]);
-      setTransformSet(null);
-      setActiveLabelId('human_written');
-      setSaveStatus('Markdown imported locally');
-      setAssistantStatus(imported.importNote);
-    } catch {
-      setSaveStatus('Could not import Markdown');
-    } finally {
-      event.target.value = '';
+      if (!/\.(?:md|markdown|txt)$/i.test(file.name)) throw new Error('Choose a Markdown or plain text file.');
+      if (file.size > 2 * 1024 * 1024) throw new Error('Choose a Markdown file smaller than 2 MiB.');
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer());
+      if (revision !== importRevision.current) return;
+      if (text.includes('\0')) throw new Error('This file contains binary data.');
+      setPendingMarkdown(parseMarkdownImport(text, file.name.replace(/\.(?:md|markdown|txt)$/i, '')));
+      setSaveStatus('Markdown preview ready. Existing draft unchanged.');
+    } catch (error) {
+      if (revision === importRevision.current) setSaveStatus('Markdown import rejected. ' + error.message);
     }
+  }
+
+  function acceptMarkdown() {
+    setLinkDraft(null);
+    setTableDraft(null);
+    setTitle(pendingMarkdown.title);
+    setContent(pendingMarkdown.content);
+    setDeckSlides([]);
+    setTransformSet(null);
+    setActiveLabelId('needs_citation');
+    setPendingMarkdown(null);
+    setAssistantStatus(pendingMarkdown.importNote);
   }
 
   async function handleCopyReceipt() {
@@ -767,10 +803,22 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
           <button className="ghost-button" type="button" onClick={handleExportHtml}><Download aria-hidden="true" />Export HTML</button>
           <button className="ghost-button" type="button" onClick={handleExportDocx}><Download aria-hidden="true" />Export .docx</button>
           <button className="ghost-button" type="button" onClick={handlePrint}><Printer aria-hidden="true" />Print / Save as PDF</button>
-          <input ref={importInputRef} className="workspace-file-input" type="file" accept=".md,.markdown,text/markdown,text/plain" onChange={handleImportMarkdown} />
+          <input ref={importInputRef} className="workspace-file-input" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" onChange={handleImportMarkdown} />
           <input ref={docxImportRef} className="workspace-file-input" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={handleDocxImport} />
         </div>
       </div>
+
+      {pendingMarkdown && (
+        <section className="panel phiwrite-docx-preview" aria-label="Markdown import review">
+          <h3>Review Markdown before replacing this draft</h3>
+          <p>{pendingMarkdown.title} · {pendingMarkdown.content.length} characters</p>
+          <pre className="phiwrite-docx-excerpt">{pendingMarkdown.content.slice(0, 2400)}{pendingMarkdown.content.length > 2400 ? '\n… (preview shortened)' : ''}</pre>
+          <div className="phiwrite-docx-controls">
+            <button type="button" onClick={() => { setPendingMarkdown(null); setSaveStatus('Markdown import cancelled.'); }}>Cancel Markdown import</button>
+            <button type="button" onClick={acceptMarkdown}>Replace draft with Markdown</button>
+          </div>
+        </section>
+      )}
 
       {pendingDocxImport && (
         <section className="panel phiwrite-docx-preview" aria-label="DOCX import review">
@@ -822,6 +870,10 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
                 <span>{PHIWRITE_FORMATS[name].label}</span>
               </button>
             ))}
+            <button type="button" className="phiwrite-format-action" disabled={!history.past.length} onClick={() => moveDocumentHistory('undo')}
+              title="Undo text edit (Ctrl/Cmd+Z)"><Undo2 aria-hidden="true" /><span>Undo</span></button>
+            <button type="button" className="phiwrite-format-action" disabled={!history.future.length} onClick={() => moveDocumentHistory('redo')}
+              title="Redo text edit (Ctrl/Cmd+Shift+Z)"><Redo2 aria-hidden="true" /><span>Redo</span></button>
             <button type="button" className="phiwrite-format-action"
               aria-label="Insert Link (Ctrl/Cmd+K)" title="Insert Link · Ctrl/Cmd+K"
               aria-expanded={Boolean(linkDraft)} aria-controls="phiwrite-link-composer"
@@ -1008,7 +1060,10 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
           <p className="phiwrite-format-help" role="status" aria-live="polite">{formatStatus}</p>
           <label className="editor-field"><span>Draft content</span>
             <textarea ref={editorRef} value={content}
-              onChange={(event) => { setContent(event.target.value); setFormatStatus('Select text to format, or insert a placeholder.'); }}
+              onChange={(event) => {
+                editContent({ type: 'edit', next: event.target.value, typedAt: performance.now() });
+                setFormatStatus('Select text to format, or insert a placeholder.');
+              }}
               onKeyDown={handleEditorShortcut} spellCheck="true" />
           </label>
         </section>

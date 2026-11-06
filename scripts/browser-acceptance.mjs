@@ -16,6 +16,7 @@ const acceptanceClients = Object.freeze({
   docx: resolve('scripts/browser-acceptance-docx-client.js'),
   recent: resolve('scripts/browser-acceptance-recent-client.js'),
   vault: resolve('scripts/browser-acceptance-vault-client.js'),
+  readiness: resolve('scripts/browser-acceptance-readiness-client.js'),
 });
 const scenarios = Object.keys(acceptanceClients);
 const base = '/phioffice369/';

@@ -97,14 +97,12 @@
   background: rgba(214, 168, 61, 0.07);
 }
 
-.deck-slide-list button.selected,
-.deck-preview-card.selected {
+.deck-slide-list button.selected {
   border-color: rgba(214, 168, 61, 0.86);
   background: rgba(214, 168, 61, 0.16);
 }
 
-.deck-slide-list span,
-.deck-preview-card span {
+.deck-slide-list span {
   display: block;
   color: #d6a83d;
   font-size: 0.75rem;
@@ -154,39 +152,6 @@
   padding: 18px;
   line-height: 1.55;
   resize: vertical;
-}
-
-.deck-preview-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 18px;
-}
-
-.deck-preview-card {
-  min-height: 190px;
-  border: 1px solid rgba(214, 168, 61, 0.26);
-  border-radius: 22px;
-  padding: 18px;
-  background:
-    radial-gradient(circle at top right, rgba(214, 168, 61, 0.16), transparent 11rem),
-    rgba(2, 7, 16, 0.42);
-  cursor: pointer;
-}
-
-.deck-preview-card h3 {
-  margin: 12px 0;
-  color: #fff8dc;
-}
-
-.deck-preview-card ul {
-  margin: 0;
-  padding-left: 18px;
-  color: #c9d2e3;
-}
-
-.deck-preview-card li + li {
-  margin-top: 8px;
 }
 
 .deck-labels {
@@ -277,12 +242,97 @@
 
 @media (max-width: 1100px) {
   .deck-topbar,
-  .deck-workspace-layout,
-  .deck-preview-grid {
+  .deck-workspace-layout {
     grid-template-columns: 1fr;
   }
 
   .deck-actions {
     justify-content: flex-start;
   }
+}
+
+.deck-import-review, .deck-visual-tools {
+  margin-top: 1rem;
+  padding: 1rem;
+  border-radius: 1rem;
+}
+
+.deck-import-review button, .deck-visual-tools button, .deck-presentation-controls button {
+  padding: 0.6rem 0.8rem;
+  color: inherit;
+  background: transparent;
+  border: 1px solid currentColor;
+  border-radius: 0.6rem;
+}
+
+.deck-visual-tools {
+  display: flex;
+  align-items: end;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding-inline: 0;
+}
+
+.deck-visual-tools label { display: grid; gap: 0.3rem; font-size: 0.82rem; min-width: 0; }
+.deck-visual-tools select, .deck-visual-tools input:not([type='file']) {
+  min-width: 0;
+  width: 100%;
+  color: inherit;
+  background: var(--surface-raised, #151e34);
+  border: 1px solid var(--line, #657595);
+  padding: 0.55rem;
+  border-radius: 0.45rem;
+}
+
+.deck-image-input { display: none; }
+.deck-format-note { font-size: 0.82rem; color: var(--muted); }
+.deck-import-review button + button { margin-left: 0.65rem; }
+
+.deck-canvas {
+  position: relative;
+  display: grid;
+  align-content: center;
+  gap: 1.2rem;
+  padding: clamp(1rem, 4vw, 3rem);
+  min-height: min(48vh, 25rem);
+  border: 1px solid #537493;
+  border-radius: 1rem;
+  background: linear-gradient(135deg, #132237, #263e55);
+  color: #fff7e6;
+  overflow-wrap: anywhere;
+}
+
+.deck-canvas h3 { margin: 0 0 0.6rem; font-size: clamp(1.35rem, 4vw, 3rem); line-height: 1.08; }
+.deck-canvas ul { padding-inline-start: 1.25em; margin-bottom: 0; }
+.deck-canvas li + li { margin-top: 0.4rem; }
+.deck-canvas img { max-width: 100%; max-height: 45vh; object-fit: contain; margin-inline: auto; }
+.deck-canvas.layout-cover { justify-items: center; text-align: center; }
+.deck-canvas.layout-cover ul { text-align: start; }
+.deck-canvas.layout-image-left:has(img), .deck-canvas.layout-image-right:has(img) {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+}
+.deck-canvas.layout-image-left img { grid-column: 1; grid-row: 1; }
+.deck-canvas.layout-image-left .deck-canvas-copy { grid-column: 2; grid-row: 1; }
+.deck-shape { display: block; height: 2rem; width: 2rem; background: #77dfbd; }
+.deck-shape.shape-circle { border-radius: 50%; }
+.deck-shape.shape-line { width: 4rem; height: 0.35rem; }
+
+.deck-presentation {
+  width: min(1100px, 96vw);
+  max-height: 94vh;
+  padding: clamp(0.6rem, 2vw, 1.5rem);
+  border: 1px solid #537493;
+  border-radius: 1rem;
+  background: #101827;
+  color: #fff7e6;
+}
+.deck-presentation::backdrop { background: #050b14e8; }
+.deck-presentation .deck-canvas { min-height: min(68vh, 49vw); font-size: clamp(1rem, 2.2vw, 1.7rem); }
+.deck-presentation-controls { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 0.75rem; margin-top: 1rem; }
+.deck-presentation-controls button:disabled { opacity: 0.55; }
+
+@media (max-width: 520px) {
+  .deck-canvas.layout-image-left:has(img), .deck-canvas.layout-image-right:has(img) { display: flex; flex-direction: column; }
+  .deck-canvas.layout-image-left img { order: -1; }
 }

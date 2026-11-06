@@ -26,4 +26,12 @@ for (const assetUrl of references) {
   assert.ok(existsSync(join(siteRoot, relativePath)), 'Missing referenced asset: ' + assetUrl);
 }
 
+const manifest = JSON.parse(readFileSync(join(siteRoot, 'manifest.webmanifest'), 'utf8'));
+assert.equal(new URL(manifest.start_url, 'https://pages.invalid' + pagesBase).pathname, pagesBase);
+assert.equal(new URL(manifest.scope, 'https://pages.invalid' + pagesBase).pathname, pagesBase);
+for (const icon of manifest.icons) assert.ok(existsSync(join(siteRoot, icon.src)), 'Missing install icon: ' + icon.src);
+const worker = readFileSync(join(siteRoot, 'service-worker.js'), 'utf8');
+assert.ok(!worker.includes('__SHELL_FILES__') && !worker.includes('__SHELL_VERSION__'), 'Offline assets were not compiled');
+for (const assetUrl of references) assert.ok(worker.includes(assetUrl.slice(pagesBase.length)), 'Offline shell missing: ' + assetUrl);
+
 console.log('PhiOffice369 Pages smoke passed: ' + references.length + ' linked assets found.');

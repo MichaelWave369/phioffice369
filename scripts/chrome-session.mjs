@@ -103,9 +103,10 @@ export async function openChromeSession(browser, profile) {
   }
 }
 
-export async function runChromeOnWallClock(browser, url, profile) {
+export async function runChromeOnWallClock(browser, url, profile, { mobile = false } = {}) {
   const session = await openChromeSession(browser, profile);
   try {
+    if (mobile) await session.call('Emulation.setDeviceMetricsOverride', { mobile: true, width: 390, height: 844, deviceScaleFactor: 1 });
     const { errorText } = await session.call('Page.navigate', { url });
     if (errorText) throw new Error(errorText);
     const deadline = Date.now() + 50000;

@@ -18,6 +18,7 @@ const acceptanceClients = Object.freeze({
   recent: resolve('scripts/browser-acceptance-recent-client.js'),
   vault: resolve('scripts/browser-acceptance-vault-client.js'),
   readiness: resolve('scripts/browser-acceptance-readiness-client.js'),
+  offline: resolve('scripts/browser-acceptance-offline-client.js'),
 });
 const scenarios = Object.keys(acceptanceClients);
 const base = '/phioffice369/';
@@ -26,6 +27,8 @@ const mime = {
   '.html': 'text/html; charset=utf-8',
   '.js': 'text/javascript; charset=utf-8',
   '.json': 'application/json; charset=utf-8',
+  '.webmanifest': 'application/manifest+json; charset=utf-8',
+  '.png': 'image/png',
   '.svg': 'image/svg+xml',
   '.woff': 'font/woff',
   '.woff2': 'font/woff2',
@@ -65,6 +68,11 @@ async function serve(request, response) {
       return;
     }
 
+    if (url.pathname === base && url.searchParams.has('offline-probe')) {
+      response.writeHead(503).end('Offline test fixture');
+      return;
+    }
+
     const relativePath = decodeURIComponent(url.pathname.slice(base.length)) || 'index.html';
     const target = resolve(appRoot, relativePath);
     if (!target.startsWith(appRoot + sep) && target !== indexFile) {
@@ -77,7 +85,7 @@ async function serve(request, response) {
       return;
     }
     let bytes = await readFile(target);
-    if (target === indexFile) {
+    if (target === indexFile && url.searchParams.has('scenario')) {
       const scenario = url.searchParams.get('scenario');
       if (!Object.hasOwn(acceptanceClients, scenario)) {
         response.writeHead(400).end('Unknown browser scenario');
@@ -114,7 +122,7 @@ try {
   for (const scenario of scenarios) {
     const profile = await mkdtemp(join(tmpdir(), 'phioffice369-' + scenario + '-'));
     try {
-      const result = await runChromeOnWallClock(browser, url + '?scenario=' + scenario, profile);
+      const result = await runChromeOnWallClock(browser, url + '?scenario=' + scenario, profile, { mobile: scenario === 'offline' });
       const marker = result.output.match(/data-phi-acceptance="(PASS|FAIL)"/);
       const detail = result.output.match(/<pre id="phi-browser-acceptance-result">([\s\S]*?)<\/pre>/);
       if (marker?.[1] !== 'PASS') {

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { getBrowserLocalStorage } from '../lib/workspaceStorageAccess.js';
 import OnboardingModal from './OnboardingModal.jsx';
 import { scanContinuityArtifacts } from '../lib/localArtifactRegistry.js';
 import { shouldShowOnboarding, writeOnboardingSeen } from '../lib/onboardingState.js';
@@ -10,13 +11,13 @@ export default function OnboardingGate({ children }) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     setIsOpen(shouldShowOnboarding({
-      storage: window.localStorage,
+      storage: getBrowserLocalStorage(),
       artifactCount: scanContinuityArtifacts().length,
     }));
   }, []);
 
   function closeOnboarding() {
-    if (typeof window !== 'undefined') writeOnboardingSeen(window.localStorage);
+    if (typeof window !== 'undefined') writeOnboardingSeen(getBrowserLocalStorage());
     setIsOpen(false);
   }
 

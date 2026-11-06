@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Download, ShieldCheck } from 'lucide-react';
 import { createProjectManifest } from '@phioffice369/core';
 import { createWorkspaceBackupPayload, storageKeys } from '../lib/emergencyBackups.js';
@@ -31,7 +31,7 @@ function getLatestEmergencyBackupTime(storage) {
   return Number.isNaN(date.getTime()) ? timestamp : date.toLocaleString();
 }
 
-export default function DataSovereigntyStatusBar() {
+export default function DataSovereigntyStatusBar({ refreshKey }) {
   const [status, setStatus] = useState({
     adapterId: 'checking',
     detectedBackend: 'checking',
@@ -68,22 +68,21 @@ export default function DataSovereigntyStatusBar() {
 
   useEffect(() => {
     refreshStatus();
-  }, []);
-
-  const manifest = useMemo(() => createProjectManifest({
-    projectId: 'local_phioffice369_status_bar_export',
-    title: 'PhiOffice369 Local Workspace Export',
-    description: 'Workspace manifest generated from the Data Sovereignty status bar.',
-    owner: 'local-browser-user',
-    tags: ['local-first', 'workspace-backup', 'phioffice369'],
-    artifacts: scanContinuityArtifacts(),
-  }), [status.artifactCount]);
+  }, [refreshKey]);
 
   function exportWorkspace() {
     if (typeof window === 'undefined') return;
 
     try {
       const storage = window.localStorage;
+      const manifest = createProjectManifest({
+        projectId: 'local_phioffice369_status_bar_export',
+        title: 'PhiOffice369 Local Workspace Export',
+        description: 'Workspace manifest generated from the Data Sovereignty status bar.',
+        owner: 'local-browser-user',
+        tags: ['local-first', 'workspace-backup', 'phioffice369'],
+        artifacts: scanContinuityArtifacts(),
+      });
       const payload = createWorkspaceBackupPayload({
         storage,
         manifest,
@@ -102,7 +101,7 @@ export default function DataSovereigntyStatusBar() {
     <footer className="data-sovereignty-status" aria-label="Data sovereignty status">
       <div className="status-pill local">
         <ShieldCheck aria-hidden="true" />
-        <span>All data local</span>
+        <span>Browser storage</span>
       </div>
       <div className="status-details">
         <span>Backend: {status.adapterId}</span>
@@ -112,7 +111,7 @@ export default function DataSovereigntyStatusBar() {
         <span>Last emergency backup: {status.latestEmergencyBackup ?? 'none recorded'}</span>
       </div>
       <button type="button" className="status-export-button" onClick={exportWorkspace}>
-        <Download aria-hidden="true" /> Export all
+        <Download aria-hidden="true" /> Backup saved files
       </button>
       <p className="status-message">{exportStatus || status.message}</p>
     </footer>

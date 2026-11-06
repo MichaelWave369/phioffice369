@@ -64,10 +64,16 @@ export async function migrateStoragePlan({ plan, targetAdapter, overwrite = fals
       continue;
     }
 
-    if (!dryRun) {
-      await targetAdapter.setItem(entry.key, entry.value);
+    if (!dryRun && overwrite) await targetAdapter.setItem(entry.key, entry.value);
+    if (!dryRun && !overwrite) {
+      const result = await targetAdapter.setItemIfMissing(entry.key, entry.value);
+      if (!result.written) {
+        const current = createMigrationEntry([entry.key, entry.value], result.existing);
+        if (current.conflict) conflicts.push(current);
+        skipped.push({ ...current, reason: current.conflict ? 'conflict' : 'already_synced' });
+        continue;
+      }
     }
-
     applied.push(entry);
   }
 

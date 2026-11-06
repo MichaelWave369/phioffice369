@@ -74,9 +74,9 @@ test('summarizeStorageCatalog counts namespaces and routed workspace access', ()
   const summary = summarizeStorageCatalog();
 
   assert.equal(summary.totalNamespaces, STORAGE_NAMESPACE_CATALOG.length);
-  assert.equal(summary.byBackend['localStorage-via-workspaceStorageAccess'], 6);
+  assert.equal(summary.byBackend['localStorage-via-workspaceStorageAccess'], 7);
   assert.equal(summary.byBackend.localStorage, 2);
-  assert.equal(summary.routedThroughWorkspaceAccess, 6);
+  assert.equal(summary.routedThroughWorkspaceAccess, 7);
   assert.equal(summary.pendingAdapterRefactor, 0);
 });
 
@@ -88,7 +88,7 @@ test('getWorkspaceAccessRoutedNamespaces returns routed app vault data and scan 
   const routed = getWorkspaceAccessRoutedNamespaces();
   const ids = routed.map((entry) => entry.id);
 
-  assert.equal(routed.length, 6);
+  assert.equal(routed.length, 7);
   assert.ok(ids.includes('phiwrite_drafts'));
   assert.ok(ids.includes('phigrid_tables'));
   assert.ok(ids.includes('phideck_decks'));

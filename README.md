@@ -1,8 +1,8 @@
 # PhiOffice369
 
-**A free, local-first, AI-assisted sovereign productivity suite.**
+**A free, local-first office workspace from PHI369 Labs.**
 
-PhiOffice369 is a PHI369 Labs / Parallax productivity-suite concept for builders, families, creators, students, small businesses, and community projects. The goal is not to clone existing office suites, but to build a distinct, humane, local-first workspace where documents, spreadsheets, decks, notes, diagrams, databases, and project folders can become living artifacts.
+PhiOffice369 gives builders, families, creators, students, small businesses, and community projects a browser workspace for documents, spreadsheets, presentations, and local files.
 
 > Internal codename: **MikeySoft Office**  
 > Public-facing name: **PhiOffice369**
@@ -17,7 +17,7 @@ See [`CHANGELOG.md`](CHANGELOG.md) for checkpoint history.
 
 ## Live prototype
 
-After GitHub Pages is enabled for this repo, the interactive prototype is intended to publish here:
+The deployed prototype is available on GitHub Pages:
 
 https://michaelwave369.github.io/phioffice369/
 
@@ -78,7 +78,7 @@ PhiOffice369 aims to provide a free core suite with:
 - Storage adapter foundation with localStorage default, IndexedDB pilot path, safe migration planning, safe copy, verification reports, readiness gate, and resettable storage preference.
 - Shared local artifact registry for drafts, grids, decks, and export receipts.
 
-## Independent files and Recent Files (PR #40 candidate)
+## Independent files and Recent Files
 
 - The **Suite** launcher offers **New PhiWrite file**, **New PhiGrid file**, and **New PhiDeck file** actions. New files receive their own browser-local storage keys, so people can create multiple independent artifacts from the same starter template.
 - The **Templates** view keeps its existing **Open in ...** behavior for legacy template-bound drafts, and now offers **Create independent file** for supported editors.
@@ -174,3 +174,9 @@ PhiVault validates backup files before offering restore. Restore adds missing fi
 - **PhiWrite** includes text undo and redo for typing and toolbar edits. Markdown and DOCX imports preview before replacing an open draft. Save rich-layout originals separately and review DOCX compatibility before exporting.
 - **PhiGrid** supports A1 references, arithmetic, SUM, AVERAGE, MIN, MAX and COUNT. Sort and filter change the view while preserving cell addresses and export order. CSV imports formula-like cells as text until you enable calculation. CSV exports the full sheet with calculated values. Formula-like text can receive a leading apostrophe, so keep the JSON export or workspace backup for raw cell data. Imported CSV is limited to 500 rows, 40 columns, 10,000 cells, and 4 MiB. See the [CSV interoperability and injection limits](docs/COMPATIBILITY.md).
 - **PhiDeck** supports slide ordering, duplication, keyboard presentation mode, fixed layouts and shapes, and local PNG, JPEG and WebP images. Editable visual decks use PhiDeck JSON v0.2 and text-only decks still support v0.1. Standalone HTML opens offline for viewing and printing. PPTX remains planned.
+
+## Launch and offline use
+
+Open PhiOffice369 in a supported browser. After a successful online load, **Offline ready** indicates that the scoped app shell is cached. Files stay in browser storage and can be backed up through PhiVault. System, Light and Dark themes are available in the header.
+
+The [readiness and ecosystem report](docs/READINESS_MISSION.md) explains the verified workflows, storage limits, and optional PhiOS, PhiID, PhiCloud and PhiMail boundaries.

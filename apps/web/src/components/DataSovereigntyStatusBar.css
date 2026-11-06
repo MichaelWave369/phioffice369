@@ -1,18 +1,14 @@
 .data-sovereignty-status {
-  position: sticky;
-  bottom: 1rem;
-  z-index: 20;
   display: grid;
   grid-template-columns: auto 1fr auto;
   gap: 0.75rem;
   align-items: center;
   margin-top: 1.5rem;
   padding: 0.8rem 1rem;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid var(--line);
   border-radius: 1.25rem;
-  background: rgba(20, 16, 35, 0.86);
-  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.24);
-  backdrop-filter: blur(18px);
+  background: var(--surface);
+  box-shadow: 0 5px 16px var(--shadow);
 }
 
 .status-pill,
@@ -27,9 +23,9 @@
 
 .status-pill {
   padding: 0.45rem 0.7rem;
-  border: 1px solid rgba(97, 255, 185, 0.35);
-  color: #b7ffd9;
-  background: rgba(22, 120, 72, 0.18);
+  border: 1px solid var(--line);
+  color: var(--accent-strong);
+  background: var(--accent-fill);
 }
 
 .status-pill svg,
@@ -42,21 +38,21 @@
   display: flex;
   flex-wrap: wrap;
   gap: 0.45rem;
-  color: rgba(255, 255, 255, 0.74);
+  color: var(--muted);
   font-size: 0.78rem;
 }
 
 .status-details span {
   padding: 0.35rem 0.55rem;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--surface-raised);
 }
 
 .status-export-button {
-  border: 0;
+  border: 1px solid var(--accent);
   padding: 0.55rem 0.8rem;
-  color: #20142d;
-  background: linear-gradient(135deg, #f8d66d, #ffb15c);
+  color: var(--accent-strong);
+  background: var(--accent-fill);
   cursor: pointer;
 }
 
@@ -67,13 +63,12 @@
 .status-message {
   grid-column: 1 / -1;
   margin: -0.2rem 0 0;
-  color: rgba(255, 255, 255, 0.62);
+  color: var(--muted);
   font-size: 0.76rem;
 }
 
 @media (max-width: 840px) {
   .data-sovereignty-status {
-    position: static;
     grid-template-columns: 1fr;
   }
 

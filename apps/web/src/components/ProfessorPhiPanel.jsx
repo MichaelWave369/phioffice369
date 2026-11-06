@@ -1,19 +1,27 @@
 import { useMemo, useState } from 'react';
 import { Bot, ClipboardCopy, Send, ShieldCheck } from 'lucide-react';
-import { createProfessorPhiMockResponse } from '@phioffice369/professor-phi';
+import { professorPhiDemoProvider, runProfessorPhi } from '@phioffice369/professor-phi';
 import './ProfessorPhiPanel.css';
 
-export default function ProfessorPhiPanel({ modes, systemNotes, selectedMode, onSelectMode }) {
+export default function ProfessorPhiPanel({ modes, systemNotes, selectedMode, onSelectMode, provider = professorPhiDemoProvider }) {
   const [prompt, setPrompt] = useState('');
-  const [response, setResponse] = useState(() => createProfessorPhiMockResponse({ prompt: '', modeId: selectedMode.id }));
+  const [response, setResponse] = useState(null);
+  const [pending, setPending] = useState(false);
   const [copyStatus, setCopyStatus] = useState('');
 
   const selectedModeDescription = useMemo(() => selectedMode?.description ?? 'Choose a Professor Phi mode.', [selectedMode]);
 
-  function sendPrompt() {
-    const nextResponse = createProfessorPhiMockResponse({ prompt, modeId: selectedMode.id });
-    setResponse(nextResponse);
+  async function sendPrompt() {
+    if (!prompt.trim() || pending) return;
+    setPending(true);
     setCopyStatus('');
+    try {
+      setResponse(await runProfessorPhi(provider, { prompt, modeId: selectedMode.id }));
+    } catch (error) {
+      setCopyStatus(error.message);
+    } finally {
+      setPending(false);
+    }
   }
 
   async function copyResponse() {
@@ -43,6 +51,7 @@ export default function ProfessorPhiPanel({ modes, systemNotes, selectedMode, on
               key={mode.id}
               type="button"
               className={`mode-card ${selectedMode.id === mode.id ? 'selected' : ''}`}
+              aria-pressed={selectedMode.id === mode.id}
               onClick={() => onSelectMode(mode)}
             >
               <strong>{mode.label}</strong>
@@ -55,7 +64,7 @@ export default function ProfessorPhiPanel({ modes, systemNotes, selectedMode, on
       <div className="panel professor-chat-panel">
         <div className="professor-chat-heading">
           <div>
-            <p className="eyebrow">Local demo chat</p>
+            <p className="eyebrow">{provider.name}</p>
             <h2>{selectedMode.label} mode</h2>
             <p>{selectedModeDescription}</p>
           </div>
@@ -70,29 +79,30 @@ export default function ProfessorPhiPanel({ modes, systemNotes, selectedMode, on
             onKeyDown={handlePromptKeyDown}
             placeholder="Example: Help me turn this product idea into a clean launch checklist..."
             rows={6}
+            maxLength={16000}
           />
         </label>
 
         <div className="professor-chat-actions">
-          <button type="button" onClick={sendPrompt}><Send aria-hidden="true" /> Send local prompt</button>
-          <button type="button" onClick={copyResponse}><ClipboardCopy aria-hidden="true" /> Copy response</button>
+          <button type="button" onClick={sendPrompt} disabled={!prompt.trim() || pending}><Send aria-hidden="true" /> Send local prompt</button>
+          <button type="button" onClick={copyResponse} disabled={!response}><ClipboardCopy aria-hidden="true" /> Copy response</button>
         </div>
 
-        <article className="professor-response-card">
+        {response && <article className="professor-response-card" aria-live="polite">
           <div className="professor-response-meta">
             <span>{response.modeLabel}</span>
             <span>{response.trustLabel}</span>
             <span>Publish risk: {response.publishRisk}</span>
-            <span>{response.localOnly ? 'Local demo' : 'External'}</span>
+            <span>{response.providerName} · {response.providerKind}</span>
           </div>
           <pre>{response.response}</pre>
-        </article>
+        </article>}
 
-        {copyStatus && <p className="professor-copy-status">{copyStatus}</p>}
+        {copyStatus && <p className="professor-copy-status" role="status">{copyStatus}</p>}
 
         <div className="professor-note-box live-note">
           <ShieldCheck aria-hidden="true" />
-          <p>This panel is a local mock assistant. It does not call a backend yet, and responses are labeled AI-assisted demo guidance.</p>
+          <p>The built-in demo uses scripted local responses. Review its suggestions before using them as evidence or publishing them.</p>
         </div>
 
         <ul className="system-notes">

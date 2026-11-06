@@ -51,8 +51,10 @@ export async function withPhiOfficeStore({ environment = globalThis, mode = 'rea
   try {
     const transaction = database.transaction(PHIOFFICE_KV_STORE, mode);
     const store = transaction.objectStore(PHIOFFICE_KV_STORE);
-    const result = await operation(store, transaction);
-    if (mode === 'readwrite') await transactionDone(transaction);
+    const [result] = await Promise.all([
+      operation(store, transaction),
+      mode === 'readwrite' ? transactionDone(transaction) : null,
+    ]);
     return result;
   } finally {
     database.close?.();
@@ -89,6 +91,25 @@ export function createIndexedDbStorageAdapter(environment = globalThis) {
         },
       });
       return record;
+    },
+    async setItemIfMissing(key, value) {
+      return withPhiOfficeStore({
+        environment,
+        mode: 'readwrite',
+        operation: (store) => new Promise((resolve, reject) => {
+          const request = store.get(key);
+          request.onerror = () => reject(request.error);
+          request.onsuccess = () => {
+            if (request.result) {
+              resolve({ written: false, existing: request.result.value });
+              return;
+            }
+            // Both the read and add run inside the same write transaction.
+            store.add(createStorageRecord(key, value));
+            resolve({ written: true });
+          };
+        }),
+      });
     },
     async removeItem(key) {
       await withPhiOfficeStore({

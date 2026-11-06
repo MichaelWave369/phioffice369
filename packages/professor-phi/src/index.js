@@ -96,3 +96,36 @@ export function createProfessorPhiMockResponse({ prompt = '', modeId = 'draft' }
       : `Professor Phi mock response (${mode.label} mode): ${getProfessorPhiModeInstruction(mode.id)}\n\nWorking note: “${summary}”\n\nTrust note: this is AI-assisted demo guidance. Review before publishing, and add sources for factual claims.`,
   };
 }
+
+export const professorPhiDemoProvider = Object.freeze({
+  id: 'builtin-demo',
+  name: 'Built-in demo',
+  kind: 'demo',
+  run: createProfessorPhiMockResponse,
+});
+
+export async function runProfessorPhi(provider, { prompt, modeId }, { approveRemote = false } = {}) {
+  if (!provider || typeof provider.id !== 'string' || typeof provider.name !== 'string' ||
+      !['demo', 'local', 'remote'].includes(provider.kind) || typeof provider.run !== 'function') {
+    throw new TypeError('Choose a supported Professor Phi provider.');
+  }
+  if (provider.kind === 'remote' && approveRemote !== true) {
+    throw new Error('Sending this prompt to a remote provider requires explicit approval.');
+  }
+  if (typeof prompt !== 'string' || prompt.length > 16000) throw new TypeError('Prompts must be text up to 16,000 characters.');
+  const mode = getProfessorPhiMode(modeId);
+  if (!mode) throw new TypeError('Choose a Professor Phi mode.');
+
+  const result = await provider.run({ prompt, modeId });
+  if (typeof result?.response !== 'string' || result.response.length > 100000) throw new TypeError('Provider returned unsupported content.');
+  return {
+    response: result.response,
+    modeLabel: mode.label,
+    trustLabel: 'ai_assisted',
+    publishRisk: ['low', 'medium', 'high'].includes(result.publishRisk) ? result.publishRisk : 'unreviewed',
+    localOnly: provider.kind !== 'remote',
+    providerId: provider.id,
+    providerName: provider.name,
+    providerKind: provider.kind,
+  };
+}

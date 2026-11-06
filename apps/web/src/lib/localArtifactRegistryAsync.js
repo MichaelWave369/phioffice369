@@ -6,6 +6,8 @@ import {
   getArtifactStatusFromStorageKey,
   getArtifactTitleFromStoredValue,
   isControlPlaneStorageKey,
+  getStoredSourceTemplateId,
+  getStoredTrustLabels,
   storageKeyToArtifactId,
 } from './localArtifactRegistry.js';
 
@@ -48,15 +50,15 @@ export function asyncStorageEntryToArtifact({ key, value }, metadataLookup = {})
     kind,
     app: isReceipt ? receipt.sourceApp ?? app : app,
     path: key,
-    labels: value?.activeLabelId ? [value.activeLabelId] : [],
+    labels: getStoredTrustLabels(value),
     receipts: receipt ? [receipt] : [],
-    sourceTemplateId: value?.templateId ?? null,
+    sourceTemplateId: getStoredSourceTemplateId(value),
     status: isReceipt ? 'exported' : getArtifactStatusFromStorageKey(key),
   }), metadataLookup);
 }
 
-export function shouldIncludeAsyncArtifactEntry({ key }) {
-  if (!key.startsWith('phioffice369:')) return false;
+export function shouldIncludeAsyncArtifactEntry({ key, value }) {
+  if (!key.startsWith('phioffice369:') || value?.trashedAt) return false;
   if (key.startsWith(ARTIFACT_METADATA_PREFIX)) return false;
   if (key.startsWith('phioffice369:emergency_backup:')) return false;
   if (isControlPlaneStorageKey(key)) return false;

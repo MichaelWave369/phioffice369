@@ -1,4 +1,4 @@
-import { createArtifactManifestEntry } from '@phioffice369/core';
+import { createArtifactManifestEntry, trustLabels } from '@phioffice369/core';
 import { mergeArtifactMetadata, readArtifactMetadata, ARTIFACT_METADATA_PREFIX } from './localArtifactMetadata.js';
 import { canUseBrowserLocalStorage, scanLocalExportReceipts } from './localReceipts.js';
 import {
@@ -9,6 +9,7 @@ import {
 export const CONTROL_PLANE_STORAGE_KEYS = [
   'phioffice369:storage_backend_preference',
   'phioffice369:vault_scan_source_preference',
+  'phioffice369:onboarding_seen',
 ];
 
 export function isControlPlaneStorageKey(key) {
@@ -29,9 +30,18 @@ export function getArtifactKindAndAppFromStorageKey(key) {
 }
 
 export function getArtifactTitleFromStoredValue(key, value) {
-  if (value?.title) return value.title;
-  if (value?.filename) return value.filename;
+  if (typeof value?.title === 'string' && value.title.trim()) return value.title;
+  if (typeof value?.filename === 'string' && value.filename.trim()) return value.filename;
   return key.split(':').at(-1) ?? 'Untitled artifact';
+}
+
+export function getStoredTrustLabels(value) {
+  return trustLabels.some((label) => label.id === value?.activeLabelId) ? [value.activeLabelId] : [];
+}
+
+export function getStoredSourceTemplateId(value) {
+  const id = value?.sourceTemplateId ?? value?.templateId;
+  return typeof id === 'string' ? id : null;
 }
 
 export function storageKeyToArtifactId(key) {
@@ -59,8 +69,9 @@ export function scanLocalDraftArtifacts() {
     .filter((key) => !key.startsWith(ARTIFACT_METADATA_PREFIX))
     .filter((key) => !key.startsWith('phioffice369:emergency_backup:'))
     .filter((key) => !isControlPlaneStorageKey(key))
-    .map((key) => {
+    .flatMap((key) => {
       const storedValue = parseStoredJsonValue(key);
+      if (storedValue?.trashedAt) return [];
       const { kind, app } = getArtifactKindAndAppFromStorageKey(key);
 
       return attachLocalMetadata(createArtifactManifestEntry({
@@ -69,8 +80,8 @@ export function scanLocalDraftArtifacts() {
         kind,
         app,
         path: key,
-        labels: storedValue?.activeLabelId ? [storedValue.activeLabelId] : [],
-        sourceTemplateId: storedValue?.sourceTemplateId ?? storedValue?.templateId ?? null,
+        labels: getStoredTrustLabels(storedValue),
+        sourceTemplateId: getStoredSourceTemplateId(storedValue),
         status: getArtifactStatusFromStorageKey(key),
       }));
     });

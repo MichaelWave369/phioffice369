@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   ArrowLeft,
   Bold,
@@ -43,16 +43,12 @@ import { findPhiWriteMatches, choosePhiWriteMatch, replacePhiWriteMatch, replace
 import { preparePhiWriteTableInsertion, insertPhiWriteTable, PHIWRITE_TABLE_LIMITS } from '../lib/phiwriteEditorTables.js';
 import { preparePhiWriteTableEdit, savePhiWriteTableEdit } from '../lib/phiwriteEditorTableEdit.js';
 import PhiWritePrintDocument from './PhiWritePrintDocument.jsx';
-import { saveLocalExportReceipt } from '../lib/localReceipts.js';
+import { recordLocalExport } from '../lib/localReceipts.js';
 import { createPhiWriteToPhiDeckPayload, getTransformIds } from '../lib/transformRegistry.js';
 import { createPhiWriteTransformSet } from '../lib/phiwriteTransforms.js';
-import {
-  canUseBrowserLocalStorage,
-  readStorageJson,
-  removeStorageValue,
-  writeStorageJson,
-} from '../lib/workspaceStorageAccess.js';
-import { persistDraftSnapshot } from '../lib/draftPersistence.js';
+import { readWorkspaceRecord, workspaceTitle } from '../lib/workspaceRecords.js';
+import { useWorkspaceDraft } from '../lib/useWorkspaceDraft.js';
+import WorkspaceSaveActions from './WorkspaceSaveActions.jsx';
 import './PhiWriteLite.css';
 import './PhiWriteTransformPreview.css';
 
@@ -66,11 +62,6 @@ function slugify(value) {
 
 function createPhiWriteStorageKey(templateId) {
   return `phioffice369:phiwrite:${templateId}`;
-}
-
-function loadDraft(template) {
-  if (!canUseBrowserLocalStorage()) return null;
-  return readStorageJson(createPhiWriteStorageKey(template.id));
 }
 
 function cleanSentences(value) {
@@ -177,11 +168,12 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   const docxImportRef = useRef(null);
   const editorRef = useRef(null);
   const pendingSelectionRef = useRef(null);
-  const savedDraft = useMemo(() => loadDraft(template), [template]);
+  const storageKey = createPhiWriteStorageKey(template.id);
+  const [loaded] = useState(() => readWorkspaceRecord(storageKey));
+  const savedDraft = loaded.record;
   const [title, setTitle] = useState(savedDraft?.title ?? template.title);
   const [content, setContent] = useState(savedDraft?.content ?? makeStarterContent(template));
   const [activeLabelId, setActiveLabelId] = useState(savedDraft?.activeLabelId ?? template.trustDefaults[0] ?? 'human_written');
-  const [saveStatus, setSaveStatus] = useState(savedDraft ? 'Restored local draft' : 'New local draft');
   const [copyStatus, setCopyStatus] = useState('');
   const [assistantStatus, setAssistantStatus] = useState('Local mock assistant ready');
   const [deckSlides, setDeckSlides] = useState([]);
@@ -201,39 +193,20 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   const activeLabel = trustLabels.find((label) => label.id === activeLabelId) ?? trustLabels[0];
   const receipt = useMemo(() => createArtifactReceipt({
     artifactId: `draft_${template.id}`,
-    title,
+    title: workspaceTitle(title, 'PhiWrite'),
     app: template.app,
     labels: Array.from(new Set([...template.trustDefaults, activeLabelId])),
     transformations: getTransformIds(['template_to_phiwrite_lite_draft']),
   }), [activeLabelId, template, title]);
 
-  function getDraftSnapshot() {
-    return { templateId: template.id, sourceTemplateId: template.sourceTemplateId ?? template.id, title, content, activeLabelId };
-  }
-
-  useEffect(() => {
-    setSaveStatus('Unsaved changes...');
-    const timeout = window.setTimeout(() => {
-      const result = persistDraftSnapshot(createPhiWriteStorageKey(template.id), getDraftSnapshot());
-      setSaveStatus(result.ok ? 'Autosaved locally' : result.message);
-    }, 450);
-    return () => window.clearTimeout(timeout);
-  }, [activeLabelId, content, template.id, title]);
-
-  // A refresh or tab close must not discard a recent edit still waiting for debounce.
-  useEffect(() => {
-    const flush = () => persistDraftSnapshot(createPhiWriteStorageKey(template.id), getDraftSnapshot());
-    window.addEventListener('pagehide', flush);
-    return () => window.removeEventListener('pagehide', flush);
-  }, [activeLabelId, content, template.id, title]);
+  const draftSnapshot = useMemo(() => ({
+    ...savedDraft, templateId: template.id, sourceTemplateId: template.sourceTemplateId ?? template.id,
+    title: workspaceTitle(title, 'PhiWrite'), content, activeLabelId,
+  }), [savedDraft, template, title, content, activeLabelId]);
+  const { saveStatus, setSaveStatus, saveFailed, save } = useWorkspaceDraft(storageKey, draftSnapshot, loaded);
 
   function backToPhiOffice() {
-    const result = persistDraftSnapshot(createPhiWriteStorageKey(template.id), getDraftSnapshot());
-    if (!result.ok) {
-      setSaveStatus(result.message);
-      return;
-    }
-    onBack();
+    if (save()) onBack();
   }
 
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
@@ -579,6 +552,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   }
 
   function handleResetDraft() {
+    if (!window.confirm('Reset this file to its starter template? This replaces the current content.')) return;
     setPendingDocxImport(null);
     setLinkDraft(null);
     setTableDraft(null);
@@ -589,7 +563,6 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
     setDeckSlides([]);
     setTransformSet(null);
     setActiveLabelId(template.trustDefaults[0] ?? 'human_written');
-    if (canUseBrowserLocalStorage()) removeStorageValue(createPhiWriteStorageKey(template.id));
     setSaveStatus('Reset to template');
     setAssistantStatus('Local mock assistant ready');
   }
@@ -601,16 +574,14 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   function handleExportMarkdown() {
     const filename = `${slugify(title)}.md`;
     downloadTextFile(filename, buildMarkdownExport(), 'text/markdown;charset=utf-8');
-    saveLocalExportReceipt({ artifactId: `draft_${template.id}`, format: 'markdown', filename, sourceApp: 'PhiWrite' });
-    setSaveStatus('Markdown exported + receipt saved');
+    setSaveStatus(recordLocalExport('Markdown exported', { artifactId: `draft_${template.id}`, format: 'markdown', filename, sourceApp: 'PhiWrite' }));
   }
 
   function handleExportHtml() {
     const filename = slugify(title) + '.html';
     const body = buildPhiWriteHtmlDocument({ title, content, trustLabel: activeLabel.label });
     downloadTextFile(filename, body, 'text/html;charset=utf-8');
-    saveLocalExportReceipt({ artifactId: 'draft_' + template.id, format: 'html', filename, sourceApp: 'PhiWrite' });
-    setSaveStatus('Standalone HTML exported + receipt saved');
+    setSaveStatus(recordLocalExport('Standalone HTML exported', { artifactId: 'draft_' + template.id, format: 'html', filename, sourceApp: 'PhiWrite' }));
   }
 
   function handleExportDocx() {
@@ -618,13 +589,13 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
       const result = buildPhiWriteDocx({ title, content });
       const filename = slugify(title) + '.docx';
       downloadBinaryFile(filename, result.bytes, result.mime);
-      saveLocalExportReceipt({
+      setSaveStatus(recordLocalExport('Basic DOCX exported. Review layout in Word or LibreOffice', {
         artifactId: 'draft_' + template.id,
         format: 'docx',
         filename,
         sourceApp: 'PhiWrite',
-      });
-      setSaveStatus('Basic DOCX exported + receipt saved. Review layout in Word or LibreOffice.');
+        compatibility: 'partial',
+      }));
     } catch (error) {
       setSaveStatus(error instanceof Error ? error.message : 'DOCX export failed. No receipt saved.');
     }
@@ -639,8 +610,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
     const filename = `${slugify(title)}-phideck-lite.json`;
     const payload = { schema: 'phioffice369.phideck_lite.v0.1', title, sourceTemplate: template.id, generatedAt: new Date().toISOString(), transformId: 'phiwrite_to_phideck_lite_workspace', slides: deckSlides };
     downloadTextFile(filename, JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
-    saveLocalExportReceipt({ artifactId: `deck_${template.id}`, format: 'json', filename, sourceApp: 'PhiDeck' });
-    setAssistantStatus('PhiDeck-lite JSON exported + receipt saved');
+    setAssistantStatus(recordLocalExport('PhiDeck-lite JSON exported', { artifactId: `deck_${template.id}`, format: 'json', filename, sourceApp: 'PhiDeck' }));
   }
 
   function handleOpenDeckWorkspace() {
@@ -650,6 +620,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
       setAssistantStatus('PhiDeck-lite workspace bridge is unavailable');
       return;
     }
+    if (!save()) return;
     onOpenDeck(createPhiWriteToPhiDeckPayload({ title, template, slides }));
   }
 
@@ -669,6 +640,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
       setAssistantStatus('PhiDeck-lite workspace bridge is unavailable');
       return;
     }
+    if (!save()) return;
     onOpenDeck(createPhiWriteToPhiDeckPayload({ title: packet.target.title, template, slides }));
   }
 
@@ -685,8 +657,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
     const format = getPacketExportFormat(packet);
     const filename = `${slugify(packet.target.title)}.${format === 'json' ? 'json' : 'md'}`;
     downloadTextFile(filename, getPacketExportBody(packet), getPacketExportMime(packet));
-    saveLocalExportReceipt({ artifactId: packet.target.artifactId, format, filename, sourceApp: packet.target.app });
-    setAssistantStatus(`${packet.target.kind} exported + receipt saved`);
+    setAssistantStatus(recordLocalExport(`${packet.target.kind} exported`, { artifactId: packet.target.artifactId, format, filename, sourceApp: packet.target.app }));
   }
 
   function triggerMarkdownImport() {
@@ -786,8 +757,9 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
     <section className="phiwrite-workspace fade-in">
       <div className="workspace-topbar panel">
         <button className="ghost-button" type="button" onClick={backToPhiOffice}><ArrowLeft aria-hidden="true" />Back to PhiOffice</button>
-        <div><p className="eyebrow">PhiWrite-lite</p><h2>{template.title}</h2><p className="save-status">{saveStatus}</p></div>
+        <div><p className="eyebrow">PhiWrite-lite</p><h2>{template.title}</h2><p className="save-status" role="status">{saveStatus}</p></div>
         <div className="workspace-actions">
+          <WorkspaceSaveActions save={save} saveFailed={saveFailed} onBack={onBack} />
           <button className="ghost-button" type="button" onClick={handleResetDraft}><RotateCcw aria-hidden="true" />Reset</button>
           <button className="ghost-button" type="button" onClick={triggerMarkdownImport}><Upload aria-hidden="true" />Import .md</button>
           <button className="ghost-button" type="button" onClick={triggerDocxImport}><Upload aria-hidden="true" />Preview .docx</button>

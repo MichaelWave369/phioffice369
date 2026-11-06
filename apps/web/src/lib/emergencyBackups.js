@@ -1,3 +1,4 @@
+import { inspectBackupSnapshot } from './workspaceBackupSnapshot.js';
 import { EMERGENCY_BACKUP_PREFIX, createBrowserStorageAdapter } from './storageAdapters.js';
 
 export { EMERGENCY_BACKUP_PREFIX } from './storageAdapters.js';
@@ -114,56 +115,57 @@ export function readEmergencyBackup(key) {
   }
 }
 
-export function restoreEmergencyBackupPayload(payload, storage) {
-  if (!payload?.storageSnapshot || !storage) return 0;
-
-  let restored = 0;
-  payload.storageSnapshot.forEach(([key, value]) => {
-    if (typeof key === 'string' && typeof value === 'string') {
-      storage.setItem(key, value);
-      restored += 1;
-    }
-  });
-
-  return restored;
-}
-
-export async function restoreBackupPayloadWithAdapter(payload, adapter = createBrowserStorageAdapter()) {
-  if (!payload?.storageSnapshot) return 0;
-
-  let restored = 0;
-  for (const [key, value] of payload.storageSnapshot) {
-    if (typeof key === 'string' && typeof value === 'string') {
-      await adapter.setItem(key, value);
-      restored += 1;
-    }
-  }
-
-  return restored;
+function prepareRestore(payload) {
+  if (!isWorkspaceBackupPayload(payload)) return { errors: ['Not a PhiOffice369 workspace backup.'] };
+  return inspectBackupSnapshot(payload.storageSnapshot);
 }
 
 export function restoreWorkspaceBackupPayload(payload, storage) {
-  if (!isWorkspaceBackupPayload(payload)) {
-    return { ok: false, restored: 0, reason: 'not a PhiOffice369 workspace backup' };
-  }
-
+  const { entries, errors, ignored = 0 } = prepareRestore(payload);
+  let restored = 0;
+  let conflicts = 0;
+  let unchanged = 0;
+  let reason = errors[0] ?? null;
   try {
-    return { ok: true, restored: restoreEmergencyBackupPayload(payload, storage), reason: null };
-  } catch (restoreError) {
-    return { ok: false, restored: 0, reason: restoreError?.message ?? 'restore failed' };
+    if (!reason && !storage) reason = 'Browser storage is unavailable.';
+    if (!reason) {
+      for (const [key, value] of entries) {
+        const existing = storage.getItem(key);
+        if (existing === null) {
+          storage.setItem(key, value);
+          restored += 1;
+        } else if (existing === value) unchanged += 1;
+        else conflicts += 1;
+      }
+    }
+  } catch {
+    reason = 'Browser storage is full or unavailable. Existing records were kept. You can retry this backup.';
   }
+  return { ok: !reason, restored, conflicts, unchanged, ignored, reason };
 }
 
 export async function restoreWorkspaceBackupPayloadWithAdapter(payload, adapter = createBrowserStorageAdapter()) {
-  if (!isWorkspaceBackupPayload(payload)) {
-    return { ok: false, restored: 0, reason: 'not a PhiOffice369 workspace backup' };
-  }
-
+  const { entries, errors, ignored = 0 } = prepareRestore(payload);
+  let restored = 0;
+  let conflicts = 0;
+  let unchanged = 0;
+  let reason = errors[0] ?? null;
   try {
-    return { ok: true, restored: await restoreBackupPayloadWithAdapter(payload, adapter), reason: null };
-  } catch (restoreError) {
-    return { ok: false, restored: 0, reason: restoreError?.message ?? 'restore failed' };
+    if (!reason && !await adapter.isAvailable()) reason = 'Workspace adapter is unavailable.';
+    if (!reason) {
+      for (const [key, value] of entries) {
+        const existing = await adapter.getItem(key);
+        if (existing === null) {
+          await adapter.setItem(key, value);
+          restored += 1;
+        } else if (existing === value) unchanged += 1;
+        else conflicts += 1;
+      }
+    }
+  } catch {
+    reason = 'The workspace adapter could not complete the restore. You can retry this backup.';
   }
+  return { ok: !reason, restored, conflicts, unchanged, ignored, reason };
 }
 
 export function restoreEmergencyBackup(key) {
@@ -172,10 +174,5 @@ export function restoreEmergencyBackup(key) {
   const payload = readEmergencyBackup(key);
   if (!payload) return { ok: false, restored: 0, reason: 'backup not found' };
 
-  try {
-    const restored = restoreEmergencyBackupPayload(payload, window.localStorage);
-    return { ok: true, restored, reason: null };
-  } catch (restoreError) {
-    return { ok: false, restored: 0, reason: restoreError?.message ?? 'restore failed' };
-  }
+  return restoreWorkspaceBackupPayload({ ...payload, schema: WORKSPACE_BACKUP_SCHEMA }, window.localStorage);
 }

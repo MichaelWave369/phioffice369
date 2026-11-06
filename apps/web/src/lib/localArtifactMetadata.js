@@ -59,9 +59,7 @@ export function writeArtifactMetadata(artifactId, metadata) {
     updatedAt: new Date().toISOString(),
   });
 
-  if (canUseBrowserLocalStorage()) {
-    writeStorageJson(createArtifactMetadataKey(artifactId), nextMetadata);
-  }
+  if (!writeStorageJson(createArtifactMetadataKey(artifactId), nextMetadata)) throw new Error('Browser storage is unavailable.');
 
   return nextMetadata;
 }

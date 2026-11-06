@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ClipboardCopy, Database, Download, FolderLock, RefreshCw, Search, ShieldCheck, Sparkles, Upload, X } from 'lucide-react';
 import { createProjectManifest } from '@phioffice369/core';
-import { createWorkspaceBackupPayload, isWorkspaceBackupPayload, restoreWorkspaceBackupPayload } from '../lib/emergencyBackups.js';
+import { createWorkspaceBackupPayload, restoreWorkspaceBackupPayload } from '../lib/emergencyBackups.js';
 import { normalizeProjectFolder, parseTagInput, writeArtifactMetadata } from '../lib/localArtifactMetadata.js';
 import {
   buildExportTimeline,
@@ -45,6 +45,10 @@ import {
   createStorageReadinessReport,
   writeStorageBackendPreference,
 } from '../lib/storageReadinessGate.js';
+import { createVaultImportPreviewFromFile, applyVaultImportPreviewState } from '../lib/vaultImportValidation.js';
+import { scanRecentWorkspaces } from '../lib/recentWorkspaces.js';
+import { changeWorkspaceFile } from '../lib/workspaceFileActions.js';
+import { getBrowserLocalStorage } from '../lib/workspaceStorageAccess.js';
 import './PhiVaultLite.css';
 import './PhiVaultMigration.css';
 
@@ -71,11 +75,14 @@ function updateArtifactInList(artifacts, artifactId, updater) {
 
 function getInitialVaultScanSource() {
   if (typeof window === 'undefined') return VAULT_SCAN_SOURCE_SYNC;
-  return getRequestedVaultScanSource(window.localStorage);
+  return getRequestedVaultScanSource(getBrowserLocalStorage());
 }
 
-export default function PhiVaultLite() {
+export default function PhiVaultLite({ onOpenFile, onFilesChanged }) {
   const fileInputRef = useRef(null);
+  const latestImport = useRef(0);
+  const [fileName, setFileName] = useState('');
+  const [trashedFiles, setTrashedFiles] = useState(() => scanRecentWorkspaces({ trashed: true }));
   const [syncArtifacts, setSyncArtifacts] = useState(() => scanContinuityArtifacts());
   const [status, setStatus] = useState('Local manifest ready');
   const [copyStatus, setCopyStatus] = useState('');
@@ -90,6 +97,7 @@ export default function PhiVaultLite() {
   const [verificationReport, setVerificationReport] = useState(null);
   const [importedManifest, setImportedManifest] = useState(null);
   const [importedBackup, setImportedBackup] = useState(null);
+  const [importErrors, setImportErrors] = useState([]);
   const [query, setQuery] = useState('');
   const [appFilter, setAppFilter] = useState('all');
   const [kindFilter, setKindFilter] = useState('all');
@@ -153,6 +161,8 @@ export default function PhiVaultLite() {
   const appOptions = useMemo(() => uniqueArtifactValues(artifacts, 'app'), [artifacts]);
   const kindOptions = useMemo(() => uniqueArtifactValues(artifacts, 'kind'), [artifacts]);
   const projectOptions = useMemo(() => uniqueArtifactValues(artifacts, 'projectFolder'), [artifacts]);
+  const selectedFile = useMemo(() => selectedArtifact &&
+    scanRecentWorkspaces().find(({ key }) => key === selectedArtifact.path), [selectedArtifact]);
   const selectedReceipt = selectedArtifact?.receipts?.[0] ?? null;
   const projectFolderCount = projectOptions.filter((option) => option !== 'all').length;
 
@@ -164,9 +174,10 @@ export default function PhiVaultLite() {
   }
 
   async function refreshStorageStatus() {
-    const nextStatus = await getStorageStatus(window);
+    const nextStatus = await getStorageStatus(window).catch(() => null);
     setStorageStatus(nextStatus);
-    setRequestedVaultScanSource(getRequestedVaultScanSource(window.localStorage));
+    if (!nextStatus) return;
+    setRequestedVaultScanSource(getRequestedVaultScanSource(getBrowserLocalStorage()));
 
     try {
       const [nextAsyncStatus, nextAsyncRegistryStatus, nextAsyncArtifacts] = await Promise.all([
@@ -178,7 +189,7 @@ export default function PhiVaultLite() {
       setAsyncRegistryStatus(nextAsyncRegistryStatus);
       setAsyncArtifacts(nextAsyncArtifacts);
       setStoragePreferenceStatus(createStoragePreferenceStatus({
-        storage: window.localStorage,
+        storage: getBrowserLocalStorage(),
         activeAdapterId: nextAsyncStatus.adapterId,
       }));
     } catch (error) {
@@ -193,7 +204,7 @@ export default function PhiVaultLite() {
       setAsyncRegistryStatus(null);
       setAsyncArtifacts([]);
       setStoragePreferenceStatus(createStoragePreferenceStatus({
-        storage: window.localStorage,
+        storage: getBrowserLocalStorage(),
         activeAdapterId: nextStatus.activeAdapterId,
       }));
     }
@@ -203,7 +214,13 @@ export default function PhiVaultLite() {
     refreshStorageStatus();
   }, []);
 
+  function refreshFiles() {
+    setTrashedFiles(scanRecentWorkspaces({ trashed: true }));
+    onFilesChanged?.();
+  }
+
   function refreshArtifacts() {
+    refreshFiles();
     const nextArtifacts = scanContinuityArtifacts();
     setSyncArtifacts(nextArtifacts);
     setSelectedArtifact(null);
@@ -223,6 +240,7 @@ export default function PhiVaultLite() {
 
   function selectArtifact(artifact) {
     setSelectedArtifact(artifact);
+    setFileName(artifact.title);
     setTagInput((artifact.tags ?? []).join(', '));
     setProjectInput(artifact.projectFolder ?? '');
   }
@@ -233,10 +251,16 @@ export default function PhiVaultLite() {
   }
 
   function exportWorkspaceBackup() {
-    const payload = createWorkspaceBackupPayload({ storage: window.localStorage, manifest });
-    const safeTimestamp = payload.createdAt.replace(/[:.]/g, '-');
-    downloadJson(`phioffice369-workspace-backup-${safeTimestamp}.json`, payload);
-    setStatus(`Workspace backup exported with ${payload.storageSnapshot.length} local item${payload.storageSnapshot.length === 1 ? '' : 's'}`);
+    try {
+      const storage = getBrowserLocalStorage();
+      if (!storage) throw new Error('Browser storage is unavailable.');
+      const payload = createWorkspaceBackupPayload({ storage, manifest });
+      const safeTimestamp = payload.createdAt.replace(/[:.]/g, '-');
+      downloadJson(`phioffice369-workspace-backup-${safeTimestamp}.json`, payload);
+      setStatus(`Workspace backup exported with ${payload.storageSnapshot.length} local items. The backup is unencrypted.`);
+    } catch {
+      setStatus('Could not read browser storage for a workspace backup.');
+    }
   }
 
   function exportMigrationReport() {
@@ -332,20 +356,20 @@ export default function PhiVaultLite() {
     }
 
     const preference = createIndexedDbPilotPreference(readinessReport);
-    writeStorageBackendPreference(window.localStorage, preference);
+    writeStorageBackendPreference(getBrowserLocalStorage(), preference);
     await refreshStorageStatus();
     setStatus(readinessReport.canEnableIndexedDbPilot ? 'IndexedDB pilot preference saved. Refresh the app to use pilot storage.' : `IndexedDB pilot blocked: ${readinessReport.blockers.join(', ')}`);
   }
 
   async function keepLocalStorageMode() {
     const preference = createStorageBackendPreference({ backend: 'localStorage', reason: 'manual_localstorage_preference', readinessReport });
-    writeStorageBackendPreference(window.localStorage, preference);
+    writeStorageBackendPreference(getBrowserLocalStorage(), preference);
     await refreshStorageStatus();
     setStatus('LocalStorage preference saved. PhiOffice will stay on localStorage mode.');
   }
 
   async function resetStoragePreference() {
-    clearStorageBackendPreference(window.localStorage);
+    clearStorageBackendPreference(getBrowserLocalStorage());
     await refreshStorageStatus();
     setStatus('Storage preference reset. PhiOffice will use default localStorage mode after refresh.');
   }
@@ -355,7 +379,7 @@ export default function PhiVaultLite() {
       requestedSource,
       reason: requestedSource === VAULT_SCAN_SOURCE_ASYNC ? 'operator_async_scan_opt_in' : 'operator_sync_scan_preference',
     });
-    storeVaultScanSourcePreference(window.localStorage, preference);
+    storeVaultScanSourcePreference(getBrowserLocalStorage(), preference);
     setRequestedVaultScanSource(preference.requestedSource);
     setSelectedArtifact(null);
     refreshStorageStatus();
@@ -363,28 +387,43 @@ export default function PhiVaultLite() {
   }
 
   function resetVaultScanSource() {
-    resetVaultScanSourcePreference(window.localStorage);
+    resetVaultScanSourcePreference(getBrowserLocalStorage());
     setRequestedVaultScanSource(VAULT_SCAN_SOURCE_SYNC);
     setSelectedArtifact(null);
     refreshStorageStatus();
     setStatus('Visible vault scan preference reset to sync default.');
   }
 
+  function clearImportPreview() {
+    latestImport.current += 1;
+    setImportedBackup(null);
+    setImportedManifest(null);
+    setImportErrors([]);
+  }
+
   function restoreImportedBackup() {
     if (!importedBackup) return;
-    const result = restoreWorkspaceBackupPayload(importedBackup, window.localStorage);
+    const result = restoreWorkspaceBackupPayload(importedBackup, getBrowserLocalStorage());
+    refreshArtifacts();
+    const summary = `Restored ${result.restored} items. Kept ${result.conflicts} conflicting items, skipped ${result.unchanged} identical items and ignored ${result.ignored} settings or unsupported keys.`;
+    setStatus(result.ok ? summary : `${result.reason} ${summary}`);
+    if (result.ok) clearImportPreview();
+  }
+
+  function manageFile(key, action) {
+    const result = changeWorkspaceFile(key, action, fileName);
     if (!result.ok) {
-      setStatus(`Backup restore failed: ${result.reason}`);
+      setStatus(result.message);
       return;
     }
-
-    const nextArtifacts = scanContinuityArtifacts();
-    setSyncArtifacts(nextArtifacts);
-    setSelectedArtifact(null);
-    setTagInput('');
-    setProjectInput('');
-    refreshStorageStatus();
-    setStatus(`Restored ${result.restored} local item${result.restored === 1 ? '' : 's'} from workspace backup`);
+    refreshArtifacts();
+    const messages = {
+      rename: 'File renamed.',
+      duplicate: result.message.startsWith('File duplicated') ? result.message : 'File duplicated.',
+      trash: 'File moved to Trash. You can restore it here.',
+      restore: 'File restored from Trash.',
+    };
+    setStatus(messages[action]);
   }
 
   async function copyJson(payload, label) {
@@ -484,7 +523,13 @@ export default function PhiVaultLite() {
 
   function updateSelectedMetadata(metadata, statusMessage) {
     if (!selectedArtifact) return;
-    const nextMetadata = writeArtifactMetadata(selectedArtifact.artifactId, metadata);
+    let nextMetadata;
+    try {
+      nextMetadata = writeArtifactMetadata(selectedArtifact.artifactId, metadata);
+    } catch {
+      setStatus('Could not save tags or folder. Browser storage is full or unavailable.');
+      return;
+    }
     const updateWithMetadata = (artifact) => ({
       ...artifact,
       tags: nextMetadata.tags,
@@ -532,26 +577,16 @@ export default function PhiVaultLite() {
     const file = event.target.files?.[0];
     if (!file) return;
 
+    event.target.value = '';
+    clearImportPreview();
+    const revision = latestImport.current;
     try {
-      const text = await file.text();
-      const parsed = JSON.parse(text);
-      if (isWorkspaceBackupPayload(parsed)) {
-        setImportedBackup(parsed);
-        setImportedManifest(parsed.manifest ?? null);
-        setStatus(`Workspace backup preview loaded: ${parsed.storageSnapshot.length} local item${parsed.storageSnapshot.length === 1 ? '' : 's'}`);
-        return;
+      const { previewState } = await createVaultImportPreviewFromFile(file);
+      if (revision === latestImport.current) {
+        applyVaultImportPreviewState(previewState, { setImportedBackup, setImportedManifest, setStatus, setImportErrors });
       }
-      if (!parsed.schema?.startsWith('phioffice369.project_manifest.')) {
-        setStatus('Imported file is not a PhiOffice369 project manifest or workspace backup');
-        return;
-      }
-      setImportedManifest(parsed);
-      setImportedBackup(null);
-      setStatus(`Imported preview: ${parsed.title ?? 'Untitled manifest'}`);
     } catch {
-      setStatus('Could not read that manifest or backup JSON');
-    } finally {
-      event.target.value = '';
+      if (revision === latestImport.current) setStatus('Could not read that manifest or backup JSON.');
     }
   }
 
@@ -570,7 +605,8 @@ export default function PhiVaultLite() {
           <p className="eyebrow">PhiVault-lite</p>
           <h2>Local project continuity</h2>
           <p>Scan browser-local drafts, grids, decks, and export receipts; organize them with local tags and project folders; then export project continuity JSON.</p>
-          <p className="vault-status">{status}</p>
+          <p className="vault-status" role="status">{status}</p>
+          {importErrors.length > 0 && <ul>{importErrors.slice(0, 4).map((error) => <li key={error}>{error}</li>)}</ul>}
           {copyStatus && <p className="vault-copy-status">{copyStatus}</p>}
         </div>
         <div className="vault-actions">
@@ -783,10 +819,12 @@ export default function PhiVaultLite() {
           {importedBackup && (
             <div className="import-preview backup-preview">
               <h3>Workspace backup preview</h3>
-              <p>{importedBackup.source}</p>
+              <p>{typeof importedBackup.source === 'string' ? importedBackup.source : 'Local backup file'}</p>
               <code>{importedBackup.schema}</code>
               <span>{importedBackup.storageSnapshot.length} local items</span>
-              <button type="button" onClick={restoreImportedBackup}>Restore backup into browser storage</button>
+              <p>Restore adds missing files and metadata. Existing keys are kept. Browser settings are skipped.</p>
+              <button type="button" onClick={restoreImportedBackup}>Restore missing items</button>
+              <button type="button" onClick={() => { clearImportPreview(); setStatus('Backup restore cancelled.'); }}>Cancel restore</button>
             </div>
           )}
 
@@ -811,7 +849,7 @@ export default function PhiVaultLite() {
           <div className="vault-filter-panel">
             <label className="vault-search-box">
               <Search aria-hidden="true" />
-              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search title, app, kind, label, tag, folder, path, status..." />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} aria-label="Search workspace files" placeholder="Search title, app, kind, label, tag, folder, path, status..." />
             </label>
             <div className="vault-select-row three-selects">
               <label>
@@ -860,6 +898,16 @@ export default function PhiVaultLite() {
             </section>
           )}
 
+          {trashedFiles.length > 0 && (
+            <details className="import-preview">
+              <summary>Trash ({trashedFiles.length})</summary>
+              <p>Trashed files still use browser storage and are included in workspace backups.</p>
+              <ul>{trashedFiles.map((file) => (
+                <li key={file.key}>{file.title} · {file.app} <button type="button" onClick={() => manageFile(file.key, 'restore')}>Restore {file.title}</button></li>
+              ))}</ul>
+            </details>
+          )}
+
           {selectedArtifact && (
             <section className="artifact-detail-drawer">
               <div className="artifact-detail-heading">
@@ -887,6 +935,20 @@ export default function PhiVaultLite() {
               <div className="detail-label-row">
                 {(selectedArtifact.labels?.length ? selectedArtifact.labels : ['no_labels']).map((label) => <span key={label}>{label}</span>)}
               </div>
+
+              {selectedFile && (
+                <div className="detail-tag-editor">
+                  <label><span>File name</span><input value={fileName} maxLength={240} onChange={(event) => setFileName(event.target.value)} /></label>
+                  <div className="detail-tag-actions">
+                    <button type="button" onClick={() => onOpenFile(selectedFile)}>Open file</button>
+                    <button type="button" onClick={() => manageFile(selectedFile.key, 'rename')}>Rename file</button>
+                    <button type="button" onClick={() => manageFile(selectedFile.key, 'duplicate')}>Duplicate file</button>
+                    {selectedFile.isIndependent && <button type="button" onClick={() => {
+                      if (window.confirm(`Move "${selectedFile.title}" to Trash?`)) manageFile(selectedFile.key, 'trash');
+                    }}>Move to Trash</button>}
+                  </div>
+                </div>
+              )}
 
               <div className="detail-tag-editor">
                 <label>

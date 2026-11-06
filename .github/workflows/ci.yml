@@ -2,7 +2,7 @@ name: PhiOffice369 CI
 
 on:
   pull_request:
-    branches: [main]
+    branches: [main, 'feat/readiness-*']
   workflow_dispatch:
 
 permissions:
@@ -43,5 +43,5 @@ jobs:
         run: |
           command -v google-chrome || command -v chromium || command -v chromium-browser
 
-      - name: Accept PhiWrite in a real browser
+      - name: Run production browser acceptance
         run: npm run test:browser

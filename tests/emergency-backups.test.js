@@ -7,7 +7,6 @@ import {
   EMERGENCY_BACKUP_PREFIX,
   errorToPlainObject,
   isWorkspaceBackupPayload,
-  restoreEmergencyBackupPayload,
   restoreWorkspaceBackupPayload,
   storageKeys,
   WORKSPACE_BACKUP_SCHEMA,
@@ -100,37 +99,51 @@ test('isWorkspaceBackupPayload validates backup payload shape', () => {
   assert.equal(isWorkspaceBackupPayload({ schema: 'other', storageSnapshot: [] }), false);
 });
 
-test('restoreEmergencyBackupPayload writes captured keys back to storage', () => {
-  const storage = createFakeStorage();
-  const restored = restoreEmergencyBackupPayload({
-    storageSnapshot: [
-      ['phioffice369:phiwrite:test', '{"title":"Recovered"}'],
-      ['phioffice369:phideck:test', '{"slides":[]}'],
-    ],
-  }, storage);
+const docKey = 'phioffice369:phiwrite:test';
+const gridKey = 'phioffice369:phigrid:test';
+const doc = '{"title":"Recovered","content":"Original text"}';
+const grid = '{"columns":["Item"],"rows":[]}';
+const backup = (storageSnapshot) => ({ schema: WORKSPACE_BACKUP_SCHEMA, storageSnapshot });
 
-  assert.equal(restored, 2);
-  assert.deepEqual(storage.toObject(), {
-    'phioffice369:phiwrite:test': '{"title":"Recovered"}',
-    'phioffice369:phideck:test': '{"slides":[]}',
+test('workspace restore adds missing records and reports conflicts, identical items and ignored controls', () => {
+  const storage = createFakeStorage({ [docKey]: '{"content":"New work"}' });
+  const input = backup([[docKey, doc], [gridKey, grid], ['phioffice369:onboarding_seen', 'true']]);
+  assert.deepEqual(restoreWorkspaceBackupPayload(input, storage), {
+    ok: true, restored: 1, conflicts: 1, unchanged: 0, ignored: 1, reason: null,
   });
+  assert.deepEqual(restoreWorkspaceBackupPayload(input, storage), {
+    ok: true, restored: 0, conflicts: 1, unchanged: 1, ignored: 1, reason: null,
+  });
+  assert.deepEqual(storage.toObject(), { [docKey]: '{"content":"New work"}', [gridKey]: grid });
 });
 
-test('restoreWorkspaceBackupPayload validates and restores workspace backup payloads', () => {
-  const storage = createFakeStorage();
-  const ok = restoreWorkspaceBackupPayload({
-    schema: WORKSPACE_BACKUP_SCHEMA,
-    storageSnapshot: [
-      ['phioffice369:phiwrite:test', '{"title":"Recovered"}'],
-      ['phioffice369:phigrid:test', '{"rows":[]}'],
-    ],
-  }, storage);
-  const invalid = restoreWorkspaceBackupPayload({ schema: 'other', storageSnapshot: [] }, storage);
+test('restore rejects corrupt, external and duplicate snapshot entries before writing', () => {
+  for (const entries of [
+    [[docKey, doc], [gridKey, '{"rows":[null]}']],
+    [[docKey, doc], ['another-app:account', 'value']],
+    [[docKey, doc], [docKey, doc]],
+  ]) {
+    const storage = createFakeStorage();
+    const result = restoreWorkspaceBackupPayload(backup(entries), storage);
+    assert.equal(result.ok, false);
+    assert.deepEqual(storage.toObject(), {});
+  }
+});
 
-  assert.deepEqual(ok, { ok: true, restored: 2, reason: null });
-  assert.equal(invalid.ok, false);
-  assert.deepEqual(storage.toObject(), {
-    'phioffice369:phiwrite:test': '{"title":"Recovered"}',
-    'phioffice369:phigrid:test': '{"rows":[]}',
-  });
+test('quota failure reports actual progress and a retry resumes with remaining items', () => {
+  const storage = createFakeStorage();
+  const input = backup([[docKey, doc], [gridKey, grid]]);
+  const normalWrite = storage.setItem;
+  storage.setItem = (key, value) => {
+    if (key === gridKey) throw new Error('QuotaExceededError');
+    normalWrite(key, value);
+  };
+  const result = restoreWorkspaceBackupPayload(input, storage);
+  assert.equal(result.ok, false);
+  assert.equal(result.restored, 1);
+  assert.deepEqual(storage.toObject(), { [docKey]: doc });
+  storage.setItem = normalWrite;
+  const retry = restoreWorkspaceBackupPayload(input, storage);
+  assert.equal(retry.unchanged, 1);
+  assert.equal(retry.restored, 1);
 });

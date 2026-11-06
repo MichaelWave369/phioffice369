@@ -1,16 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ClipboardCopy, Copy, Download, Layers3, Plus, RotateCcw, ShieldCheck, Sparkles, Trash2, Upload } from 'lucide-react';
 import { createArtifactReceipt, trustLabels } from '@phioffice369/core';
 import { parsePhiDeckJsonImport } from '../lib/localImporters.js';
-import { saveLocalExportReceipt } from '../lib/localReceipts.js';
+import { recordLocalExport } from '../lib/localReceipts.js';
 import { getTransformIds } from '../lib/transformRegistry.js';
-import {
-  canUseBrowserLocalStorage,
-  readStorageJson,
-  removeStorageValue,
-  writeStorageJson,
-} from '../lib/workspaceStorageAccess.js';
-import { persistDraftSnapshot } from '../lib/draftPersistence.js';
+import { readWorkspaceRecord, workspaceTitle } from '../lib/workspaceRecords.js';
+import { useWorkspaceDraft } from '../lib/useWorkspaceDraft.js';
+import WorkspaceSaveActions from './WorkspaceSaveActions.jsx';
 import './PhiDeckLite.css';
 
 function slugify(value) {
@@ -32,11 +28,6 @@ function makeStarterSlides(template) {
   }));
 }
 
-function loadDeck(template) {
-  if (!canUseBrowserLocalStorage()) return null;
-  return readStorageJson(createPhiDeckStorageKey(template.id));
-}
-
 function downloadTextFile(filename, body, type) {
   const blob = new Blob([body], { type });
   const url = URL.createObjectURL(blob);
@@ -53,7 +44,7 @@ function bulletTextToArray(value) {
   return value.split('\n').map((line) => line.trim()).filter(Boolean);
 }
 
-function resolveInitialDeck(template, initialDeck) {
+function resolveInitialDeck(template, initialDeck, savedDeck) {
   if (initialDeck?.slides?.length) {
     return {
       title: initialDeck.title ?? template.title,
@@ -63,7 +54,6 @@ function resolveInitialDeck(template, initialDeck) {
     };
   }
 
-  const savedDeck = loadDeck(template);
   if (savedDeck?.slides?.length) {
     return {
       title: savedDeck.title ?? template.title,
@@ -83,53 +73,37 @@ function resolveInitialDeck(template, initialDeck) {
 
 export default function PhiDeckLite({ template, onBack, initialDeck = null }) {
   const importInputRef = useRef(null);
-  const initialState = useMemo(() => resolveInitialDeck(template, initialDeck), [initialDeck, template]);
+  const storageKey = createPhiDeckStorageKey(template.id);
+  const [loaded] = useState(() => readWorkspaceRecord(storageKey));
+  const savedDeck = loaded.record;
+  const [initialState] = useState(() => resolveInitialDeck(template, initialDeck, savedDeck));
   const [title, setTitle] = useState(initialState.title);
   const [slides, setSlides] = useState(initialState.slides);
   const [activeSlideId, setActiveSlideId] = useState(initialState.slides[0]?.id ?? 'slide-1');
   const [activeLabelId, setActiveLabelId] = useState(initialState.activeLabelId);
-  const [saveStatus, setSaveStatus] = useState(initialState.status);
   const [copyStatus, setCopyStatus] = useState('');
 
   const activeSlide = slides.find((slide) => slide.id === activeSlideId) ?? slides[0];
   const activeLabel = trustLabels.find((label) => label.id === activeLabelId) ?? trustLabels[0];
-  const transformId = initialDeck?.transformId ?? 'template_to_phideck_lite_deck';
+  const transformTrace = initialDeck?.trace ?? savedDeck?.transformTrace ?? null;
+  const transformId = initialDeck?.transformId ?? savedDeck?.transformId ?? 'template_to_phideck_lite_deck';
 
   const receipt = useMemo(() => createArtifactReceipt({
     artifactId: `deck_${template.id}`,
-    title,
+    title: workspaceTitle(title, 'PhiDeck'),
     app: 'PhiDeck',
     labels: Array.from(new Set([...template.trustDefaults, activeLabelId])),
     transformations: getTransformIds([transformId]),
   }), [activeLabelId, template, title, transformId]);
 
-  function getDraftSnapshot() {
-    return { templateId: template.id, sourceTemplateId: template.sourceTemplateId ?? template.id, title, slides, activeLabelId, transformId, transformTrace: initialDeck?.trace ?? null };
-  }
-
-  useEffect(() => {
-    setSaveStatus('Unsaved changes...');
-    const timeout = window.setTimeout(() => {
-      const result = persistDraftSnapshot(createPhiDeckStorageKey(template.id), getDraftSnapshot());
-      setSaveStatus(result.ok ? 'Autosaved locally' : result.message);
-    }, 450);
-    return () => window.clearTimeout(timeout);
-  }, [activeLabelId, initialDeck, slides, template.id, title, transformId]);
-
-  // A refresh or tab close must not discard a recent edit still waiting for debounce.
-  useEffect(() => {
-    const flush = () => persistDraftSnapshot(createPhiDeckStorageKey(template.id), getDraftSnapshot());
-    window.addEventListener('pagehide', flush);
-    return () => window.removeEventListener('pagehide', flush);
-  }, [activeLabelId, initialDeck, slides, template.id, title, transformId]);
+  const draftSnapshot = useMemo(() => ({
+    ...savedDeck, templateId: template.id, sourceTemplateId: template.sourceTemplateId ?? template.id,
+    title: workspaceTitle(title, 'PhiDeck'), slides, activeLabelId, transformId, transformTrace,
+  }), [savedDeck, template, title, slides, transformId, transformTrace, activeLabelId]);
+  const { saveStatus, setSaveStatus, saveFailed, save } = useWorkspaceDraft(storageKey, draftSnapshot, loaded);
 
   function backToPhiOffice() {
-    const result = persistDraftSnapshot(createPhiDeckStorageKey(template.id), getDraftSnapshot());
-    if (!result.ok) {
-      setSaveStatus(result.message);
-      return;
-    }
-    onBack();
+    if (save()) onBack();
   }
 
   function updateActiveSlideTitle(value) {
@@ -169,12 +143,12 @@ export default function PhiDeckLite({ template, onBack, initialDeck = null }) {
   }
 
   function resetDeck() {
+    if (!window.confirm('Reset this file to its starter template? This replaces the current content.')) return;
     const nextStarterSlides = makeStarterSlides(template);
     setTitle(template.title);
     setSlides(nextStarterSlides);
     setActiveSlideId(nextStarterSlides[0]?.id ?? 'slide-1');
     setActiveLabelId(template.trustDefaults[0] ?? 'ai_assisted');
-    if (canUseBrowserLocalStorage()) removeStorageValue(createPhiDeckStorageKey(template.id));
     setSaveStatus('Reset to template');
   }
 
@@ -186,13 +160,12 @@ export default function PhiDeckLite({ template, onBack, initialDeck = null }) {
       sourceTemplate: template.id,
       generatedAt: new Date().toISOString(),
       transformId,
-      transformTrace: initialDeck?.trace ?? null,
+      transformTrace,
       slides,
       receipt,
     };
     downloadTextFile(filename, JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
-    saveLocalExportReceipt({ artifactId: `deck_${template.id}`, format: 'json', filename, sourceApp: 'PhiDeck' });
-    setSaveStatus('Deck JSON exported + receipt saved');
+    setSaveStatus(recordLocalExport('Deck JSON exported', { artifactId: `deck_${template.id}`, format: 'json', filename, sourceApp: 'PhiDeck' }));
   }
 
   function triggerDeckImport() {
@@ -238,9 +211,10 @@ export default function PhiDeckLite({ template, onBack, initialDeck = null }) {
         <div>
           <p className="eyebrow">PhiDeck-lite</p>
           <h2>{template.title}</h2>
-          <p className="deck-save-status">{saveStatus}</p>
+          <p className="deck-save-status" role="status">{saveStatus}</p>
         </div>
         <div className="deck-actions">
+          <WorkspaceSaveActions save={save} saveFailed={saveFailed} onBack={onBack} />
           <button type="button" onClick={resetDeck}><RotateCcw aria-hidden="true" /> Reset</button>
           <button type="button" onClick={triggerDeckImport}><Upload aria-hidden="true" /> Import JSON</button>
           <button type="button" onClick={exportDeckJson}><Download aria-hidden="true" /> Export JSON</button>

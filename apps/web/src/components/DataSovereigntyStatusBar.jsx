@@ -54,7 +54,7 @@ export default function DataSovereigntyStatusBar() {
         snapshotCount: storageStatus.snapshotCount,
         artifactCount: artifacts.length,
         latestEmergencyBackup: getLatestEmergencyBackupTime(window.localStorage),
-        message: 'All data is local to this browser session.',
+        message: 'Files are stored in this browser. Keep exported copies of important work.',
       });
     } catch (error) {
       setStatus((current) => ({
@@ -82,15 +82,20 @@ export default function DataSovereigntyStatusBar() {
   function exportWorkspace() {
     if (typeof window === 'undefined') return;
 
-    const payload = createWorkspaceBackupPayload({
-      storage: window.localStorage,
-      manifest,
-      source: 'Data Sovereignty status bar export',
-    });
-    const safeTimestamp = payload.createdAt.replace(/[:.]/g, '-');
-    downloadJson(`phioffice369-statusbar-backup-${safeTimestamp}.json`, payload);
-    setExportStatus(`Exported ${payload.storageSnapshot.length} local item${payload.storageSnapshot.length === 1 ? '' : 's'}.`);
-    refreshStatus();
+    try {
+      const storage = window.localStorage;
+      const payload = createWorkspaceBackupPayload({
+        storage,
+        manifest,
+        source: 'Data Sovereignty status bar export',
+      });
+      const safeTimestamp = payload.createdAt.replace(/[:.]/g, '-');
+      downloadJson(`phioffice369-statusbar-backup-${safeTimestamp}.json`, payload);
+      setExportStatus(`Exported ${payload.storageSnapshot.length} local items. The backup is unencrypted.`);
+      refreshStatus();
+    } catch {
+      setExportStatus('Could not read browser storage for a workspace backup.');
+    }
   }
 
   return (

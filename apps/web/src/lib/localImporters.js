@@ -1,9 +1,12 @@
+import { deckMediaSize, DECK_LIMITS, isSupportedSlide, TEXT_DECK_SCHEMA, VISUAL_DECK_SCHEMA } from './deckSlides.js';
+import { GRID_LIMITS } from './gridFormulas.js';
+
 export function normalizeTextFile(text) {
   return String(text ?? '').replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
 }
 
 export function parseMarkdownImport(text, fallbackTitle = 'Imported Markdown') {
-  const content = normalizeTextFile(text).trim();
+  const content = normalizeTextFile(text);
   const headingMatch = content.match(/^#\s+(.+)$/m);
   const title = headingMatch?.[1]?.trim() || fallbackTitle;
 
@@ -22,6 +25,7 @@ export function parseMarkdownImport(text, fallbackTitle = 'Imported Markdown') {
 export function parseCsvRecords(text) {
   const source = normalizeTextFile(text);
   if (source.length === 0) return [];
+  if (source.length > GRID_LIMITS.fileBytes) throw new RangeError('CSV is larger than 4 MiB.');
 
   const records = [];
   let record = [];
@@ -30,6 +34,7 @@ export function parseCsvRecords(text) {
   let afterQuotedField = false;
 
   function endField() {
+    if (record.length >= GRID_LIMITS.columns) throw new RangeError('CSV has more than 40 columns.');
     record.push(field);
     field = '';
     afterQuotedField = false;
@@ -37,6 +42,7 @@ export function parseCsvRecords(text) {
 
   function endRecord() {
     endField();
+    if (records.length > GRID_LIMITS.rows) throw new RangeError('CSV has more than 500 data rows.');
     records.push(record);
     record = [];
   }
@@ -111,6 +117,7 @@ export function parseCsvImport(text, fallbackTitle = 'Imported CSV') {
 
   const headers = records[0];
   const width = records.reduce((max, record) => Math.max(max, record.length), headers.length);
+  if (width * (records.length - 1) > GRID_LIMITS.cells) throw new RangeError('CSV has more than 10,000 data cells.');
   const columns = [];
   const usedNames = new Set();
   let duplicateCount = 0;
@@ -151,34 +158,32 @@ export function parseCsvImport(text, fallbackTitle = 'Imported CSV') {
   };
 }
 
-function normalizeDeckSlides(slides) {
-  if (!Array.isArray(slides)) return [];
-
-  return slides.map((slide, index) => ({
-    id: slide?.id ? String(slide.id) : `slide-${index + 1}`,
-    title: slide?.title ? String(slide.title) : `Slide ${index + 1}`,
-    bullets: Array.isArray(slide?.bullets) ? slide.bullets.map((bullet) => String(bullet)) : [],
-  }));
-}
-
 export function parsePhiDeckJsonImport(text, fallbackTitle = 'Imported PhiDeck') {
   try {
     const parsed = JSON.parse(normalizeTextFile(text));
-    if (parsed?.schema !== 'phioffice369.phideck_lite.v0.1') {
+    if (parsed?.schema !== TEXT_DECK_SCHEMA && parsed?.schema !== VISUAL_DECK_SCHEMA) {
       return { ok: false, reason: 'JSON is valid, but it is not a PhiDeck-lite deck.' };
     }
-
-    const slides = normalizeDeckSlides(parsed.slides);
-    if (slides.length === 0) {
-      return { ok: false, reason: 'PhiDeck-lite JSON did not contain any slides.' };
+    if (!Array.isArray(parsed.slides) || !parsed.slides.length || parsed.slides.length > DECK_LIMITS.slides) {
+      return { ok: false, reason: 'PhiDeck JSON must contain 1–100 slides.' };
     }
 
+    const slides = parsed.slides.map((slide, index) => {
+      if (!slide || typeof slide !== 'object' || Array.isArray(slide)) return null;
+      return { ...slide, id: slide.id ?? `slide-${index + 1}`, title: slide.title ?? `Slide ${index + 1}`, bullets: slide.bullets ?? [] };
+    });
+    if (!slides.every(isSupportedSlide) || new Set(slides.map(({ id }) => id)).size !== slides.length ||
+        deckMediaSize(slides) > DECK_LIMITS.mediaChars || (parsed.title != null && typeof parsed.title !== 'string')) {
+      return { ok: false, reason: 'PhiDeck JSON contains invalid slides, repeated IDs, or unsupported images or layouts.' };
+    }
+    const { receipt, transformId, transformTrace, sourceTemplate, importedProvenance } = parsed;
     return {
       ok: true,
       kind: 'deck',
       app: 'PhiDeck',
-      title: parsed.title || fallbackTitle,
+      title: parsed.title?.trim() || fallbackTitle,
       slides,
+      provenance: importedProvenance ?? { receipt, transformId, transformTrace, sourceTemplate },
       importNote: 'Imported from local PhiDeck-lite JSON. No file was uploaded.',
     };
   } catch {

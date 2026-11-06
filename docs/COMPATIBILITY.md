@@ -29,3 +29,9 @@ When importing complex external files, PhiOffice369 should show a compatibility 
 ## Non-goal for v0.1
 
 v0.1 should not promise perfect DOCX/XLSX/PPTX round-trip compatibility.
+
+### PhiGrid CSV and PhiDeck JSON
+
+PhiGrid CSV is a values-only interchange format. The exporter quotes fields, escapes embedded quotes, and prefixes formula-like text with an apostrophe. This can change how the text appears in another editor. Spreadsheet programs may reinterpret escaped data after resaving, and treatment varies by application. Use a workspace backup to preserve raw formula strings and metadata. [OWASP CSV injection notes](https://owasp.org/www-community/attacks/CSV_Injection).
+
+PhiDeck v0.2 JSON preserves layout, accents, image bytes and descriptions. Older PhiOffice369 builds accept text-only v0.1 decks. Standalone HTML preserves the visible slide content and opens in a browser. PowerPoint compatibility is unevaluated. Keep the original file when using conversions.

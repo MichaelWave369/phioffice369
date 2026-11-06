@@ -1,11 +1,12 @@
 // Dependency-free browser acceptance runner for PhiOffice369's built Vite app.
 // Requires a locally installed Chromium/Chrome, available on GitHub-hosted Ubuntu.
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { runChromeOnWallClock } from './chrome-session.mjs';
+import { spawnSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { mkdtemp, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, extname, join, relative, resolve, sep } from 'node:path';
+import { extname, join, resolve, sep } from 'node:path';
 
 const appRoot = resolve('apps/web/dist');
 const indexFile = join(appRoot, 'index.html');
@@ -16,6 +17,7 @@ const acceptanceClients = Object.freeze({
   docx: resolve('scripts/browser-acceptance-docx-client.js'),
   recent: resolve('scripts/browser-acceptance-recent-client.js'),
   vault: resolve('scripts/browser-acceptance-vault-client.js'),
+  readiness: resolve('scripts/browser-acceptance-readiness-client.js'),
 });
 const scenarios = Object.keys(acceptanceClients);
 const base = '/phioffice369/';
@@ -98,44 +100,6 @@ async function serve(request, response) {
   }
 }
 
-function runChrome(browser, url, profile) {
-  return new Promise((resolveRun, rejectRun) => {
-    const args = [
-      '--headless=new',
-      '--no-sandbox',
-      '--disable-gpu',
-      '--disable-dev-shm-usage',
-      '--disable-extensions',
-      '--no-first-run',
-      '--no-default-browser-check',
-      '--disable-background-networking',
-      '--disable-sync',
-      '--virtual-time-budget=45000',
-      '--dump-dom',
-      '--user-data-dir=' + profile,
-      url,
-    ];
-    const child = spawn(browser, args, { stdio: ['ignore', 'pipe', 'pipe'] });
-    let output = '';
-    let stderr = '';
-    const maxOutput = 8_000_000;
-    child.stdout.on('data', (part) => { output = (output + part.toString()).slice(-maxOutput); });
-    child.stderr.on('data', (part) => { stderr = (stderr + part.toString()).slice(-10000); });
-    const watchdog = setTimeout(() => {
-      child.kill('SIGKILL');
-      rejectRun(new Error('Headless Chrome timed out. ' + stderr.slice(-900)));
-    }, 75000);
-    child.once('error', (error) => {
-      clearTimeout(watchdog);
-      rejectRun(error);
-    });
-    child.once('close', (code) => {
-      clearTimeout(watchdog);
-      resolveRun({ code, output, stderr });
-    });
-  });
-}
-
 await stat(indexFile); // Fail before opening the browser if npm run build was skipped.
 const browser = findChrome();
 const server = createServer((request, response) => {
@@ -150,28 +114,14 @@ try {
   for (const scenario of scenarios) {
     const profile = await mkdtemp(join(tmpdir(), 'phioffice369-' + scenario + '-'));
     try {
-      let result = await runChrome(browser, url + '?scenario=' + scenario, profile);
-      let marker = result.output.match(/data-phi-acceptance="(PASS|FAIL)"/);
-      // Headless --dump-dom occasionally returns initial DOM before the
-      // acceptance client has executed. Replay an indeterminate result at most
-      // twice with independent browser profiles. A real FAIL is never retried.
-      for (let retry = 1; retry <= 2 && result.code === 0 && !marker; retry += 1) {
-        console.warn('No ' + scenario + ' result marker on Chrome attempt ' + retry +
-          '; retrying with an isolated profile (' + retry + '/2).');
-        const retryProfile = await mkdtemp(join(tmpdir(), 'phioffice369-' + scenario + '-retry-'));
-        try {
-          result = await runChrome(browser, url + '?scenario=' + scenario, retryProfile);
-          marker = result.output.match(/data-phi-acceptance="(PASS|FAIL)"/);
-        } finally {
-          await rm(retryProfile, { recursive: true, force: true });
-        }
-      }
+      const result = await runChromeOnWallClock(browser, url + '?scenario=' + scenario, profile);
+      const marker = result.output.match(/data-phi-acceptance="(PASS|FAIL)"/);
       const detail = result.output.match(/<pre id="phi-browser-acceptance-result">([\s\S]*?)<\/pre>/);
-      if (result.code !== 0 || marker?.[1] !== 'PASS') {
+      if (marker?.[1] !== 'PASS') {
         console.error(scenario + ' acceptance failed:', detail?.[1] ?? 'no result marker');
         console.error('Page output tail:', result.output.slice(-1800));
         console.error('Chrome diagnostics:', result.stderr.slice(-1600));
-        throw new Error('PhiOffice369 ' + scenario + ' acceptance failed (Chrome exit ' + result.code + ').');
+        throw new Error('PhiOffice369 ' + scenario + ' acceptance failed.');
       }
       console.log('PASS: ' + scenario + ' production browser acceptance.');
     } finally {

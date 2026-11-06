@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ClipboardCopy, Download, Grid3X3, Plus, RotateCcw, ShieldCheck, Sparkles, Upload } from 'lucide-react';
 import { createArtifactReceipt, trustLabels } from '@phioffice369/core';
+import { calculateGrid, columnLetter, exportGridCsv, gridNumber, GRID_LIMITS, isGridFormula } from '../lib/gridFormulas.js';
 import { parseCsvImport } from '../lib/localImporters.js';
 import { recordLocalExport } from '../lib/localReceipts.js';
 import { readWorkspaceRecord, workspaceTitle } from '../lib/workspaceRecords.js';
@@ -40,16 +41,6 @@ function starterRows(template, columns) {
   return [blankRow(columns), blankRow(columns), blankRow(columns)];
 }
 
-function numberValue(value) {
-  const parsed = Number(String(value ?? '').replace(/[$,]/g, ''));
-  return Number.isFinite(parsed) ? parsed : 0;
-}
-
-function toCsv(columns, rows) {
-  const quote = (value) => `"${String(value ?? '').split('"').join('""')}"`;
-  return [columns.map(quote).join(','), ...rows.map((row) => columns.map((column) => quote(row[column])).join(','))].join('\n');
-}
-
 function downloadTextFile(filename, body, type) {
   const blob = new Blob([body], { type });
   const url = URL.createObjectURL(blob);
@@ -64,6 +55,7 @@ function downloadTextFile(filename, body, type) {
 
 export default function PhiGridLite({ template, onBack }) {
   const importInputRef = useRef(null);
+  const latestImport = useRef(0);
   const defaultColumns = useMemo(() => getColumns(template), [template]);
   const storageKey = createPhiGridStorageKey(template.id);
   const [loaded] = useState(() => readWorkspaceRecord(storageKey));
@@ -74,6 +66,17 @@ export default function PhiGridLite({ template, onBack }) {
   const [activeLabelId, setActiveLabelId] = useState(savedGrid?.activeLabelId ?? template.trustDefaults[0] ?? 'private');
   const [copyStatus, setCopyStatus] = useState('');
   const [pendingCsvImport, setPendingCsvImport] = useState(null);
+  const [formulasEnabled, setFormulasEnabled] = useState(savedGrid?.formulasEnabled !== false);
+  const [budgetMode, setBudgetMode] = useState(savedGrid?.budgetMode ?? (
+    (template.sourceTemplateId ?? template.id) === 'simple_family_budget' &&
+    columns.length === defaultColumns.length && columns.every((column, index) => column === defaultColumns[index])
+  ));
+  const [columnWidths, setColumnWidths] = useState(savedGrid?.columnWidths ?? {});
+  const [widthColumn, setWidthColumn] = useState(0);
+  const [focusedCell, setFocusedCell] = useState('');
+  const [filter, setFilter] = useState('');
+  const [sortColumn, setSortColumn] = useState('');
+  const [sortAscending, setSortAscending] = useState(true);
 
   const activeLabel = trustLabels.find((label) => label.id === activeLabelId) ?? trustLabels[0];
   const receipt = useMemo(() => createArtifactReceipt({
@@ -86,35 +89,88 @@ export default function PhiGridLite({ template, onBack }) {
 
   const draftSnapshot = useMemo(() => ({
     ...savedGrid, templateId: template.id, sourceTemplateId: template.sourceTemplateId ?? template.id,
-    title: workspaceTitle(title, 'PhiGrid'), columns, rows, activeLabelId,
-  }), [savedGrid, template, title, columns, rows, activeLabelId]);
+    title: workspaceTitle(title, 'PhiGrid'), columns, rows, activeLabelId, formulasEnabled, budgetMode, columnWidths,
+  }), [savedGrid, template, title, columns, rows, activeLabelId, formulasEnabled, budgetMode, columnWidths]);
   const { saveStatus, setSaveStatus, saveFailed, save } = useWorkspaceDraft(storageKey, draftSnapshot, loaded);
 
   function backToPhiOffice() {
     if (save()) onBack();
   }
 
-  const numericColumns = columns.filter((column) => rows.some((row) => String(row[column] ?? '').match(/^-?[$0-9,.]+$/)));
-  const totals = numericColumns.reduce((acc, column) => ({ ...acc, [column]: rows.reduce((sum, row) => sum + numberValue(row[column]), 0) }), {});
+  const calculatedRows = useMemo(() => calculateGrid(columns, rows, formulasEnabled), [columns, rows, formulasEnabled]);
+  const totals = useMemo(() => Object.fromEntries(columns.flatMap((column) => {
+    const numbers = calculatedRows.map((row) => gridNumber(Object.hasOwn(row, column) ? row[column] : ''))
+      .filter((number) => number !== null);
+    return numbers.length ? [[column, numbers.reduce((sum, number) => sum + number, 0)]] : [];
+  })), [columns, calculatedRows]);
+  const numericColumns = Object.keys(totals);
+
+  const visibleIndices = useMemo(() => {
+    const needle = filter.trim().toLowerCase();
+    const indices = calculatedRows.flatMap((row, index) =>
+      !needle || columns.some((column) => String(Object.hasOwn(row, column) ? row[column] ?? '' : '').toLowerCase().includes(needle)) ? [index] : []);
+    if (sortColumn && columns.includes(sortColumn)) {
+      const direction = sortAscending ? 1 : -1;
+      indices.sort((left, right) => {
+        const a = Object.hasOwn(calculatedRows[left], sortColumn) ? calculatedRows[left][sortColumn] : '';
+        const b = Object.hasOwn(calculatedRows[right], sortColumn) ? calculatedRows[right][sortColumn] : '';
+        const aNumber = gridNumber(a);
+        const bNumber = gridNumber(b);
+        const comparison = aNumber !== null && bNumber !== null ? aNumber - bNumber
+          : String(a ?? '').localeCompare(String(b ?? ''), undefined, { numeric: true });
+        return direction * comparison || left - right;
+      });
+    }
+    return indices;
+  }, [calculatedRows, columns, filter, sortColumn, sortAscending]);
+
+  function budgetDifference(row, rowIndex) {
+    if (formulasEnabled && (isGridFormula(row.Planned) || isGridFormula(row.Actual))) {
+      return `=B${rowIndex + 1}-C${rowIndex + 1}`;
+    }
+    return String((gridNumber(row.Planned) ?? 0) - (gridNumber(row.Actual) ?? 0));
+  }
 
   function updateCell(rowIndex, column, value) {
     setRows((currentRows) => currentRows.map((row, index) => {
       if (index !== rowIndex) return row;
       const nextRow = { ...row, [column]: value };
-      if (columns.includes('Planned') && columns.includes('Actual') && columns.includes('Difference')) {
-        nextRow.Difference = String(numberValue(nextRow.Planned) - numberValue(nextRow.Actual));
+      if (budgetMode && (column === 'Planned' || column === 'Actual') &&
+        (!row.Difference || row.Difference === budgetDifference(row, rowIndex))) {
+        nextRow.Difference = budgetDifference(nextRow, rowIndex);
       }
       return nextRow;
     }));
   }
 
+  const canAddRow = rows.length < GRID_LIMITS.rows && (rows.length + 1) * columns.length <= GRID_LIMITS.cells;
+  const canAddColumn = columns.length < GRID_LIMITS.columns && rows.length * (columns.length + 1) <= GRID_LIMITS.cells;
   function addRow() {
-    setRows((currentRows) => [...currentRows, blankRow(columns)]);
+    if (canAddRow) setRows((currentRows) => [...currentRows, blankRow(columns)]);
+  }
+
+  function addColumn() {
+    if (!canAddColumn) return;
+    let index = columns.length + 1;
+    while (columns.includes('Column ' + index)) index += 1;
+    setColumns((current) => [...current, 'Column ' + index]);
+  }
+
+  function resetGridView() {
+    setFilter('');
+    setSortColumn('');
+    setSortAscending(true);
+    setWidthColumn(0);
+    setColumnWidths({});
   }
 
   function resetGrid() {
     if (!window.confirm('Reset this file to its starter template? This replaces the current content.')) return;
+    latestImport.current += 1;
     setPendingCsvImport(null);
+    setFormulasEnabled(true);
+    setBudgetMode((template.sourceTemplateId ?? template.id) === 'simple_family_budget');
+    resetGridView();
     setTitle(template.title);
     setColumns(defaultColumns);
     setRows(starterRows(template, defaultColumns));
@@ -124,13 +180,13 @@ export default function PhiGridLite({ template, onBack }) {
 
   function exportCsv() {
     const filename = `${slugify(title)}.csv`;
-    downloadTextFile(filename, toCsv(columns, rows), 'text/csv;charset=utf-8');
-    setSaveStatus(recordLocalExport('CSV exported', { artifactId: `grid_${template.id}`, format: 'csv', filename, sourceApp: 'PhiGrid' }));
+    downloadTextFile(filename, exportGridCsv(columns, calculatedRows), 'text/csv;charset=utf-8');
+    setSaveStatus(recordLocalExport('CSV exported', { artifactId: `grid_${template.id}`, format: 'csv', filename, sourceApp: 'PhiGrid', compatibility: 'values-only', warnings: ['Formulas export as displayed values. Formula-like text may receive a leading apostrophe.'] }));
   }
 
   function exportJson() {
     const filename = `${slugify(title)}-phigrid-lite.json`;
-    const payload = { schema: 'phioffice369.phigrid_lite.v0.1', title, columns, rows, totals, receipt };
+    const payload = { schema: 'phioffice369.phigrid_lite.v0.1', title, columns, rows, totals, formulasEnabled, columnWidths, receipt };
     downloadTextFile(filename, JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
     setSaveStatus(recordLocalExport('JSON exported', { artifactId: `grid_${template.id}`, format: 'json', filename, sourceApp: 'PhiGrid' }));
   }
@@ -142,17 +198,20 @@ export default function PhiGridLite({ template, onBack }) {
   async function handleImportCsv(event) {
     const file = event.target.files?.[0];
     if (!file) return;
+    event.target.value = '';
+    const revision = ++latestImport.current;
     setPendingCsvImport(null);
     try {
+      if (file.size > GRID_LIMITS.fileBytes) throw new RangeError('CSV is larger than 4 MiB.');
       const text = await file.text();
+      if (revision !== latestImport.current) return;
       const imported = parseCsvImport(text, file.name.replace(/\.csv$/i, ''));
       setPendingCsvImport(imported);
       setSaveStatus('CSV preview ready. Current grid unchanged.');
     } catch (error) {
+      if (revision !== latestImport.current) return;
       const reason = error instanceof Error ? error.message : 'Unable to read this file.';
       setSaveStatus('CSV import rejected: ' + reason + ' Current grid unchanged.');
-    } finally {
-      event.target.value = '';
     }
   }
 
@@ -161,6 +220,9 @@ export default function PhiGridLite({ template, onBack }) {
     setTitle(pendingCsvImport.title);
     setColumns(pendingCsvImport.columns);
     setRows(pendingCsvImport.rows);
+    setFormulasEnabled(false);
+    setBudgetMode(false);
+    resetGridView();
     setActiveLabelId('private');
     setPendingCsvImport(null);
     setSaveStatus('CSV accepted. Autosaving locally.');
@@ -202,7 +264,7 @@ export default function PhiGridLite({ template, onBack }) {
       {pendingCsvImport && (
         <section className="panel grid-import-preview" aria-label="CSV import review">
           <h3>Review CSV before replacing your current grid</h3>
-          <p>{pendingCsvImport.rows.length} rows and {pendingCsvImport.columns.length} columns. No existing grid content has been changed.</p>
+          <p>{pendingCsvImport.rows.length} rows and {pendingCsvImport.columns.length} columns. Imported formulas will be kept as text unless you enable formulas after import.</p>
           {pendingCsvImport.csvWarnings.length > 0 && (
             <div className="grid-import-warnings" role="note">
               <strong>Compatibility notes</strong>
@@ -237,7 +299,8 @@ export default function PhiGridLite({ template, onBack }) {
             <div><strong>{numericColumns.length}</strong><span>numeric cols</span></div>
             <div><strong>{receipt.labels.length}</strong><span>labels</span></div>
           </div>
-          <button className="grid-add-row" type="button" onClick={addRow}><Plus aria-hidden="true" /> Add row</button>
+          <button className="grid-add-row" type="button" onClick={addRow} disabled={!canAddRow}><Plus aria-hidden="true" /> Add row</button>
+          <button className="grid-add-row" type="button" onClick={addColumn} disabled={!canAddColumn}><Plus aria-hidden="true" /> Add column</button>
         </aside>
 
         <section className="panel grid-editor-panel">
@@ -246,24 +309,54 @@ export default function PhiGridLite({ template, onBack }) {
             <input value={title} onChange={(event) => setTitle(event.target.value)} />
           </label>
 
-          <div className="table-wrap">
+          <div className="grid-sheet-tools">
+            <label>Filter rows<input value={filter} onChange={(event) => setFilter(event.target.value)} /></label>
+            <label>Sort view by<select value={sortColumn} onChange={(event) => setSortColumn(event.target.value)}>
+              <option value="">Original row order</option>
+              {columns.map((column) => <option key={column} value={column}>{column}</option>)}
+            </select></label>
+            <button type="button" disabled={!sortColumn} onClick={() => setSortAscending(!sortAscending)}>
+              {sortAscending ? 'Ascending' : 'Descending'}
+            </button>
+            <label>Resize column<select value={widthColumn} onChange={(event) => setWidthColumn(Number(event.target.value))}>
+              {columns.map((column, index) => <option key={column} value={index}>{column}</option>)}
+            </select></label>
+            <label>Column width<input type="range" min="100" max="400" step="10" value={columnWidths[widthColumn] ?? 140}
+              onChange={(event) => setColumnWidths({ ...columnWidths, [widthColumn]: Number(event.target.value) })} /></label>
+          </div>
+          <label className="grid-formula-toggle"><input type="checkbox" checked={formulasEnabled}
+            onChange={(event) => setFormulasEnabled(event.target.checked)} /> Calculate formulas</label>
+          <p className="grid-sheet-note">Use =SUM(B1:B3), =AVERAGE(B1,B2), MIN, MAX, COUNT or arithmetic. Sorting and filtering keep the original row addresses. CSV exports the whole sheet as values and protects formula-like text with a leading apostrophe. JSON keeps the formula text.</p>
+
+          <div className="table-wrap" tabIndex={0} aria-label="Spreadsheet data">
             <table>
-              <thead><tr>{columns.map((column) => <th key={column}>{column}</th>)}</tr></thead>
+              <thead><tr><th scope="col">Row</th>{columns.map((column, index) => (
+                <th key={column} scope="col" style={{ minWidth: Math.max(100, Math.min(400, Number(columnWidths[index]) || 140)) }}>
+                  <span className="grid-column-letter">{columnLetter(index)}</span>{column}
+                </th>
+              ))}</tr></thead>
               <tbody>
-                {rows.map((row, rowIndex) => (
-                  <tr key={`row-${rowIndex}`}>
-                    {columns.map((column) => {
-                      const value = String(row[column] ?? '');
+                {visibleIndices.map((rowIndex) => (
+                  <tr key={rowIndex}>
+                    <th scope="row">{rowIndex + 1}</th>
+                    {columns.map((column, colIndex) => {
+                      const row = rows[rowIndex];
+                      const raw = String(Object.hasOwn(row, column) ? row[column] ?? '' : '');
+                      const address = columnLetter(colIndex) + (rowIndex + 1);
+                      const formula = formulasEnabled && isGridFormula(raw);
+                      const value = formula && focusedCell !== address ? String(calculatedRows[rowIndex][column]) : raw;
                       const props = {
                         value,
                         onChange: (event) => updateCell(rowIndex, column, event.target.value),
+                        onFocus: () => setFocusedCell(address),
+                        onBlur: () => setFocusedCell(''),
                         'aria-label': column + ' row ' + (rowIndex + 1),
                       };
                       return (
-                        <td key={column}>
-                          {value.includes('\n')
-                            ? <textarea {...props} rows={Math.min(6, value.split('\n').length)} />
-                            : <input {...props} />}
+                        <td key={column} className={formula ? 'formula-cell' : undefined}>
+                          {raw.includes('\n')
+                            ? <textarea {...props} rows={Math.min(6, raw.split('\n').length)} />
+                            : <input {...props} title={formula ? raw : undefined} />}
                         </td>
                       );
                     })}
@@ -272,6 +365,7 @@ export default function PhiGridLite({ template, onBack }) {
               </tbody>
             </table>
           </div>
+          {visibleIndices.length === 0 && <p className="grid-sheet-note">{rows.length ? 'No rows match the filter.' : 'Add a row to start this sheet.'}</p>}
 
           {numericColumns.length > 0 && (
             <div className="totals-panel">

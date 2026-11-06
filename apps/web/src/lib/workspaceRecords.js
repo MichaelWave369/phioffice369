@@ -1,3 +1,4 @@
+import { isSupportedSlide } from './deckSlides.js';
 import { trustLabels } from '@phioffice369/core';
 import { getBrowserLocalStorage, readStorageValue } from './workspaceStorageAccess.js';
 
@@ -28,8 +29,7 @@ export function isWorkspaceRecord(record, kind) {
       record.rows.every((row) => isObject(row) && Object.values(row).every(isCell));
   }
   return kind === 'deck' && Array.isArray(record.slides) && record.slides.length > 0 &&
-    record.slides.every((slide) => isObject(slide) && typeof slide.id === 'string' && Boolean(slide.id) &&
-      typeof slide.title === 'string' && Array.isArray(slide.bullets) && slide.bullets.every((bullet) => typeof bullet === 'string')) &&
+    record.slides.every(isSupportedSlide) &&
     new Set(record.slides.map(({ id }) => id)).size === record.slides.length;
 }
 

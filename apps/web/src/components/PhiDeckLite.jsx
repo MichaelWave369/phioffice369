@@ -1,6 +1,10 @@
 import { useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ClipboardCopy, Copy, Download, Layers3, Plus, RotateCcw, ShieldCheck, Sparkles, Trash2, Upload } from 'lucide-react';
 import { createArtifactReceipt, trustLabels } from '@phioffice369/core';
+import { deckMediaSize, deckSchemaForSlides, DECK_LAYOUTS, DECK_LIMITS, DECK_SHAPES, readSlideImage } from '../lib/deckSlides.js';
+import { buildDeckHtml } from '../lib/deckHtml.js';
+import DeckSlide from './DeckSlide.jsx';
+import DeckPresentation from './DeckPresentation.jsx';
 import { parsePhiDeckJsonImport } from '../lib/localImporters.js';
 import { recordLocalExport } from '../lib/localReceipts.js';
 import { getTransformIds } from '../lib/transformRegistry.js';
@@ -40,8 +44,8 @@ function downloadTextFile(filename, body, type) {
   URL.revokeObjectURL(url);
 }
 
-function bulletTextToArray(value) {
-  return value.split('\n').map((line) => line.trim()).filter(Boolean);
+function nextSlideId() {
+  return 'slide-' + (globalThis.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2));
 }
 
 function resolveInitialDeck(template, initialDeck, savedDeck) {
@@ -73,6 +77,10 @@ function resolveInitialDeck(template, initialDeck, savedDeck) {
 
 export default function PhiDeckLite({ template, onBack, initialDeck = null }) {
   const importInputRef = useRef(null);
+  const imageInputRef = useRef(null);
+  const presentButton = useRef(null);
+  const latestImport = useRef(0);
+  const latestImage = useRef(0);
   const storageKey = createPhiDeckStorageKey(template.id);
   const [loaded] = useState(() => readWorkspaceRecord(storageKey));
   const savedDeck = loaded.record;
@@ -82,11 +90,18 @@ export default function PhiDeckLite({ template, onBack, initialDeck = null }) {
   const [activeSlideId, setActiveSlideId] = useState(initialState.slides[0]?.id ?? 'slide-1');
   const [activeLabelId, setActiveLabelId] = useState(initialState.activeLabelId);
   const [copyStatus, setCopyStatus] = useState('');
+  const [pendingImport, setPendingImport] = useState(null);
+  const [presenting, setPresenting] = useState(false);
+  const [lineage, setLineage] = useState(() => ({
+    transformTrace: initialDeck?.trace ?? savedDeck?.transformTrace ?? null,
+    transformId: initialDeck?.transformId ?? savedDeck?.transformId ?? 'template_to_phideck_lite_deck',
+    importedProvenance: savedDeck?.importedProvenance ?? null,
+  }));
 
   const activeSlide = slides.find((slide) => slide.id === activeSlideId) ?? slides[0];
   const activeLabel = trustLabels.find((label) => label.id === activeLabelId) ?? trustLabels[0];
-  const transformTrace = initialDeck?.trace ?? savedDeck?.transformTrace ?? null;
-  const transformId = initialDeck?.transformId ?? savedDeck?.transformId ?? 'template_to_phideck_lite_deck';
+  const { transformId, transformTrace, importedProvenance } = lineage;
+  const slideIndex = slides.indexOf(activeSlide);
 
   const receipt = useMemo(() => createArtifactReceipt({
     artifactId: `deck_${template.id}`,
@@ -98,52 +113,72 @@ export default function PhiDeckLite({ template, onBack, initialDeck = null }) {
 
   const draftSnapshot = useMemo(() => ({
     ...savedDeck, templateId: template.id, sourceTemplateId: template.sourceTemplateId ?? template.id,
-    title: workspaceTitle(title, 'PhiDeck'), slides, activeLabelId, transformId, transformTrace,
-  }), [savedDeck, template, title, slides, transformId, transformTrace, activeLabelId]);
+    title: workspaceTitle(title, 'PhiDeck'), slides, activeLabelId, ...lineage,
+  }), [savedDeck, template, title, slides, lineage, activeLabelId]);
   const { saveStatus, setSaveStatus, saveFailed, save } = useWorkspaceDraft(storageKey, draftSnapshot, loaded);
 
   function backToPhiOffice() {
     if (save()) onBack();
   }
 
-  function updateActiveSlideTitle(value) {
-    setSlides((currentSlides) => currentSlides.map((slide) => (slide.id === activeSlide.id ? { ...slide, title: value } : slide)));
-  }
-
-  function updateActiveSlideBullets(value) {
-    setSlides((currentSlides) => currentSlides.map((slide) => (slide.id === activeSlide.id ? { ...slide, bullets: bulletTextToArray(value) } : slide)));
+  function changeSlide(id, changes) {
+    setSlides((current) => current.map((slide) => slide.id === id ? { ...slide, ...changes } : slide));
   }
 
   function addSlide() {
-    const nextSlide = {
-      id: `slide-${Date.now()}`,
-      title: 'New Slide',
-      bullets: ['Add your key point here.'],
-    };
-    setSlides((currentSlides) => [...currentSlides, nextSlide]);
+    const nextSlide = { id: nextSlideId(), title: 'New Slide', bullets: ['Add your key point here.'] };
+    setSlides((current) => [...current, nextSlide]);
     setActiveSlideId(nextSlide.id);
   }
 
   function duplicateSlide() {
-    if (!activeSlide) return;
-    const copySlide = {
-      ...activeSlide,
-      id: `slide-${Date.now()}`,
-      title: `${activeSlide.title} Copy`,
-    };
-    setSlides((currentSlides) => [...currentSlides, copySlide]);
-    setActiveSlideId(copySlide.id);
+    const copy = { ...activeSlide, id: nextSlideId(), title: activeSlide.title + ' Copy' };
+    setSlides((current) => [...current.slice(0, slideIndex + 1), copy, ...current.slice(slideIndex + 1)]);
+    setActiveSlideId(copy.id);
+  }
+
+  function moveSlide(direction) {
+    const to = slideIndex + direction;
+    if (to < 0 || to >= slides.length) return;
+    const next = [...slides];
+    [next[slideIndex], next[to]] = [next[to], next[slideIndex]];
+    setSlides(next);
   }
 
   function removeSlide() {
-    if (slides.length <= 1 || !activeSlide) return;
-    const nextSlides = slides.filter((slide) => slide.id !== activeSlide.id);
-    setSlides(nextSlides);
-    setActiveSlideId(nextSlides[0].id);
+    if (slides.length <= 1 || !window.confirm(`Remove slide "${activeSlide.title}"?`)) return;
+    const next = slides.filter((slide) => slide.id !== activeSlide.id);
+    setSlides(next);
+    setActiveSlideId(next[Math.min(slideIndex, next.length - 1)].id);
+  }
+
+  async function importImage(event) {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    const slideId = activeSlide.id;
+    const revision = ++latestImage.current;
+    try {
+      const image = await readSlideImage(file);
+      if (revision !== latestImage.current) return;
+      setSlides((current) => {
+        const size = deckMediaSize(current.filter((slide) => slide.id !== slideId));
+        if (size + image.src.length > DECK_LIMITS.mediaChars) return current;
+        return current.map((slide) => slide.id === slideId ? { ...slide, image, layout: slide.layout ?? 'image-right' } : slide);
+      });
+      if (deckMediaSize(slides.filter((slide) => slide.id !== slideId)) + image.src.length > DECK_LIMITS.mediaChars) {
+        setSaveStatus('The deck is at its image storage limit. Remove an image or choose a smaller file.');
+      }
+    } catch (error) {
+      if (revision === latestImage.current) setSaveStatus(error.message || 'Could not decode this local image.');
+    }
   }
 
   function resetDeck() {
     if (!window.confirm('Reset this file to its starter template? This replaces the current content.')) return;
+    latestImport.current += 1;
+    latestImage.current += 1;
+    setPendingImport(null);
     const nextStarterSlides = makeStarterSlides(template);
     setTitle(template.title);
     setSlides(nextStarterSlides);
@@ -155,12 +190,13 @@ export default function PhiDeckLite({ template, onBack, initialDeck = null }) {
   function exportDeckJson() {
     const filename = `${slugify(title)}-phideck-lite.json`;
     const payload = {
-      schema: 'phioffice369.phideck_lite.v0.1',
+      schema: deckSchemaForSlides(slides),
       title,
       sourceTemplate: template.id,
       generatedAt: new Date().toISOString(),
       transformId,
       transformTrace,
+      importedProvenance,
       slides,
       receipt,
     };
@@ -168,31 +204,43 @@ export default function PhiDeckLite({ template, onBack, initialDeck = null }) {
     setSaveStatus(recordLocalExport('Deck JSON exported', { artifactId: `deck_${template.id}`, format: 'json', filename, sourceApp: 'PhiDeck' }));
   }
 
-  function triggerDeckImport() {
-    importInputRef.current?.click();
+  function exportHtml() {
+    const filename = slugify(title) + '-slides.html';
+    const html = buildDeckHtml({ title: workspaceTitle(title, 'PhiDeck'), slides, trustLabel: activeLabel.label });
+    downloadTextFile(filename, html, 'text/html;charset=utf-8');
+    setSaveStatus(recordLocalExport('Standalone slides exported', {
+      artifactId: `deck_${template.id}`, format: 'html', filename, sourceApp: 'PhiDeck', compatibility: 'view-only',
+    }));
   }
 
   async function handleImportDeckJson(event) {
     const file = event.target.files?.[0];
+    event.target.value = '';
     if (!file) return;
-
+    const revision = ++latestImport.current;
+    setPendingImport(null);
     try {
+      if (file.size > DECK_LIMITS.fileBytes) throw new Error('Choose a PhiDeck JSON file smaller than 4 MiB.');
       const text = await file.text();
+      if (revision !== latestImport.current) return;
       const imported = parsePhiDeckJsonImport(text, file.name.replace(/\.json$/i, ''));
-      if (!imported.ok) {
-        setSaveStatus(imported.reason);
-        return;
-      }
-      setTitle(imported.title);
-      setSlides(imported.slides);
-      setActiveSlideId(imported.slides[0]?.id ?? 'slide-1');
-      setActiveLabelId('ai_assisted');
-      setSaveStatus('PhiDeck JSON imported locally');
-    } catch {
-      setSaveStatus('Could not import PhiDeck JSON');
-    } finally {
-      event.target.value = '';
+      if (imported.ok) setPendingImport(imported);
+      setSaveStatus(imported.ok ? 'Deck preview ready. Current deck unchanged.' : imported.reason);
+    } catch (error) {
+      if (revision === latestImport.current) setSaveStatus(error.message || 'Could not import PhiDeck JSON.');
     }
+  }
+
+  function acceptImport() {
+    if (!pendingImport) return;
+    latestImage.current += 1;
+    setTitle(pendingImport.title);
+    setSlides(pendingImport.slides);
+    setActiveSlideId(pendingImport.slides[0].id);
+    setActiveLabelId('needs_citation');
+    setLineage({ transformId: 'template_to_phideck_lite_deck', transformTrace: null, importedProvenance: pendingImport.provenance });
+    setPendingImport(null);
+    setSaveStatus('Deck imported locally.');
   }
 
   async function copyReceipt() {
@@ -216,27 +264,41 @@ export default function PhiDeckLite({ template, onBack, initialDeck = null }) {
         <div className="deck-actions">
           <WorkspaceSaveActions save={save} saveFailed={saveFailed} onBack={onBack} />
           <button type="button" onClick={resetDeck}><RotateCcw aria-hidden="true" /> Reset</button>
-          <button type="button" onClick={triggerDeckImport}><Upload aria-hidden="true" /> Import JSON</button>
+          <button type="button" onClick={() => importInputRef.current?.click()}><Upload aria-hidden="true" /> Import JSON</button>
           <button type="button" onClick={exportDeckJson}><Download aria-hidden="true" /> Export JSON</button>
+          <button type="button" onClick={exportHtml}><Download aria-hidden="true" /> Export slides HTML</button>
+          <button ref={presentButton} type="button" onClick={() => setPresenting(true)}>Present</button>
           <input ref={importInputRef} className="deck-file-input" type="file" accept=".json,application/json" onChange={handleImportDeckJson} />
         </div>
       </div>
 
+      {pendingImport && (
+        <section className="panel deck-import-review" aria-label="Deck import review">
+          <h3>Review before replacing this deck</h3>
+          <p>{pendingImport.title} · {pendingImport.slides.length} slides. The current deck remains available until you confirm.</p>
+          <button type="button" onClick={() => { setPendingImport(null); setSaveStatus('Deck import cancelled.'); }}>Cancel import</button>
+          <button type="button" onClick={acceptImport}>Replace deck with JSON</button>
+        </section>
+      )}
+      {presenting && <DeckPresentation slides={slides} start={slideIndex}
+        onClose={() => { setPresenting(false); requestAnimationFrame(() => presentButton.current?.focus()); }} />}
       <div className="deck-workspace-layout">
         <aside className="panel deck-side-panel">
           <Layers3 aria-hidden="true" />
           <h3>Slides</h3>
           <div className="deck-slide-list">
             {slides.map((slide, index) => (
-              <button key={slide.id} type="button" className={activeSlide?.id === slide.id ? 'selected' : ''} onClick={() => setActiveSlideId(slide.id)}>
+              <button key={slide.id} type="button" className={activeSlide?.id === slide.id ? 'selected' : ''} aria-current={activeSlide.id === slide.id ? 'true' : undefined} onClick={() => setActiveSlideId(slide.id)}>
                 <span>Slide {index + 1}</span>
                 <strong>{slide.title}</strong>
               </button>
             ))}
           </div>
           <div className="deck-tool-stack">
-            <button type="button" onClick={addSlide}><Plus aria-hidden="true" /> Add slide</button>
-            <button type="button" onClick={duplicateSlide}><Copy aria-hidden="true" /> Duplicate</button>
+            <button type="button" onClick={addSlide} disabled={slides.length >= DECK_LIMITS.slides}><Plus aria-hidden="true" /> Add slide</button>
+            <button type="button" onClick={duplicateSlide} disabled={slides.length >= DECK_LIMITS.slides || deckMediaSize(slides) + (activeSlide.image?.src.length ?? 0) > DECK_LIMITS.mediaChars}><Copy aria-hidden="true" /> Duplicate</button>
+            <button type="button" disabled={slideIndex <= 0} onClick={() => moveSlide(-1)}>Move earlier</button>
+            <button type="button" disabled={slideIndex >= slides.length - 1} onClick={() => moveSlide(1)}>Move later</button>
             <button type="button" onClick={removeSlide} disabled={slides.length <= 1}><Trash2 aria-hidden="true" /> Remove</button>
           </div>
         </aside>
@@ -251,24 +313,34 @@ export default function PhiDeckLite({ template, onBack, initialDeck = null }) {
             <div className="deck-slide-editor">
               <label>
                 <span>Slide title</span>
-                <input value={activeSlide.title} onChange={(event) => updateActiveSlideTitle(event.target.value)} />
+                <input value={activeSlide.title} onChange={(event) => changeSlide(activeSlide.id, { title: event.target.value })} />
               </label>
               <label>
                 <span>Bullets, one per line</span>
-                <textarea value={activeSlide.bullets.join('\n')} onChange={(event) => updateActiveSlideBullets(event.target.value)} />
+                <textarea value={activeSlide.bullets.join('\n')} onChange={(event) => changeSlide(activeSlide.id, { bullets: event.target.value.split('\n') })} />
               </label>
             </div>
           )}
 
-          <div className="deck-preview-grid">
-            {slides.map((slide, index) => (
-              <article className={`deck-preview-card ${activeSlide?.id === slide.id ? 'selected' : ''}`} key={slide.id} onClick={() => setActiveSlideId(slide.id)}>
-                <span>Slide {index + 1}</span>
-                <h3>{slide.title}</h3>
-                <ul>{slide.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}</ul>
-              </article>
-            ))}
+          <div className="deck-visual-tools">
+            <label>Slide layout<select value={activeSlide.layout ?? 'content'}
+              onChange={(event) => changeSlide(activeSlide.id, { layout: event.target.value })}>
+              {Object.entries(DECK_LAYOUTS).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+            </select></label>
+            <label>Accent shape<select value={activeSlide.shape ?? 'none'}
+              onChange={(event) => changeSlide(activeSlide.id, { shape: event.target.value })}>
+              {Object.entries(DECK_SHAPES).map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+            </select></label>
+            <button type="button" onClick={() => imageInputRef.current?.click()}>{activeSlide.image ? 'Replace image' : 'Add image'}</button>
+            <input ref={imageInputRef} className="deck-image-input" type="file" accept="image/png,image/jpeg,image/webp" onChange={importImage} />
+            {activeSlide.image && <>
+              <label>Image description<input maxLength={240} value={activeSlide.image.alt}
+                onChange={(event) => changeSlide(activeSlide.id, { image: { ...activeSlide.image, alt: event.target.value } })} /></label>
+              <button type="button" onClick={() => changeSlide(activeSlide.id, { image: null })}>Remove image</button>
+            </>}
           </div>
+          <p className="deck-format-note">PhiDeck JSON keeps editable slides. HTML gives you a portable, read-only slideshow. Local images are limited to 384 KiB each. PowerPoint import and export are planned.</p>
+          <DeckSlide slide={activeSlide} index={slideIndex} />
         </section>
 
         <aside className="panel deck-trust-panel">

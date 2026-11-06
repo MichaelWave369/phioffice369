@@ -293,6 +293,9 @@ async function runDeck() {
   for (let attempt = 0; attempt < 2 && !importVisible; attempt += 1) {
     upload(deckChooser, 'valid-' + attempt + '.json', JSON.stringify(payload), 'application/json');
     try {
+      const accept = await waitFor(() => findButton('Replace deck with JSON'), 'native deck import review', 6500);
+      assert(document.querySelector('.deck-title-field input')?.value === 'Deck before import', 'Preview replaced the current deck');
+      accept.click();
       await waitFor(() => document.querySelector('.deck-title-field input')?.value === finalTitle &&
         document.querySelector('.deck-slide-editor input')?.value === 'Imported slide',
         'PhiDeck JSON import visible, attempt ' + (attempt + 1), 6500);

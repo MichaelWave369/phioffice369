@@ -55,7 +55,7 @@ async function run() {
     const editor = await waitFor(() => document.querySelector('.editor-field textarea'), 'restored file after reload');
     assert(editor.value === 'Stored independently', 'Restored content differs after browser reload');
     sessionStorage.removeItem(phaseKey);
-    publish('PASS', 'Vault file actions, validation, conflicts, cancellation, quota recovery and reload');
+    publish('PASS', 'Vault file actions, validation, conflicts, cancellation, quota recovery, IndexedDB copy verification and reload');
     return;
   }
 
@@ -140,6 +140,16 @@ async function run() {
   await click('Restore missing items');
   assert(localStorage.getItem(incomingKey) === incoming, 'Missing file not restored');
   assert(JSON.parse(localStorage.getItem(key)).title === 'Vault renamed', 'Restore overwrote newer work');
+  const beforeCopy = localStorage.getItem(key);
+  const tools = await waitFor(() => document.querySelector('.vault-storage-tools'), 'storage pilot tools');
+  tools.open = true;
+  await click('Plan IndexedDB migration');
+  await waitFor(() => document.querySelector('.vault-status').textContent.includes('Migration plan ready'), 'safe copy plan');
+  await click('Copy missing safely');
+  await waitFor(() => document.querySelector('.vault-status').textContent.includes('safe copy complete'), 'IndexedDB safe copy');
+  await click('Verify copy');
+  await waitFor(() => document.querySelector('.vault-status').textContent.includes('IndexedDB verification passed'), 'IndexedDB verification');
+  assert(localStorage.getItem(key) === beforeCopy, 'Migration changed the local source');
   sessionStorage.setItem(phaseKey, 'yes');
   location.reload();
 }

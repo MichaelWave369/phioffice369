@@ -68,3 +68,12 @@ export const starterTemplates = [
 export function getTemplateById(id) {
   return starterTemplates.find((template) => template.id === id) ?? null;
 }
+
+// Blank files are independent workspaces. Template-bound drafts keep their original starters.
+export const blankWorkspaceTemplates = [
+  { id: 'blank_document', app: 'PhiWrite', title: 'Untitled document', sections: [] },
+  { id: 'blank_spreadsheet', app: 'PhiGrid', title: 'Untitled spreadsheet', sections: ['Column 1', 'Column 2', 'Column 3'] },
+  { id: 'blank_presentation', app: 'PhiDeck', title: 'Untitled presentation', sections: [] },
+].map((template) => ({
+  ...template, purpose: 'Start with a blank file.', trustDefaults: ['human_written', 'private'],
+}));

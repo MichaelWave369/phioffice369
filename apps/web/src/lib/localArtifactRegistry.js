@@ -1,3 +1,4 @@
+import { APPEARANCE_KEY } from './storageKeyCatalog.js';
 import { createArtifactManifestEntry, trustLabels } from '@phioffice369/core';
 import { mergeArtifactMetadata, readArtifactMetadata, ARTIFACT_METADATA_PREFIX } from './localArtifactMetadata.js';
 import { canUseBrowserLocalStorage, scanLocalExportReceipts } from './localReceipts.js';
@@ -10,6 +11,7 @@ export const CONTROL_PLANE_STORAGE_KEYS = [
   'phioffice369:storage_backend_preference',
   'phioffice369:vault_scan_source_preference',
   'phioffice369:onboarding_seen',
+  APPEARANCE_KEY,
 ];
 
 export function isControlPlaneStorageKey(key) {

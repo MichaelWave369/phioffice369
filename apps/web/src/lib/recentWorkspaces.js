@@ -1,7 +1,9 @@
-import { starterTemplates } from '@phioffice369/templates';
+import { blankWorkspaceTemplates, starterTemplates } from '@phioffice369/templates';
 import { getBrowserLocalStorage, listStorageKeys } from './workspaceStorageAccess.js';
 
 import { readWorkspaceRecord, workspaceTypeForKey, WORKSPACE_TYPES } from './workspaceRecords.js';
+
+const workspaceTemplates = [...starterTemplates, ...blankWorkspaceTemplates];
 
 function validTimestamp(value) {
   if (typeof value !== 'string') return 0;
@@ -28,7 +30,7 @@ export function makeIndependentWorkspaceTemplate(template, id = null) {
 
 export function scanRecentWorkspaces({
   storage = getBrowserLocalStorage(),
-  templates = starterTemplates,
+  templates = workspaceTemplates,
   trashed = false,
 } = {}) {
   if (!storage) return [];
@@ -63,7 +65,7 @@ export function scanRecentWorkspaces({
   );
 }
 
-export function resolveRecentWorkspaceTemplate(entry, templates = starterTemplates) {
+export function resolveRecentWorkspaceTemplate(entry, templates = workspaceTemplates) {
   if (!entry || !WORKSPACE_TYPES.some((type) => type.app === entry.app && type.kind === entry.kind)) {
     throw new Error('Unsupported recent-file entry.');
   }

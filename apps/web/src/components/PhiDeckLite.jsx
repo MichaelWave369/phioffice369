@@ -22,6 +22,7 @@ function createPhiDeckStorageKey(templateId) {
 }
 
 function makeStarterSlides(template) {
+  if (!template.sections.length) return [{ id: 'slide-1', title: '', bullets: [] }];
   return template.sections.map((section, index) => ({
     id: `slide-${index + 1}`,
     title: section,

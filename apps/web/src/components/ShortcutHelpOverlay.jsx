@@ -1,13 +1,13 @@
 import { Keyboard, X } from 'lucide-react';
 import { keyboardShortcutList } from '../lib/keyboardShortcuts.js';
+import WorkspaceDialog from './WorkspaceDialog.jsx';
 import './ShortcutHelpOverlay.css';
 
 export default function ShortcutHelpOverlay({ isOpen, onClose }) {
   if (!isOpen) return null;
 
   return (
-    <div className="shortcut-overlay" role="dialog" aria-modal="true" aria-labelledby="shortcut-overlay-title">
-      <section className="shortcut-card panel">
+    <WorkspaceDialog className="shortcut-card panel" labelledBy="shortcut-overlay-title" onClose={onClose}>
         <div className="shortcut-heading">
           <div>
             <Keyboard aria-hidden="true" />
@@ -25,7 +25,6 @@ export default function ShortcutHelpOverlay({ isOpen, onClose }) {
             </article>
           ))}
         </div>
-      </section>
-    </div>
+    </WorkspaceDialog>
   );
 }

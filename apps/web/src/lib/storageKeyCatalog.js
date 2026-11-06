@@ -1,3 +1,5 @@
+export const APPEARANCE_KEY = 'phioffice369:appearance';
+
 export const STORAGE_KEY_CATALOG_SCHEMA = 'phioffice369.storage_key_catalog.v0.1';
 
 export const STORAGE_NAMESPACE_CATALOG = [
@@ -84,6 +86,17 @@ export const STORAGE_NAMESPACE_CATALOG = [
     app: 'PhiVault',
     kind: 'scan_source_preference',
     purpose: 'Local operator preference for the visible PhiVault scan source.',
+    currentBackend: 'localStorage-via-workspaceStorageAccess',
+    migrationTarget: 'localStorage-control-key',
+    adapterStatus: 'routed-through-workspace-storage-access',
+    sourceOfTruth: 'localStorage-control-plane',
+  },
+  {
+    id: 'appearance',
+    prefix: APPEARANCE_KEY,
+    app: 'PhiVault',
+    kind: 'appearance_preference',
+    purpose: 'Browser-local theme preference.',
     currentBackend: 'localStorage-via-workspaceStorageAccess',
     migrationTarget: 'localStorage-control-key',
     adapterStatus: 'routed-through-workspace-storage-access',

@@ -97,3 +97,15 @@ test('migrateStorage skips already synced entries', async () => {
   assert.equal(result.skippedCount, 1);
   assert.equal(result.skipped[0].reason, 'already_synced');
 });
+
+test('safe migration keeps a target record created after its plan', async () => {
+  const key = 'phioffice369:phiwrite:test';
+  const source = createMemoryStorageAdapter({ [key]: 'source' });
+  const target = createMemoryStorageAdapter();
+  const plan = await createStorageMigrationPlan({ sourceAdapter: source, targetAdapter: target });
+  await target.setItem(key, 'newer target');
+  const result = await migrateStoragePlan({ plan, targetAdapter: target, dryRun: false });
+  assert.equal(result.appliedCount, 0);
+  assert.equal(result.conflictCount, 1);
+  assert.equal(await target.getItem(key), 'newer target');
+});

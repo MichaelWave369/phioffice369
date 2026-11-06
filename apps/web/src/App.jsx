@@ -15,13 +15,12 @@ import {
   NotebookTabs,
   ReceiptText,
   Search,
-  ShieldCheck,
   Sparkles,
   Wand2,
 } from 'lucide-react';
 import { createArtifactReceipt, trustLabels } from '@phioffice369/core';
 import { professorPhiModes, professorPhiSystemNotes } from '@phioffice369/professor-phi';
-import { starterTemplates } from '@phioffice369/templates';
+import { blankWorkspaceTemplates, starterTemplates } from '@phioffice369/templates';
 import PhiWriteLite from './components/PhiWriteLite.jsx';
 import PhiGridLite from './components/PhiGridLite.jsx';
 import PhiDeckLite from './components/PhiDeckLite.jsx';
@@ -46,6 +45,10 @@ import {
   scanRecentWorkspaces,
 } from './lib/recentWorkspaces.js';
 import { readWorkspaceRecord } from './lib/workspaceRecords.js';
+import { resolveSuiteLaunch } from './lib/suiteLaunch.js';
+import { useWorkspaceAppearance } from './lib/useWorkspaceAppearance.js';
+import EcosystemConnections from './components/EcosystemConnections.jsx';
+import WorkspaceHeader from './components/WorkspaceHeader.jsx';
 import './interactive.css';
 
 const appIcons = {
@@ -62,16 +65,16 @@ const appIcons = {
 };
 
 const apps = [
-  { name: 'PhiWrite', role: 'Documents, specs, letters, PDFs', category: 'Create', status: 'v0.1 lite', detail: 'Write specs, letters, public docs, structured notes, books, and PDF-ready artifacts.' },
-  { name: 'PhiGrid', role: 'Spreadsheets, formulas, budgets, atlases', category: 'Analyze', status: 'v0.1 lite', detail: 'Build budgets, trackers, formula catalogs, ledgers, and simple dashboard-ready tables.' },
-  { name: 'PhiDeck', role: 'Slides, posters, pitch decks', category: 'Present', status: 'v0.2 lite', detail: 'Turn specs and notes into visual decks, one-page explainers, and public launch posters.' },
+  { name: 'PhiWrite', role: 'Documents, specs, letters, PDFs', category: 'Create', status: 'Local editor', detail: 'Write specs, letters, public docs, structured notes, books, and PDF-ready artifacts.' },
+  { name: 'PhiGrid', role: 'Spreadsheets, formulas, budgets, atlases', category: 'Analyze', status: 'Local editor', detail: 'Build budgets, trackers, formula catalogs, ledgers, and simple dashboard-ready tables.' },
+  { name: 'PhiDeck', role: 'Slides, posters, pitch decks', category: 'Present', status: 'Local editor', detail: 'Turn specs and notes into visual decks, one-page explainers, and public launch posters.' },
   { name: 'PhiNotes', role: 'Research notebooks and idea gardens', category: 'Research', status: 'planned', detail: 'Capture meeting notes, research trails, source maps, and living idea gardens.' },
   { name: 'PhiMap', role: 'Diagrams, flowcharts, system maps', category: 'Map', status: 'planned', detail: 'Create flowcharts, architecture maps, relationship graphs, and implementation diagrams.' },
   { name: 'PhiPress', role: 'Flyers, zines, print layouts', category: 'Publish', status: 'planned', detail: 'Design flyers, zines, worksheets, one-pagers, and community-ready print layouts.' },
   { name: 'PhiBase', role: 'Local databases and dashboards', category: 'Organize', status: 'planned', detail: 'Build simple records, inventory tables, card catalogs, forms, and local dashboards.' },
-  { name: 'PhiVault', role: 'Local file vault, tags, project folders', category: 'Protect', status: 'v0.2 lite', detail: 'Organize artifacts locally with tags, project folders, export receipts, and private mode.' },
+  { name: 'PhiVault', role: 'Local file vault, tags, project folders', category: 'Protect', status: 'Local files', detail: 'Organize artifacts locally with tags, project folders, export receipts, and private mode.' },
   { name: 'PhiFlow', role: 'Tasks, calendar, reminders, workflow bridge', category: 'Coordinate', status: 'planned', detail: 'Bridge artifacts into tasks, checklists, project rhythms, reminders, and future calendar flows.' },
-  { name: 'Professor Phi', role: 'Assistant, editor, transformer, claim-checker', category: 'Assist', status: 'v0.1 panel', detail: 'Draft, polish, transform, teach, analyze, and label claims while keeping the human in control.' },
+  { name: 'Professor Phi', role: 'Assistant, editor, transformer, claim-checker', category: 'Assist', status: 'Demo', detail: 'Draft, polish, transform, teach, analyze, and label claims while keeping the human in control.' },
 ];
 
 const pillars = [
@@ -109,6 +112,7 @@ function AppCard({ app, isSelected, onSelect }) {
       onClick={isReady ? onSelect : undefined}
       disabled={!isReady}
       aria-disabled={!isReady}
+      aria-pressed={isReady ? isSelected : undefined}
       title={getAppReadinessMessage(app)}
     >
       <span className="app-card-topline"><Icon aria-hidden="true" /><span>{getAppReadinessBadge(app)}</span></span>
@@ -146,10 +150,12 @@ function createBridgeDeckTemplate(deckPayload) {
 export default function App() {
   const suiteSearchRef = useRef(null);
   const templateSearchRef = useRef(null);
-  const [activeTab, setActiveTab] = useState('Suite');
+  const [launchTarget] = useState(() => resolveSuiteLaunch(window.location.search));
+  const [appearance, changeAppearance] = useWorkspaceAppearance();
+  const [activeTab, setActiveTab] = useState(launchTarget === 'PhiVault' ? 'Vault' : launchTarget === 'Professor Phi' ? launchTarget : 'Suite');
   const [query, setQuery] = useState('');
   const [templateQuery, setTemplateQuery] = useState('');
-  const [selectedApp, setSelectedApp] = useState(apps[0]);
+  const [selectedApp, setSelectedApp] = useState(() => apps.find((app) => app.name === launchTarget) ?? apps[0]);
   const [suiteTemplateId, setSuiteTemplateId] = useState('');
   const [selectedTrustLabel, setSelectedTrustLabel] = useState(trustLabels[0]);
   const [selectedTemplate, setSelectedTemplate] = useState(starterTemplates[0]);
@@ -229,6 +235,7 @@ export default function App() {
 
   useEffect(() => {
     function handleKeyDown(event) {
+      if (event.defaultPrevented) return;
       if (shouldCloseOverlay(event) && showShortcuts) {
         event.preventDefault();
         setShowShortcuts(false);
@@ -241,7 +248,7 @@ export default function App() {
         return;
       }
 
-      if (shouldFocusSearch(event)) {
+      if (!activeWorkspace && ['Suite', 'Templates'].includes(activeTab) && shouldFocusSearch(event)) {
         event.preventDefault();
         focusActiveSearch();
         return;
@@ -259,16 +266,21 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeTab, activeWorkspace, showShortcuts]);
 
+  const brandbar = <WorkspaceHeader appearance={appearance} onAppearance={changeAppearance} onShortcuts={() => setShowShortcuts(true)} />;
+
   if (activeWorkspace) {
     return (
       <main className="shell">
+        {brandbar}
+        <div id="workspace-content" tabIndex={-1}>
         {activeWorkspace.kind === 'grid'
           ? <PhiGridLite key={activeWorkspace.template.id} template={activeWorkspace.template} onBack={closeWorkspace} />
           : activeWorkspace.kind === 'deck'
             ? <PhiDeckLite key={activeWorkspace.template.id} template={activeWorkspace.template} initialDeck={activeWorkspace.initialDeck} onBack={closeWorkspace} />
             : <PhiWriteLite key={activeWorkspace.template.id} template={activeWorkspace.template} onOpenDeck={openBridgeDeck} onBack={closeWorkspace} />}
+        </div>
         <ShortcutHelpOverlay isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
-        <DataSovereigntyStatusBar />
+        <DataSovereigntyStatusBar refreshKey={recentFiles} />
       </main>
     );
   }
@@ -276,31 +288,42 @@ export default function App() {
   return (
     <main className="shell">
       <ShortcutHelpOverlay isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
-      <button className="shortcut-help-button" type="button" onClick={() => setShowShortcuts(true)}>Shortcuts</button>
-      <section className="hero panel">
-        <div className="orb orb-left" />
-        <div className="orb orb-right" />
-        <p className="eyebrow hero-mark">Φ369</p>
-        <h1>PhiOffice369</h1>
-        <p className="subtitle">A free, local-first, AI-assisted sovereign productivity suite.</p>
-        <p className="codename">Internal codename: MikeySoft Office</p>
-        <div className="hero-actions">
-          <a href="https://github.com/MichaelWave369/phioffice369" target="_blank" rel="noreferrer">GitHub Repo</a>
-          <a href="https://github.com/MichaelWave369/phioffice369/blob/main/ROADMAP.md" target="_blank" rel="noreferrer">Roadmap</a>
-          <a href="https://github.com/MichaelWave369/phioffice369/tree/main/docs" target="_blank" rel="noreferrer">Docs</a>
-        </div>
-      </section>
-
-      <section className="privacy panel"><ShieldCheck aria-hidden="true" /><div><h2>Local-first promise</h2><p>No forced login. No hidden cloud dependency. AI help should be labeled, controllable, and honest.</p></div></section>
-
-      <nav className="tabs" aria-label="PhiOffice369 sections">{tabs.map((tab, index) => <button key={tab} type="button" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)} title={`Ctrl/⌘ + ${index + 1}`}>{tab}</button>)}</nav>
+      {brandbar}
+      <nav className="tabs" aria-label="PhiOffice369 sections">{tabs.map((tab, index) =>
+        <button key={tab} type="button" className={activeTab === tab ? 'active' : ''}
+          aria-current={activeTab === tab ? 'page' : undefined} onClick={() => setActiveTab(tab)} title={`Ctrl/⌘ + ${index + 1}`}>{tab}</button>
+      )}</nav>
+      <div id="workspace-content" tabIndex={-1}>
 
       {fileNotice && <p className="note" role="status">{fileNotice}</p>}
 
       {activeTab === 'Suite' && (
-        <section className="section-block fade-in">
-          <div className="section-heading split-heading"><div><p className="eyebrow">Core apps</p><h2>Build once. Transform ethically. Work sovereign.</h2></div><label className="search-box"><Search aria-hidden="true" /><input ref={suiteSearchRef} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search apps, roles, workflows..." /></label></div>
-          <div className="app-grid">{filteredApps.map((app) => <AppCard key={app.name} app={app} isSelected={selectedApp.name === app.name} onSelect={() => setSelectedApp(app)} />)}</div>
+        <section className="suite-dashboard fade-in">
+          <div className="workspace-welcome panel">
+            <div>
+              <p className="eyebrow">The local office</p>
+              <h1>Make room for good work.</h1>
+              <p>Write, calculate, and present in your own browser workspace. Your files stay with you.</p>
+            </div>
+            <div className="workspace-quick-start" aria-label="Create a blank file">
+              {blankWorkspaceTemplates.map((template) => {
+                const Icon = appIcons[template.app];
+                return <button type="button" key={template.id} onClick={() => createNewFile(template)}>
+                  <Icon aria-hidden="true" /><span>New {template.title.replace('Untitled ', '')}</span>
+                </button>;
+              })}
+            </div>
+          </div>
+          <div className="suite-dashboard-grid">
+            <section className="suite-launcher panel" aria-label="App launcher">
+              <div className="section-heading split-heading">
+                <div><p className="eyebrow">Office tools</p><h2>App launcher</h2></div>
+                <label className="search-box"><Search aria-hidden="true" /><input ref={suiteSearchRef} value={query}
+                  onChange={(event) => setQuery(event.target.value)} aria-label="Search apps" placeholder="Search apps" /></label>
+              </div>
+              <div className="app-grid">{filteredApps.filter(shouldAllowAppSelection).map((app) =>
+                <AppCard key={app.name} app={app} isSelected={selectedApp.name === app.name} onSelect={() => setSelectedApp(app)} />)}</div>
+              {!filteredApps.some(shouldAllowAppSelection) && <p className="note">No available apps match this search.</p>}
           <aside className="detail-panel panel">
             <p className="eyebrow">Selected app</p><h2>{selectedApp.name}</h2><p>{selectedApp.detail}</p>
             <div className="metadata-row"><span>{selectedApp.category}</span><span>{getAppReadinessBadge(selectedApp)}</span></div>
@@ -325,6 +348,7 @@ export default function App() {
               <button className="open-workspace-button" type="button" onClick={openSelectedApp}>Open {selectedApp.name}</button>
             )}
           </aside>
+            </section>
           <section className="recent-files-panel panel" aria-label="Recent files">
             <div className="recent-files-heading">
               <div>
@@ -345,17 +369,27 @@ export default function App() {
                 ))}
               </div>
             ) : (
-              <p className="note">No saved files yet. Create a new file or open a starter template to begin.</p>
+              <div className="recent-empty"><FolderLock aria-hidden="true" /><h3>No saved files yet</h3>
+                <p>Create a blank file above or choose a template to start.</p></div>
             )}
             {recentFiles.length > 16 && <p className="note">Showing the 16 most recently edited files.</p>}
             <p className="note">Files remain in this browser. Export a workspace backup from PhiVault before clearing site data or changing devices.</p>
           </section>
+          </div>
+          {filteredApps.some((app) => !shouldAllowAppSelection(app)) && (
+            <details className="ecosystem-connections panel">
+              <summary>Planned applications</summary>
+              <div className="app-grid">{filteredApps.filter((app) => !shouldAllowAppSelection(app)).map((app) =>
+                <AppCard key={app.name} app={app} isSelected={false} />)}</div>
+            </details>
+          )}
+          <EcosystemConnections />
         </section>
       )}
 
       {activeTab === 'Templates' && (
         <section className="section-block fade-in">
-          <div className="section-heading split-heading"><div><p className="eyebrow">Starter templates</p><h2>Useful artifacts from day one.</h2></div><label className="search-box"><Search aria-hidden="true" /><input ref={templateSearchRef} value={templateQuery} onChange={(event) => setTemplateQuery(event.target.value)} placeholder="Search templates..." /></label></div>
+          <div className="section-heading split-heading"><div><p className="eyebrow">Starter templates</p><h2>Useful artifacts from day one.</h2></div><label className="search-box"><Search aria-hidden="true" /><input ref={templateSearchRef} value={templateQuery} onChange={(event) => setTemplateQuery(event.target.value)} aria-label="Search templates" placeholder="Search templates..." /></label></div>
           <div className="template-layout">
             <div className="template-list">{filteredTemplates.map((template) => <button key={template.id} className={`template-card panel ${selectedTemplate.id === template.id ? 'selected' : ''}`} type="button" onClick={() => setSelectedTemplate(template)}><span className="template-app">{template.app}</span><strong>{template.title}</strong><span>{template.purpose}</span></button>)}</div>
             <aside className="panel template-preview">
@@ -396,7 +430,13 @@ export default function App() {
         <section className="section-block two-column fade-in"><div className="panel"><p className="eyebrow">Feature pillars</p><div className="pillar-list">{pillars.map(([title, body]) => <div className="pillar" key={title}><Sparkles aria-hidden="true" /><div><h3>{title}</h3><p>{body}</p></div></div>)}</div></div><div className="panel roadmap-panel"><p className="eyebrow">Roadmap</p><div className="roadmap-list">{roadmap.map(([version, title, body]) => <article className="roadmap-item" key={version}><span>{version}</span><div><h3>{title}</h3><p>{body}</p></div></article>)}</div></div></section>
       )}
 
-      <DataSovereigntyStatusBar />
+      </div>
+      <DataSovereigntyStatusBar refreshKey={recentFiles} />
+      <footer className="suite-footer">
+        <span>PHI369 Labs · People Above Profit</span>
+        <a href="https://github.com/MichaelWave369/phioffice369" target="_blank" rel="noreferrer">Source</a>
+        <a href="https://github.com/MichaelWave369/phioffice369/tree/main/docs" target="_blank" rel="noreferrer">Documentation</a>
+      </footer>
     </main>
   );
 }

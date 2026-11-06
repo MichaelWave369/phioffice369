@@ -154,11 +154,9 @@ export async function restoreWorkspaceBackupPayloadWithAdapter(payload, adapter 
     if (!reason && !await adapter.isAvailable()) reason = 'Workspace adapter is unavailable.';
     if (!reason) {
       for (const [key, value] of entries) {
-        const existing = await adapter.getItem(key);
-        if (existing === null) {
-          await adapter.setItem(key, value);
-          restored += 1;
-        } else if (existing === value) unchanged += 1;
+        const result = await adapter.setItemIfMissing(key, value);
+        if (result.written) restored += 1;
+        else if (result.existing === value) unchanged += 1;
         else conflicts += 1;
       }
     }

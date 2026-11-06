@@ -2,7 +2,10 @@ export const keyboardShortcutList = [
   { keys: 'Ctrl/⌘ + 1–7', action: 'Switch between main tabs' },
   { keys: 'Ctrl/⌘ + K', action: 'Focus the active search box' },
   { keys: 'Shift + ?', action: 'Open keyboard shortcut help' },
-  { keys: 'Escape', action: 'Close shortcut help' },
+  { keys: 'Escape', action: 'Close a dialog or leave presentation mode' },
+  { keys: 'Ctrl/⌘ + S', action: 'Save the open file locally' },
+  { keys: 'Ctrl/⌘ + Z / Shift + Z', action: 'Undo or redo a PhiWrite text edit' },
+  { keys: '← / →', action: 'Move between slides while presenting' },
 ];
 
 export function isEditableElement(element) {

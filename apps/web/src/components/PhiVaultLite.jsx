@@ -604,7 +604,7 @@ export default function PhiVaultLite({ onOpenFile, onFilesChanged }) {
         <div>
           <p className="eyebrow">PhiVault-lite</p>
           <h2>Local project continuity</h2>
-          <p>Scan browser-local drafts, grids, decks, and export receipts; organize them with local tags and project folders; then export project continuity JSON.</p>
+          <p>Find, organize, and back up the files saved in this browser.</p>
           <p className="vault-status" role="status">{status}</p>
           {importErrors.length > 0 && <ul>{importErrors.slice(0, 4).map((error) => <li key={error}>{error}</li>)}</ul>}
           {copyStatus && <p className="vault-copy-status">{copyStatus}</p>}
@@ -633,6 +633,8 @@ export default function PhiVaultLite({ onOpenFile, onFilesChanged }) {
           <p>Visible source: {visibleScanSourceLabel}. Nothing is uploaded; this view only reads browser-local storage and imported JSON files you select.</p>
 
           {storageStatus && (
+            <details className="vault-storage-tools">
+              <summary>Storage and migration tools</summary>
             <div className="storage-status-card">
               <Database aria-hidden="true" />
               <div>
@@ -814,6 +816,7 @@ export default function PhiVaultLite({ onOpenFile, onFilesChanged }) {
                 )}
               </div>
             </div>
+            </details>
           )}
 
           {importedBackup && (

@@ -15,7 +15,7 @@ export default function CompatibilityReportLauncher() {
         aria-label="Open compatibility honesty report"
       >
         <FileWarning aria-hidden="true" />
-        <span>Compatibility report</span>
+        <span>Formats</span>
       </button>
       <CompatibilityReportModal isOpen={isOpen} onClose={() => setIsOpen(false)} />
     </>

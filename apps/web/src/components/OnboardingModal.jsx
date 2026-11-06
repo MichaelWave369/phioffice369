@@ -1,12 +1,12 @@
 import { ShieldCheck, Sparkles, X } from 'lucide-react';
+import WorkspaceDialog from './WorkspaceDialog.jsx';
 import './OnboardingModal.css';
 
 export default function OnboardingModal({ isOpen, onClose, onStartTemplate }) {
   if (!isOpen) return null;
 
   return (
-    <div className="onboarding-backdrop" role="presentation">
-      <section className="onboarding-modal" role="dialog" aria-modal="true" aria-labelledby="onboarding-title">
+    <WorkspaceDialog className="onboarding-modal" labelledBy="onboarding-title" onClose={onClose}>
         <button className="onboarding-close" type="button" onClick={onClose} aria-label="Close onboarding"><X aria-hidden="true" /></button>
         <p className="eyebrow">Welcome to PhiOffice369</p>
         <h2 id="onboarding-title">Your local-first workspace starts here.</h2>
@@ -34,7 +34,6 @@ export default function OnboardingModal({ isOpen, onClose, onStartTemplate }) {
           <button type="button" onClick={onStartTemplate}>Start with a project spec</button>
           <button type="button" className="secondary" onClick={onClose}>Explore first</button>
         </div>
-      </section>
-    </div>
+    </WorkspaceDialog>
   );
 }

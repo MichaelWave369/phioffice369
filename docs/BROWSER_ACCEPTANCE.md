@@ -1,4 +1,4 @@
-# PhiOffice369 browser acceptance (PRs #18 and #19)
+# PhiOffice369 browser acceptance
 
 This is a **real-browser, production-build smoke check**. It complements, not replaces, `npm test` and `npm run smoke:pages`.
 
@@ -16,7 +16,7 @@ Requires installed Google Chrome or Chromium. If Chrome is not discoverable, set
 
 ## What is verified automatically
 
-Each scenario runs against the compiled Vite app with a **separate disposable Chrome profile**. The same runner launches three independent scenarios and fails CI if any one is missing a PASS result.
+Each scenario runs against the compiled Vite app with a **separate disposable Chrome profile**. The runner launches eight independent scenarios and fails CI if any scenario lacks a PASS result. It uses a loopback DevTools connection and real wall-clock time.
 
 ### PhiWrite (#18)
 
@@ -65,16 +65,20 @@ Each scenario runs against the compiled Vite app with a **separate disposable Ch
 
 The disposable profiles are removed after each scenario. Nothing is sent to an external endpoint.
 
+### Independent files, Vault, and offline
+
+- Recent Files checks independent IDs, legacy preservation, reopening, and reload.
+- Workspace readiness creates, edits, saves, navigates away, reopens, reloads, and exports a file from each primary editor. It checks document markup, spreadsheet results and formula strings, and slide layout, order, and image bytes.
+- PhiVault verifies rename, duplication, tags and folders, confirmation cancellation, recoverable Trash, quota failure with a usable export, rejected backup input, conflict-preserving restore, and an IndexedDB copy that keeps its source.
+- The mobile offline scenario checks the dashboard, modal focus, both themes, blank files, the labeled assistant demo, and the service worker. A fixture server returns 503 for an in-scope launch, and Chromium must open the cached application and save a local edit.
+
 ## Deliberate limitations
 
-- Does not generate or visually compare actual printed PDF pages.
-- Does not guarantee print dialog interaction, color fidelity or print-to-PDF pagination; test these manually.
-- Does not test DOCX/XLSX/PPTX compatibility.
-- Does not verify the publicly hosted Pages URL, cross-device sync, IndexedDB migration or workspace recovery.
-- PhiVault and other planned editors do not yet have full browser acceptance coverage. This is **not** full-suite validation.
+- Print calls are intercepted. Actual print-to-PDF pagination and Office application layout fidelity require external verification.
+- Browser tests exercise a local production build. They do not deploy to the live Pages site or verify an operating-system install prompt.
+- The IndexedDB pilot test verifies copy and comparison. Editor persistence still uses browser local storage.
+- The scenarios use disposable synthetic profiles and make no live identity, mail, storage or AI service requests.
 
 ## CI
 
-The source PR workflow performs Node tests and build first, then runs this browser check on the production build. GitHub-hosted Ubuntu runners generally include Chrome. If a runner image changes, the separate Chrome availability step fails explicitly rather than silently skipping the test.
-
-To diagnose failures, inspect the `Accept PhiWrite in a real browser` step. The Node runner prints a separate local verdict for PhiWrite, PhiGrid and PhiDeck, plus Chrome diagnostics when a scenario fails. It does not print private user file content because the profile is temporary and contains only fixed fixture text.
+The source PR workflow installs dependencies, runs Node tests, builds the production site, checks the Pages output, and uses a real Chromium-based browser. Inspect the **Run production browser acceptance** step for a separate verdict per scenario.

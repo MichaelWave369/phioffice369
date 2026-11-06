@@ -1,3 +1,4 @@
+import { getBrowserLocalStorage } from './workspaceStorageAccess.js';
 import { createIndexedDbStorageAdapter, isIndexedDbAvailable } from './indexedDbStorageAdapter.js';
 import { readStorageBackendPreference } from './storageReadinessGate.js';
 
@@ -49,6 +50,13 @@ export function createLocalStorageAdapter(storage) {
       storage?.setItem(key, String(value));
       return createStorageRecord(key, value);
     },
+    async setItemIfMissing(key, value) {
+      if (!storage) throw new Error('Browser storage is unavailable.');
+      const existing = storage.getItem(key);
+      if (existing !== null) return { written: false, existing };
+      storage.setItem(key, String(value));
+      return { written: true };
+    },
     async removeItem(key) {
       storage?.removeItem?.(key);
       return true;
@@ -87,6 +95,11 @@ export function createMemoryStorageAdapter(seed = {}) {
       map.set(key, String(value));
       return createStorageRecord(key, value);
     },
+    async setItemIfMissing(key, value) {
+      if (map.has(key)) return { written: false, existing: map.get(key) };
+      map.set(key, String(value));
+      return { written: true };
+    },
     async removeItem(key) {
       map.delete(key);
       return true;
@@ -110,14 +123,14 @@ export function createMemoryStorageAdapter(seed = {}) {
 
 export function detectStorageBackend(environment = globalThis) {
   if (isIndexedDbAvailable(environment)) return 'indexedDB';
-  if (environment?.localStorage) return 'localStorage';
+  if (getBrowserLocalStorage(environment)) return 'localStorage';
   return 'memory';
 }
 
 export function resolvePreferredStorageBackend(environment = globalThis, options = {}) {
   if (options.preferredBackend) return options.preferredBackend;
 
-  const preference = readStorageBackendPreference(environment?.localStorage);
+  const preference = readStorageBackendPreference(getBrowserLocalStorage(environment));
   if (preference?.backend === 'indexedDB-pilot') return 'indexedDB';
   if (preference?.backend === 'localStorage') return 'localStorage';
 
@@ -132,9 +145,6 @@ export function createBrowserStorageAdapter(environment = globalThis, options = 
     return createIndexedDbStorageAdapter(environment);
   }
 
-  if (environment?.localStorage) {
-    return createLocalStorageAdapter(environment.localStorage);
-  }
-
-  return createMemoryStorageAdapter();
+  const storage = getBrowserLocalStorage(environment);
+  return storage ? createLocalStorageAdapter(storage) : createMemoryStorageAdapter();
 }

@@ -38,7 +38,7 @@ test('PhiOffice accepts only correlated, read-only context results', () => {
   const hello = bridge.handle(event(host('host.bootstrap')));
   assert.equal(bridge.handle(event(host('host.ready', {
     request_id: 'wrong', read_approved: true,
-  })), null);
+  }))), null);
   const ready = bridge.handle(event(host('host.ready', {
     request_id: hello.message.request_id, read_approved: false,
   })));

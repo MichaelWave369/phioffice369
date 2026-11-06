@@ -1,15 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { ArrowLeft, ClipboardCopy, Download, Grid3X3, Plus, RotateCcw, ShieldCheck, Sparkles, Upload } from 'lucide-react';
 import { createArtifactReceipt, trustLabels } from '@phioffice369/core';
 import { parseCsvImport } from '../lib/localImporters.js';
-import { saveLocalExportReceipt } from '../lib/localReceipts.js';
-import {
-  canUseBrowserLocalStorage,
-  readStorageJson,
-  removeStorageValue,
-  writeStorageJson,
-} from '../lib/workspaceStorageAccess.js';
-import { persistDraftSnapshot } from '../lib/draftPersistence.js';
+import { recordLocalExport } from '../lib/localReceipts.js';
+import { readWorkspaceRecord, workspaceTitle } from '../lib/workspaceRecords.js';
+import { useWorkspaceDraft } from '../lib/useWorkspaceDraft.js';
+import WorkspaceSaveActions from './WorkspaceSaveActions.jsx';
 import './PhiGridLite.css';
 
 function slugify(value) {
@@ -44,11 +40,6 @@ function starterRows(template, columns) {
   return [blankRow(columns), blankRow(columns), blankRow(columns)];
 }
 
-function loadGrid(template) {
-  if (!canUseBrowserLocalStorage()) return null;
-  return readStorageJson(createPhiGridStorageKey(template.id));
-}
-
 function numberValue(value) {
   const parsed = Number(String(value ?? '').replace(/[$,]/g, ''));
   return Number.isFinite(parsed) ? parsed : 0;
@@ -74,51 +65,33 @@ function downloadTextFile(filename, body, type) {
 export default function PhiGridLite({ template, onBack }) {
   const importInputRef = useRef(null);
   const defaultColumns = useMemo(() => getColumns(template), [template]);
-  const savedGrid = useMemo(() => loadGrid(template), [template]);
+  const storageKey = createPhiGridStorageKey(template.id);
+  const [loaded] = useState(() => readWorkspaceRecord(storageKey));
+  const savedGrid = loaded.record;
   const [title, setTitle] = useState(savedGrid?.title ?? template.title);
   const [columns, setColumns] = useState(savedGrid?.columns ?? defaultColumns);
   const [rows, setRows] = useState(savedGrid?.rows ?? starterRows(template, defaultColumns));
   const [activeLabelId, setActiveLabelId] = useState(savedGrid?.activeLabelId ?? template.trustDefaults[0] ?? 'private');
-  const [saveStatus, setSaveStatus] = useState(savedGrid ? 'Restored local grid' : 'New local grid');
   const [copyStatus, setCopyStatus] = useState('');
   const [pendingCsvImport, setPendingCsvImport] = useState(null);
 
   const activeLabel = trustLabels.find((label) => label.id === activeLabelId) ?? trustLabels[0];
   const receipt = useMemo(() => createArtifactReceipt({
     artifactId: `grid_${template.id}`,
-    title,
+    title: workspaceTitle(title, 'PhiGrid'),
     app: 'PhiGrid',
     labels: Array.from(new Set([...template.trustDefaults, activeLabelId])),
     transformations: ['template_to_phigrid_lite_table'],
   }), [activeLabelId, template, title]);
 
-  function getDraftSnapshot() {
-    return { templateId: template.id, sourceTemplateId: template.sourceTemplateId ?? template.id, title, columns, rows, activeLabelId };
-  }
-
-  useEffect(() => {
-    setSaveStatus('Unsaved changes...');
-    const timeout = window.setTimeout(() => {
-      const result = persistDraftSnapshot(createPhiGridStorageKey(template.id), getDraftSnapshot());
-      setSaveStatus(result.ok ? 'Autosaved locally' : result.message);
-    }, 450);
-    return () => window.clearTimeout(timeout);
-  }, [activeLabelId, columns, rows, template.id, title]);
-
-  // A refresh or tab close must not discard a recent edit still waiting for debounce.
-  useEffect(() => {
-    const flush = () => persistDraftSnapshot(createPhiGridStorageKey(template.id), getDraftSnapshot());
-    window.addEventListener('pagehide', flush);
-    return () => window.removeEventListener('pagehide', flush);
-  }, [activeLabelId, columns, rows, template.id, title]);
+  const draftSnapshot = useMemo(() => ({
+    ...savedGrid, templateId: template.id, sourceTemplateId: template.sourceTemplateId ?? template.id,
+    title: workspaceTitle(title, 'PhiGrid'), columns, rows, activeLabelId,
+  }), [savedGrid, template, title, columns, rows, activeLabelId]);
+  const { saveStatus, setSaveStatus, saveFailed, save } = useWorkspaceDraft(storageKey, draftSnapshot, loaded);
 
   function backToPhiOffice() {
-    const result = persistDraftSnapshot(createPhiGridStorageKey(template.id), getDraftSnapshot());
-    if (!result.ok) {
-      setSaveStatus(result.message);
-      return;
-    }
-    onBack();
+    if (save()) onBack();
   }
 
   const numericColumns = columns.filter((column) => rows.some((row) => String(row[column] ?? '').match(/^-?[$0-9,.]+$/)));
@@ -140,28 +113,26 @@ export default function PhiGridLite({ template, onBack }) {
   }
 
   function resetGrid() {
+    if (!window.confirm('Reset this file to its starter template? This replaces the current content.')) return;
     setPendingCsvImport(null);
     setTitle(template.title);
     setColumns(defaultColumns);
     setRows(starterRows(template, defaultColumns));
     setActiveLabelId(template.trustDefaults[0] ?? 'private');
-    if (canUseBrowserLocalStorage()) removeStorageValue(createPhiGridStorageKey(template.id));
     setSaveStatus('Reset to template');
   }
 
   function exportCsv() {
     const filename = `${slugify(title)}.csv`;
     downloadTextFile(filename, toCsv(columns, rows), 'text/csv;charset=utf-8');
-    saveLocalExportReceipt({ artifactId: `grid_${template.id}`, format: 'csv', filename, sourceApp: 'PhiGrid' });
-    setSaveStatus('CSV exported + receipt saved');
+    setSaveStatus(recordLocalExport('CSV exported', { artifactId: `grid_${template.id}`, format: 'csv', filename, sourceApp: 'PhiGrid' }));
   }
 
   function exportJson() {
     const filename = `${slugify(title)}-phigrid-lite.json`;
     const payload = { schema: 'phioffice369.phigrid_lite.v0.1', title, columns, rows, totals, receipt };
     downloadTextFile(filename, JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
-    saveLocalExportReceipt({ artifactId: `grid_${template.id}`, format: 'json', filename, sourceApp: 'PhiGrid' });
-    setSaveStatus('JSON exported + receipt saved');
+    setSaveStatus(recordLocalExport('JSON exported', { artifactId: `grid_${template.id}`, format: 'json', filename, sourceApp: 'PhiGrid' }));
   }
 
   function triggerCsvImport() {
@@ -219,6 +190,7 @@ export default function PhiGridLite({ template, onBack }) {
           <p className="grid-save-status" role="status" aria-live="polite">{saveStatus}</p>
         </div>
         <div className="grid-actions">
+          <WorkspaceSaveActions save={save} saveFailed={saveFailed} onBack={onBack} />
           <button type="button" onClick={resetGrid}><RotateCcw aria-hidden="true" /> Reset</button>
           <button type="button" onClick={triggerCsvImport}><Upload aria-hidden="true" /> Import CSV</button>
           <button type="button" onClick={exportCsv}><Download aria-hidden="true" /> Export CSV</button>

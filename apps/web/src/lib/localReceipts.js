@@ -7,27 +7,15 @@ import {
 
 export { canUseBrowserLocalStorage } from './workspaceStorageAccess.js';
 
-export function saveLocalExportReceipt({ artifactId, format, filename, sourceApp, warnings = [], compatibility = 'native' }) {
-  const receipt = createExportReceipt({
-    artifactId,
-    format,
-    filename,
-    sourceApp,
-    warnings,
-    compatibility,
-  });
-
-  if (canUseBrowserLocalStorage()) {
-    const key = createLocalStorageExportReceiptKey({
-      sourceApp,
-      artifactId,
-      format,
-      exportedAt: receipt.exportedAt,
-    });
-    writeStorageJson(key, receipt);
+export function recordLocalExport(description, { artifactId, format, filename, sourceApp, warnings = [], compatibility = 'native' }) {
+  try {
+    const receipt = createExportReceipt({ artifactId, format, filename, sourceApp, warnings, compatibility });
+    const key = createLocalStorageExportReceiptKey({ sourceApp, artifactId, format, exportedAt: receipt.exportedAt });
+    if (writeStorageJson(key, receipt)) return description + '. Local receipt saved.';
+  } catch {
+    // Download has already been requested. Receipt storage is independent.
   }
-
-  return receipt;
+  return description + '. Browser storage could not save its receipt.';
 }
 
 export function scanLocalExportReceipts() {

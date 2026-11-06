@@ -137,7 +137,7 @@ test('invalid or blocked backend preference falls back to localStorage', () => {
 
 test('workspace backups can use async storage adapters', async () => {
   const source = createMemoryStorageAdapter({
-    'phioffice369:phiwrite:test': '{"title":"Doc"}',
+    'phioffice369:phiwrite:test': '{"title":"Doc","content":"Text"}',
     'phioffice369:emergency_backup:old': '{"skip":true}',
   });
   const payload = await createWorkspaceBackupPayloadFromAdapter({
@@ -150,7 +150,7 @@ test('workspace backups can use async storage adapters', async () => {
 
   assert.equal(payload.schema, WORKSPACE_BACKUP_SCHEMA);
   assert.equal(payload.source, 'adapter-test');
-  assert.deepEqual(payload.storageSnapshot, [['phioffice369:phiwrite:test', '{"title":"Doc"}']]);
-  assert.deepEqual(restore, { ok: true, restored: 1, reason: null });
-  assert.equal(await target.getItem('phioffice369:phiwrite:test'), '{"title":"Doc"}');
+  assert.deepEqual(payload.storageSnapshot, [['phioffice369:phiwrite:test', '{"title":"Doc","content":"Text"}']]);
+  assert.deepEqual(restore, { ok: true, restored: 1, conflicts: 0, unchanged: 0, ignored: 0, reason: null });
+  assert.equal(await target.getItem('phioffice369:phiwrite:test'), '{"title":"Doc","content":"Text"}');
 });

@@ -1,4 +1,5 @@
 import { validateProjectManifest } from '@phioffice369/core/schemas';
+import { inspectBackupSnapshot } from './workspaceBackupSnapshot.js';
 import { isWorkspaceBackupPayload } from './emergencyBackups.js';
 
 export const VAULT_IMPORT_VALIDATION_SCHEMA = 'phioffice369.vault_import_validation.v0.1';
@@ -25,10 +26,8 @@ export function validateWorkspaceBackupImport(payload) {
   }
 
   const manifestResult = payload.manifest ? validateProjectManifest(payload.manifest) : { ok: true, errors: [] };
-  const snapshotErrors = payload.storageSnapshot.every((entry) => Array.isArray(entry) && typeof entry[0] === 'string' && typeof entry[1] === 'string')
-    ? []
-    : ['storageSnapshot must contain [key, value] string pairs'];
-  const errors = [...manifestResult.errors.map((error) => `manifest.${error}`), ...snapshotErrors];
+  const snapshot = inspectBackupSnapshot(payload.storageSnapshot);
+  const errors = [...manifestResult.errors.map((error) => `manifest.${error}`), ...snapshot.errors];
 
   return createVaultImportValidationResult({
     ok: errors.length === 0,
@@ -60,7 +59,7 @@ export function validateVaultImportPayload(payload) {
     return validateWorkspaceBackupImport(payload);
   }
 
-  if (payload?.schema?.startsWith('phioffice369.project_manifest.')) {
+  if (typeof payload?.schema === 'string' && payload.schema.startsWith('phioffice369.project_manifest.')) {
     return validateProjectManifestImport(payload);
   }
 
@@ -151,6 +150,12 @@ export async function createVaultImportPreviewFromFile(file) {
     };
   }
 
+  if (file.size > 32 * 1024 * 1024) {
+    const validation = createVaultImportValidationResult({
+      ok: false, kind: 'oversize_file', summary: 'Choose a manifest or backup smaller than 32 MiB.',
+    });
+    return { fileName: file.name, parseOk: false, validation, previewState: createVaultImportPreviewState(validation) };
+  }
   const text = await file.text();
   return {
     fileName: file.name ?? null,

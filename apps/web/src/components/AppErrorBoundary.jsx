@@ -53,7 +53,7 @@ export default class AppErrorBoundary extends Component {
       return;
     }
 
-    this.setState({ status: `Restored ${result.restored} local item${result.restored === 1 ? '' : 's'}. Reloading...` });
+    this.setState({ status: `Restored ${result.restored} missing item${result.restored === 1 ? '' : 's'}. Kept ${result.conflicts} conflicting items. Reloading...` });
     window.setTimeout(() => window.location.reload(), 350);
   }
 
@@ -73,7 +73,7 @@ export default class AppErrorBoundary extends Component {
           <AlertTriangle aria-hidden="true" />
           <div>
             <p className="eyebrow">PhiOffice369 recovery shield</p>
-            <h1>Something crashed, but your local work was protected.</h1>
+            <h1>PhiOffice369 encountered a problem.</h1>
             <p>
               PhiOffice caught the crash and attempted to create an emergency local backup of PhiOffice369 browser storage.
               No data was uploaded.

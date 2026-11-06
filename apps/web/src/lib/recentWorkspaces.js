@@ -1,23 +1,7 @@
 import { starterTemplates } from '@phioffice369/templates';
-import { getBrowserLocalStorage, listStorageKeys, readStorageJson } from './workspaceStorageAccess.js';
+import { getBrowserLocalStorage, listStorageKeys } from './workspaceStorageAccess.js';
 
-export const RECENT_WORKSPACE_TYPES = Object.freeze([
-  { prefix: 'phioffice369:phiwrite:', app: 'PhiWrite', kind: 'write' },
-  { prefix: 'phioffice369:phigrid:', app: 'PhiGrid', kind: 'grid' },
-  { prefix: 'phioffice369:phideck:', app: 'PhiDeck', kind: 'deck' },
-]);
-
-function typeForKey(key) {
-  return RECENT_WORKSPACE_TYPES.find((type) => key.startsWith(type.prefix));
-}
-
-function isUsefulRecord(record, kind) {
-  if (!record || typeof record !== 'object' || Array.isArray(record)) return false;
-  if (kind === 'write') return typeof record.content === 'string';
-  if (kind === 'grid') return Array.isArray(record.columns) && Array.isArray(record.rows);
-  if (kind === 'deck') return Array.isArray(record.slides);
-  return false;
-}
+import { readWorkspaceRecord, workspaceTypeForKey, WORKSPACE_TYPES } from './workspaceRecords.js';
 
 function validTimestamp(value) {
   if (typeof value !== 'string') return 0;
@@ -27,7 +11,7 @@ function validTimestamp(value) {
 
 // A new file has a new key; starter-template keys and their existing data stay unchanged.
 export function makeIndependentWorkspaceTemplate(template, id = null) {
-  if (!RECENT_WORKSPACE_TYPES.some((type) => type.app === template?.app)) {
+  if (!WORKSPACE_TYPES.some((type) => type.app === template?.app)) {
     throw new Error('Only PhiWrite, PhiGrid and PhiDeck support independent files.');
   }
   const randomId = id ?? globalThis.crypto?.randomUUID?.()
@@ -45,6 +29,7 @@ export function makeIndependentWorkspaceTemplate(template, id = null) {
 export function scanRecentWorkspaces({
   storage = getBrowserLocalStorage(),
   templates = starterTemplates,
+  trashed = false,
 } = {}) {
   if (!storage) return [];
   let keys = [];
@@ -55,18 +40,11 @@ export function scanRecentWorkspaces({
   }
 
   return keys.flatMap((key) => {
-    const type = typeForKey(key);
+    const type = workspaceTypeForKey(key);
     if (!type) return [];
     const id = key.slice(type.prefix.length);
-    if (!/^[a-z0-9_-]{1,120}$/i.test(id)) return [];
-
-    let record;
-    try {
-      record = readStorageJson(key, storage);
-    } catch {
-      return [];
-    }
-    if (!isUsefulRecord(record, type.kind)) return [];
+    const { record, state } = readWorkspaceRecord(key, storage);
+    if (state !== (trashed ? 'trashed' : 'saved')) return [];
     const sourceTemplateId = record.sourceTemplateId
       ?? (templates.some((template) => template.id === id) ? id : null);
     const base = templates.find((template) => template.id === sourceTemplateId) ?? null;
@@ -75,7 +53,7 @@ export function scanRecentWorkspaces({
       : base?.title ?? 'Untitled ' + type.app;
 
     return [{
-      key, id, title, kind: type.kind, app: type.app, sourceTemplateId,
+      key, id, title, trashedAt: record.trashedAt, kind: type.kind, app: type.app, sourceTemplateId,
       updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : null,
       sortTime: validTimestamp(record.updatedAt),
       isIndependent: id.startsWith('file_'),
@@ -86,7 +64,7 @@ export function scanRecentWorkspaces({
 }
 
 export function resolveRecentWorkspaceTemplate(entry, templates = starterTemplates) {
-  if (!entry || !RECENT_WORKSPACE_TYPES.some((type) => type.app === entry.app && type.kind === entry.kind)) {
+  if (!entry || !WORKSPACE_TYPES.some((type) => type.app === entry.app && type.kind === entry.kind)) {
     throw new Error('Unsupported recent-file entry.');
   }
   const base = templates.find((template) => template.id === entry.sourceTemplateId && template.app === entry.app);

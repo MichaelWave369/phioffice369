@@ -162,3 +162,9 @@ PhiOffice369 is designed as a distinct sovereign productivity suite with compati
 ## License
 
 Initial starter materials use the license in this repository unless otherwise noted. Brand names, logos, PHI369 identity marks, Parallax identity marks, and product names are reserved by their respective owner(s). See `TRADEMARK.md`.
+
+## Workspace safety
+
+Use **Save file** or Ctrl/Cmd+S to checkpoint an open editor. PhiVault opens, renames, and duplicates local files, and moves independent files to recoverable Trash after confirmation. Trashed records keep their original content and use browser space. Template-bound drafts keep their existing storage keys.
+
+PhiVault validates backup files before offering restore. Restore adds missing file, metadata, and receipt records and reports existing conflicts, identical records, and skipped settings. If a quota error interrupts restore, the count shows what was written and the same backup can be retried. Backups contain unencrypted user content and should be kept outside the browser. Export a copy before leaving an editor if a save is blocked by full storage, an unreadable record, or a change detected from another tab.

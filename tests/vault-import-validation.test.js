@@ -47,7 +47,7 @@ test('validateWorkspaceBackupImport validates backup snapshot and optional manif
     source: 'test',
     createdAt: new Date().toISOString(),
     manifest: createValidManifest(),
-    storageSnapshot: [['phioffice369:phiwrite:test', '{"title":"Doc"}']],
+    storageSnapshot: [['phioffice369:phiwrite:test', '{"title":"Doc","content":"Text"}']],
   });
 
   assert.equal(result.ok, true);

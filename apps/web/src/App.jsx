@@ -45,6 +45,7 @@ import {
   resolveRecentWorkspaceTemplate,
   scanRecentWorkspaces,
 } from './lib/recentWorkspaces.js';
+import { readWorkspaceRecord } from './lib/workspaceRecords.js';
 import './interactive.css';
 
 const appIcons = {
@@ -134,6 +135,7 @@ function createBridgeDeckTemplate(deckPayload) {
   return {
     id: `bridge_${deckPayload.sourceTemplateId ?? 'phiwrite'}_deck`,
     title: deckPayload.title ?? 'PhiWrite Deck',
+    sourceTemplateId: deckPayload.sourceTemplateId,
     app: 'PhiDeck',
     purpose: `Generated from ${deckPayload.sourceTemplateTitle ?? 'PhiWrite-lite draft'}.`,
     trustDefaults: deckPayload.trustDefaults ?? ['ai_assisted', 'needs_citation'],
@@ -154,6 +156,7 @@ export default function App() {
   const [selectedMode, setSelectedMode] = useState(professorPhiModes[0]);
   const [activeWorkspace, setActiveWorkspace] = useState(null);
   const [showShortcuts, setShowShortcuts] = useState(false);
+  const [fileNotice, setFileNotice] = useState('');
   const [recentFiles, setRecentFiles] = useState(() => scanRecentWorkspaces());
 
   const filteredApps = useMemo(() => {
@@ -197,6 +200,12 @@ export default function App() {
   }
 
   function openRecentFile(entry) {
+    if (readWorkspaceRecord(entry.key).state !== 'saved') {
+      setRecentFiles(scanRecentWorkspaces());
+      setFileNotice('That file is no longer available. Check PhiVault for recovery options.');
+      return;
+    }
+    setFileNotice('');
     const template = resolveRecentWorkspaceTemplate(entry);
     setActiveWorkspace({ kind: getWorkspaceKind(template), template });
   }
@@ -208,7 +217,9 @@ export default function App() {
   }
 
   function openBridgeDeck(deckPayload) {
-    setActiveWorkspace({ kind: 'deck', template: createBridgeDeckTemplate(deckPayload), initialDeck: deckPayload });
+    const template = makeIndependentWorkspaceTemplate(createBridgeDeckTemplate(deckPayload));
+    const trace = deckPayload.trace && { ...deckPayload.trace, targetArtifactId: `deck_${template.id}` };
+    setActiveWorkspace({ kind: 'deck', template, initialDeck: { ...deckPayload, trace } });
   }
 
   function focusActiveSearch() {
@@ -252,10 +263,10 @@ export default function App() {
     return (
       <main className="shell">
         {activeWorkspace.kind === 'grid'
-          ? <PhiGridLite template={activeWorkspace.template} onBack={closeWorkspace} />
+          ? <PhiGridLite key={activeWorkspace.template.id} template={activeWorkspace.template} onBack={closeWorkspace} />
           : activeWorkspace.kind === 'deck'
-            ? <PhiDeckLite template={activeWorkspace.template} initialDeck={activeWorkspace.initialDeck} onBack={closeWorkspace} />
-            : <PhiWriteLite template={activeWorkspace.template} onOpenDeck={openBridgeDeck} onBack={closeWorkspace} />}
+            ? <PhiDeckLite key={activeWorkspace.template.id} template={activeWorkspace.template} initialDeck={activeWorkspace.initialDeck} onBack={closeWorkspace} />
+            : <PhiWriteLite key={activeWorkspace.template.id} template={activeWorkspace.template} onOpenDeck={openBridgeDeck} onBack={closeWorkspace} />}
         <ShortcutHelpOverlay isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
         <DataSovereigntyStatusBar />
       </main>
@@ -283,6 +294,8 @@ export default function App() {
       <section className="privacy panel"><ShieldCheck aria-hidden="true" /><div><h2>Local-first promise</h2><p>No forced login. No hidden cloud dependency. AI help should be labeled, controllable, and honest.</p></div></section>
 
       <nav className="tabs" aria-label="PhiOffice369 sections">{tabs.map((tab, index) => <button key={tab} type="button" className={activeTab === tab ? 'active' : ''} onClick={() => setActiveTab(tab)} title={`Ctrl/⌘ + ${index + 1}`}>{tab}</button>)}</nav>
+
+      {fileNotice && <p className="note" role="status">{fileNotice}</p>}
 
       {activeTab === 'Suite' && (
         <section className="section-block fade-in">
@@ -360,7 +373,7 @@ export default function App() {
         </section>
       )}
 
-      {activeTab === 'Vault' && <PhiVaultLite />}
+      {activeTab === 'Vault' && <PhiVaultLite onOpenFile={openRecentFile} onFilesChanged={() => setRecentFiles(scanRecentWorkspaces())} />}
 
       {activeTab === 'Trust' && (
         <section className="section-block two-column fade-in"><div className="panel"><p className="eyebrow">Trust panel v0.1</p><h2>Clear labels for human + AI work</h2><div className="label-grid interactive-labels">{trustLabels.map((item) => <button key={item.id} type="button" className={`label-chip ${selectedTrustLabel.id === item.id ? 'selected' : ''}`} onClick={() => setSelectedTrustLabel(item)}>{item.label}</button>)}</div></div><div className="panel trust-preview"><p className="eyebrow">Selected label</p><h2>{selectedTrustLabel.label}</h2><p>{selectedTrustLabel.description}</p><div className={`trust-sample ${selectedTrustLabel.tone}`}><CheckCircle2 aria-hidden="true" /><span>This artifact block is labeled: {selectedTrustLabel.label}</span></div><div className="metadata-row"><span>Publish risk: {selectedTrustLabel.publishRisk}</span></div><p className="note">The trust panel protects clarity, authorship, privacy, and public trust without shaming the user.</p></div></section>

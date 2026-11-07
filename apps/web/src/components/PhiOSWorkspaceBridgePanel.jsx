@@ -43,6 +43,8 @@ export default function PhiOSWorkspaceBridgePanel() {
           ? 'Connected; operator permits a synthetic project reference'
           : 'Connected; project access is not yet approved');
       } else if (response.kind === 'denied') {
+        // A revoked reference is never a credential; clear stale display state.
+        setProjectRef(null);
         setStatus('Project request denied; operator approval required in PhiOS');
       } else if (response.kind === 'project-ref') {
         setProjectRef(response.projectRef);

@@ -105,6 +105,30 @@ function clickExpression(rootSelector, name) {
     + '); if (!button || button.disabled) return "unavailable"; button.click(); return "clicked"; })()';
 }
 
+function selectManifestExpression(projectId, title) {
+  const manifest = {
+    schema: 'phioffice369.project_manifest.v0.1',
+    projectId, title,
+    description: 'private test-only description; MUST NOT CROSS BRIDGE',
+    owner: 'private-user@local.invalid',
+    tags: ['private-secret-tag'],
+    artifacts: [{ path: '/sensitive/test/document.docx', title: 'secret local file' }],
+    createdAt: '2026-11-06T00:00:00Z',
+    updatedAt: '2026-11-06T00:00:00Z',
+  };
+  const contents = JSON.stringify(manifest);
+  return '(() => {'
+    + 'const input = document.querySelector("input[aria-label=\"Choose local PhiOffice project manifest\"]");'
+    + 'if (!input) return false;'
+    + 'const file = new File([' + JSON.stringify(contents)
+    + '], "selected-project.json", { type: "application/json" });'
+    + 'const transfer = new DataTransfer(); transfer.items.add(file);'
+    + 'input.files = transfer.files;'
+    + 'input.dispatchEvent(new Event("change", { bubbles: true }));'
+    + 'return true;'
+    + '})()';
+}
+
 const chrome = findBrowser();
 const hostServer = staticServer(hostDist, '/');
 const officeServer = staticServer(officeDist, '/phioffice369/');
@@ -183,15 +207,53 @@ try {
     'Request project reference'), childContext), 'clicked');
   await waitFor('denied unapproved project request', async () =>
     (await clientText()).includes('Project request denied; operator approval required'));
-  assert.ok(!(await clientText()).includes('project:phios-pilot'),
+  assert.ok(!(await clientText()).includes('project:qa-browser-case'),
     'No project ID may appear before approval');
+  assert.equal(await evaluate(clickExpression('.phios-bridge-pilot',
+    'Approve selected project ref')), 'unavailable',
+    'Operator cannot approve without choosing a manifest');
+
+  assert.equal(await evaluate(selectManifestExpression('qa-browser-case', 'Browser QA Project')),
+    true, 'Operator-selected manifest must be read from local File input');
+  await waitFor('locally displayed manifest header', async () => {
+    const text = await evaluate('document.querySelector(".phios-bridge-project-picker")?.textContent || ""');
+    return text.includes('Browser QA Project') && text.includes('project:qa-browser-case');
+  });
+  const hostText = await evaluate('document.querySelector(".phios-bridge-pilot")?.textContent || ""');
+  for (const secret of ['private-user@local.invalid', 'private-secret-tag',
+    '/sensitive/test/document.docx', 'secret local file']) {
+    assert.ok(!hostText.includes(secret), 'Private manifest fields must not appear in host panel');
+  }
 
   assert.equal(await evaluate(clickExpression('.phios-bridge-pilot',
-    'Approve synthetic ref')), 'clicked');
+    'Approve selected project ref')), 'clicked');
   assert.equal(await evaluate(clickExpression('.phioffice-phios-bridge',
     'Request project reference'), childContext), 'clicked');
-  await waitFor('authorized synthetic project reference', async () =>
-    (await clientText()).includes('Received project ID: project:phios-pilot'));
+  await waitFor('approved selected project reference', async () =>
+    (await clientText()).includes('Received project ID: project:qa-browser-case'));
+  for (const secret of ['Browser QA Project', 'private-user@local.invalid',
+    'private-secret-tag', '/sensitive/test/document.docx', 'secret local file']) {
+    assert.ok(!(await clientText()).includes(secret),
+      'Only an opaque project ref may reach the embedded app');
+  }
+
+  assert.equal(await evaluate(selectManifestExpression('second-project', 'Second Project')),
+    true, 'Changing the selection must clear the old approval');
+  await waitFor('second selection visible locally', async () =>
+    (await evaluate('document.querySelector(".phios-bridge-project-picker")?.textContent || ""'))
+      .includes('project:second-project'));
+  assert.equal(await evaluate(clickExpression('.phioffice-phios-bridge',
+    'Request project reference'), childContext), 'clicked');
+  await waitFor('denied until second project is reapproved', async () =>
+    (await clientText()).includes('Project request denied; operator approval required'));
+  assert.ok(!(await clientText()).includes('project:qa-browser-case'),
+    'Rejected request must not show stale prior project as current');
+  assert.equal(await evaluate(clickExpression('.phios-bridge-pilot',
+    'Approve selected project ref')), 'clicked');
+  assert.equal(await evaluate(clickExpression('.phioffice-phios-bridge',
+    'Request project reference'), childContext), 'clicked');
+  await waitFor('second approved project ID', async () =>
+    (await clientText()).includes('Received project ID: project:second-project'));
 
   assert.equal(await evaluate(clickExpression('.phios-bridge-pilot', 'Revoke')),
     'clicked');
@@ -199,6 +261,8 @@ try {
     'Request project reference'), childContext), 'clicked');
   await waitFor('revocation enforced on subsequent request', async () =>
     (await clientText()).includes('Project request denied; operator approval required'));
+  assert.ok(!(await clientText()).includes('project:second-project'),
+    'Revocation result clears stale project display in PhiOffice');
 
   assert.equal(await evaluate(clickExpression('.phios-bridge-pilot', 'Disconnect')),
     'clicked');
@@ -212,7 +276,7 @@ try {
     true, 'The bridge UI must not activate for standalone PhiOffice');
 
   console.log('PASS: compiled PhiOS + PhiOffice real Chrome UI bridge acceptance');
-  console.log('PASS: explicit start, exact-origin handshake, deny, approve, revoke, disconnect, standalone');
+  console.log('PASS: explicit start, chosen manifest, no private fields, consent, replacement, revoke, standalone');
 } finally {
   await browserSession?.close();
   await Promise.all([hostServer, officeServer].map((server) =>

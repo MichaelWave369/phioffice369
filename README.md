@@ -7,6 +7,12 @@ PhiOffice369 gives builders, families, creators, students, small businesses, and
 > Internal codename: **MikeySoft Office**  
 > Public-facing name: **PhiOffice369**
 
+## Rung 9 · ΦPose deck navigation pilot
+
+The PhiDeck editor now offers an **off-by-default, five-minute** companion that can accept `phioffice.page.next` and `phioffice.page.previous` gesture requests from OverStrings on the same reviewed browser origin. An operator must open a deck and explicitly enable this local UI-only control. It changes **slide selection only**, never document content, saves, exports, or privileges. Synthetic input needs separate explicit opt-in; replay, stale messages, unknown actions and out-of-bounds slides are denied. Same-origin popup messaging is not authentication, and real Quest 3 multi-window use remains unverified.
+
+[Read the PhiDeck gesture host security and acceptance guide](docs/PHIPOSE_PHIDECK_HOST_R9.md).
+
 ## Current checkpoint
 
 **Known-good foundation:** [`v0.1-greencheck-foundation`](docs/release-checkpoints/v0.1-greencheck-foundation.md)

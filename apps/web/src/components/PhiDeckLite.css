@@ -336,3 +336,21 @@
   .deck-canvas.layout-image-left:has(img), .deck-canvas.layout-image-right:has(img) { display: flex; flex-direction: column; }
   .deck-canvas.layout-image-left img { order: -1; }
 }
+
+/* Rung 9. Explicit, bounded ΦPose companion is UI navigation only. */
+.phipose-deck-companion {
+  display: grid;
+  gap: 0.7rem;
+  border: 1px solid rgba(118, 191, 217, 0.55);
+  border-radius: 18px;
+  padding: 20px;
+  margin-top: 18px;
+}
+.phipose-deck-companion h3 { margin: .2rem 0 .45rem; }
+.phipose-deck-companion p { margin: .35rem 0; line-height:1.5; }
+.phipose-deck-companion label, .phipose-deck-actions {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 10px;
+}
+.phipose-deck-companion input[type=checkbox] { width: 18px; height:18px; }
+.phipose-deck-companion button { padding: 10px 14px; border:1px solid currentColor; border-radius: 12px; color:inherit; background:transparent; cursor:pointer; }
+.phipose-deck-companion small { color:var(--muted); line-height:1.45; }

@@ -45,3 +45,6 @@ jobs:
 
       - name: Run production browser acceptance
         run: npm run test:browser
+
+      - name: Test PhiOS workspace bridge across browser origins
+        run: npm run test:browser:bridge

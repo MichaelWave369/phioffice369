@@ -3,6 +3,7 @@ import { spawn } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { shutdownBrowserProcess } from './browser-process-shutdown.mjs';
 
 export async function openChromeSession(browser, profile) {
   const child = spawn(browser, [
@@ -87,13 +88,16 @@ export async function openChromeSession(browser, profile) {
   }
 
   async function close() {
-    if (!failure && socket?.readyState === WebSocket.OPEN) {
-      await Promise.race([send('Browser.close').catch(() => {}), sleep(1200)]);
-      socket.close();
-    }
-    if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM');
-    await Promise.race([exited, sleep(1200)]);
-    if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+    const result = await shutdownBrowserProcess({
+      isRunning: () => child.exitCode === null && child.signalCode === null,
+      exited,
+      requestBrowserClose: !failure && socket?.readyState === WebSocket.OPEN
+        ? () => send('Browser.close')
+        : null,
+      signal: (name) => { child.kill(name); },
+    });
+    if (socket?.readyState === WebSocket.OPEN) socket.close();
+    return result;
   }
 
   try {

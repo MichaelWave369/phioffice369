@@ -200,6 +200,18 @@ try {
     evaluate('Boolean(document.querySelector(".phios-bridge-pilot"))'));
   assert.equal(await evaluate(clickExpression('.phios-bridge-pilot', 'Start opt-in pilot')),
     'clicked', 'An explicit operator start must be required');
+  const adapterText = await waitFor('reviewed project adapter catalog', () =>
+    evaluate('document.querySelector(".phios-project-adapter-catalog")?.textContent || ""'));
+  assert.ok(adapterText.includes('PhiOffice project manifest v0.1'),
+    'The reviewed PhiOffice adapter must appear in the actual host UI');
+  assert.ok(adapterText.includes('No file authority'),
+    'Reviewed adapter display must not imply access to documents');
+  assert.ok(adapterText.includes('PhiID and PhiCloud do not have reviewed project adapters yet'),
+    'Unimplemented integrations must be clearly labeled as absent');
+  assert.equal(await evaluate(
+    'Array.from(document.querySelectorAll(".phios-project-adapter-catalog p"))'
+      + '.filter(p => p.textContent.includes("reviewed-browser-pilot")).length'), 1,
+    'Only one verified adapter is admitted in the catalog');
 
   const frameId = await waitFor('separately loaded PhiOffice frame', async () => {
     const tree = await call('Page.getFrameTree');
@@ -285,6 +297,20 @@ try {
     evaluate('document.querySelector(".phios-bridge-local-registry [role=status]")?.textContent?.includes("Unsupported project reference bundle format or version")'));
   assert.equal(await evaluate('localStorage.getItem("phios.project-registry.v1")'),
     beforePortableImport, 'An invalid bundle must never change local data');
+
+  const fakeProvider = {
+    projectRef: 'project:forged-provider',
+    title: 'Forged PhiCloud Claim',
+    source: 'phicloud.project_manifest.v1',
+  };
+  assert.equal(await evaluate(importReferenceBundleExpression([fakeProvider])), true,
+    'An unreviewed provider must be tested through the real file picker');
+  await waitFor('unreviewed source rejected by adapter catalog', () =>
+    evaluate('document.querySelector(".phios-bridge-local-registry [role=status]")'
+      + '?.textContent?.includes("Unreviewed project identity source")'));
+  assert.equal(await evaluate('localStorage.getItem("phios.project-registry.v1")'),
+    beforePortableImport,
+    'An unreviewed provider must never be admitted or persisted');
 
   assert.equal(await evaluate(importReferenceBundleExpression([conflicting, imported])),
     true, 'A valid offline bundle can be inspected locally');
@@ -413,7 +439,7 @@ try {
     true, 'The bridge UI must not activate for standalone PhiOffice');
 
   console.log('PASS: compiled PhiOS + PhiOffice real Chrome UI bridge acceptance');
-  console.log('PASS: explicit portable import preview, invalid bundle denial, metadata-only merge, fresh consent, standalone');
+  console.log('PASS: reviewed adapter catalog, forged-source denial, portable import, fresh consent, standalone');
 } finally {
   await browserSession?.close();
   await Promise.all([hostServer, officeServer].map((server) =>

@@ -52,6 +52,8 @@ import { createPhiWriteTransformSet } from '../lib/phiwriteTransforms.js';
 import { readWorkspaceRecord, workspaceTitle } from '../lib/workspaceRecords.js';
 import { useWorkspaceDraft } from '../lib/useWorkspaceDraft.js';
 import WorkspaceSaveActions from './WorkspaceSaveActions.jsx';
+import PhiPoseEditorCompanion from './PhiPoseEditorCompanion.jsx';
+import {markdownSectionAnchors,adjacentNavigationIndex} from '../lib/phiPoseNavigationTargets.js';
 import './PhiWriteLite.css';
 import './PhiWriteTransformPreview.css';
 
@@ -199,6 +201,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck, loadedFile 
   const [lastReplace, setLastReplace] = useState(null);
   const [linkDraft, setLinkDraft] = useState(null);
   const [tableDraft, setTableDraft] = useState(null);
+  const [gestureHeadingIndex,setGestureHeadingIndex]=useState(-1);
 
   const activeLabel = trustLabels.find((label) => label.id === activeLabelId) ?? trustLabels[0];
   const receipt = useMemo(() => createArtifactReceipt({
@@ -217,6 +220,22 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck, loadedFile 
 
   async function backToPhiOffice() {
     if (await save()) onBack();
+  }
+
+  // Derived read-only navigation: never calls setContent or a save operation.
+  const gestureHeadings=useMemo(()=>markdownSectionAnchors(content),[content]);
+  const currentGestureHeading=gestureHeadingIndex>=0&&gestureHeadingIndex<gestureHeadings.length
+    ? gestureHeadingIndex:-1;
+  function navigateGestureHeading(direction){
+    const next=adjacentNavigationIndex(gestureHeadings.length,currentGestureHeading,direction);
+    if(next===null)return;
+    setGestureHeadingIndex(next);
+    const editor=editorRef.current;
+    if(editor){
+      const position=gestureHeadings[next].offset;
+      editor.focus({preventScroll:true});
+      editor.setSelectionRange(position,position);
+    }
   }
 
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
@@ -809,6 +828,16 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck, loadedFile 
           <input ref={docxImportRef} className="workspace-file-input" type="file" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" onChange={handleDocxImport} />
         </div>
       </div>
+
+      <PhiPoseEditorCompanion mode="write"
+        currentIndex={currentGestureHeading}
+        total={gestureHeadings.length}
+        onNavigate={navigateGestureHeading}
+        blocked={Boolean(pendingMarkdown||pendingDocxImport||tableDraft||linkDraft)}
+        currentLabel={currentGestureHeading>=0
+          ? gestureHeadings[currentGestureHeading].label+' ('+(currentGestureHeading+1)+'/'+gestureHeadings.length+')'
+          : gestureHeadings.length+' headings available'}
+      />
 
       {pendingMarkdown && (
         <section className="panel phiwrite-docx-preview" aria-label="Markdown import review">

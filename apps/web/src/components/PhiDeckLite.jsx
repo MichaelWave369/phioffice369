@@ -116,7 +116,7 @@ export default function PhiDeckLite({ template, onBack, initialDeck = null, load
     ...savedDeck, templateId: template.id, sourceTemplateId: template.sourceTemplateId ?? template.id,
     title: workspaceTitle(title, 'PhiDeck'), slides, activeLabelId, ...lineage,
   }), [savedDeck, template, title, slides, lineage, activeLabelId]);
-  const { saveStatus, setSaveStatus, saveFailed, save } = useWorkspaceDraft(storageKey, draftSnapshot, loaded);
+  const { saveStatus, setSaveStatus, saveFailed, save, readSavedRaw } = useWorkspaceDraft(storageKey, draftSnapshot, loaded);
 
   async function backToPhiOffice() {
     if (await save()) onBack();
@@ -264,7 +264,7 @@ export default function PhiDeckLite({ template, onBack, initialDeck = null, load
         </div>
         <div className="deck-actions">
           <WorkspaceSaveActions save={save} saveFailed={saveFailed} onBack={onBack}
-            storageKey={storageKey} onStatus={setSaveStatus}
+            storageKey={storageKey} onStatus={setSaveStatus} readSavedRaw={readSavedRaw}
             allowProtectedCopy={loaded.revision === undefined && ['saved', 'missing'].includes(loaded.state)} />
           <button type="button" onClick={resetDeck}><RotateCcw aria-hidden="true" /> Reset</button>
           <button type="button" onClick={() => importInputRef.current?.click()}><Upload aria-hidden="true" /> Import JSON</button>

@@ -130,6 +130,27 @@ function selectManifestExpression(projectId, title) {
     + '})()';
 }
 
+function importReferenceBundleExpression(entries, extraFields = {}) {
+  const bundle = {
+    format: 'phios.project-references',
+    version: 1,
+    entries,
+    ...extraFields,
+  };
+  const contents = JSON.stringify(bundle);
+  return '(() => {'
+    + 'const input = document.querySelector('
+    + JSON.stringify('input[aria-label="Import project reference bundle"]') + ');'
+    + 'if (!input) return false;'
+    + 'const file = new File([' + JSON.stringify(contents)
+    + '], "phios-project-references-v1.json", { type: "application/json" });'
+    + 'const transfer = new DataTransfer(); transfer.items.add(file);'
+    + 'input.files = transfer.files;'
+    + 'input.dispatchEvent(new Event("change", { bubbles: true }));'
+    + 'return true;'
+    + '})()';
+}
+
 const chrome = findBrowser();
 const hostServer = staticServer(hostDist, '/');
 const officeServer = staticServer(officeDist, '/phioffice369/');
@@ -246,8 +267,45 @@ try {
     assert.ok(!registryJSON.includes(secret), 'Private fields and grants must never persist');
   }
 
+  // Portable bundle import is separate from identity selection and approval.
+  const imported = {
+    projectRef: 'project:imported-01',
+    title: 'Imported QA Label',
+    source: 'phioffice369.project_manifest.v0.1',
+  };
+  const conflicting = {
+    projectRef: 'project:qa-browser-case',
+    title: 'Untrusted overwrite of local title',
+    source: 'phioffice369.project_manifest.v0.1',
+  };
+  const beforePortableImport = await evaluate('localStorage.getItem("phios.project-registry.v1")');
+  assert.equal(await evaluate(importReferenceBundleExpression([imported], { grant: true })),
+    true, 'A local bundle file may be offered for validation');
+  await waitFor('untrusted portable bundle rejected', () =>
+    evaluate('document.querySelector(".phios-bridge-local-registry [role=status]")?.textContent?.includes("Unsupported project reference bundle format or version")'));
+  assert.equal(await evaluate('localStorage.getItem("phios.project-registry.v1")'),
+    beforePortableImport, 'An invalid bundle must never change local data');
+
+  assert.equal(await evaluate(importReferenceBundleExpression([conflicting, imported])),
+    true, 'A valid offline bundle can be inspected locally');
+  await waitFor('non-destructive import preview', () =>
+    evaluate('document.querySelector(".phios-bridge-import-preview")?.textContent?.includes("1 new")'));
+  assert.equal(await evaluate('localStorage.getItem("phios.project-registry.v1")'),
+    beforePortableImport, 'Preview must not persist anything');
+  assert.equal(await evaluate(clickExpression('.phios-bridge-import-preview',
+    'Confirm reference import')), 'clicked', 'Only an explicit second click may commit import');
+  const afterPortableImport = await waitFor('new reference stored after explicit import', async () => {
+    const value = await evaluate('localStorage.getItem("phios.project-registry.v1")');
+    return value?.includes('project:imported-01') ? value : null;
+  });
+  const importedRegistry = JSON.parse(afterPortableImport);
+  assert.deepEqual(importedRegistry.entries, [
+    registry.entries[0], imported,
+  ], 'Local metadata wins on conflict; only new references are appended');
+  assert.ok(!afterPortableImport.includes('grant'), 'Import must never persist authority fields');
   assert.equal(await evaluate(clickExpression('.phios-bridge-pilot',
-    'Approve selected project ref')), 'clicked');
+    'Approve selected project ref')), 'clicked',
+    'Import never grants context; the selected project still requires approval');
   assert.equal(await evaluate(clickExpression('.phioffice-phios-bridge',
     'Request project reference'), childContext), 'clicked');
   await waitFor('approved selected project reference', async () =>
@@ -339,8 +397,8 @@ try {
   assert.equal(await evaluate(clickExpression('.phios-bridge-local-registry',
     'Forget saved project')), 'clicked');
   const forgottenJSON = await evaluate('localStorage.getItem("phios.project-registry.v1")');
-  assert.deepEqual(JSON.parse(forgottenJSON).entries, [],
-    'Operator Forget must actually erase the local registry entry');
+  assert.deepEqual(JSON.parse(forgottenJSON).entries, [imported],
+    'Operator Forget removes only the chosen entry, preserving separately imported metadata');
   assert.equal(await evaluate(clickExpression('.phioffice-phios-bridge',
     'Request project reference'), childContext), 'clicked');
   await waitFor('forget revokes future reads', async () =>
@@ -355,7 +413,7 @@ try {
     true, 'The bridge UI must not activate for standalone PhiOffice');
 
   console.log('PASS: compiled PhiOS + PhiOffice real Chrome UI bridge acceptance');
-  console.log('PASS: explicit local registry save, reconnect default denial, reapprove, forget, privacy, standalone');
+  console.log('PASS: explicit portable import preview, invalid bundle denial, metadata-only merge, fresh consent, standalone');
 } finally {
   await browserSession?.close();
   await Promise.all([hostServer, officeServer].map((server) =>

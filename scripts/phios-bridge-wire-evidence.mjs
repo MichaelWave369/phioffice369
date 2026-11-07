@@ -53,6 +53,9 @@ export function verifyWireObservations(observed, {
     }
     sessionId = item.sessionId;
     if (item.type === 'host.context') {
+      if (denied.length === 0) {
+        throw new Error('Bridge context arrived without an observed default denial');
+      }
       if (JSON.stringify(item.keys) !== JSON.stringify(CONTEXT)
           || typeof item.requestId !== 'string' || !item.requestId
           || typeof item.projectRef !== 'string' || !PROJECT.test(item.projectRef)) {
@@ -69,6 +72,9 @@ export function verifyWireObservations(observed, {
     } else {
       throw new Error('Unexpected host-to-child message type in witness');
     }
+  }
+  if (observed.at(-1)?.type !== 'host.denied') {
+    throw new Error('Bridge latest revoked or forgotten request was not denied');
   }
   if (sessionId === null || (priorSessionId !== null && priorSessionId === sessionId)
       || contexts.length !== expectedRefs.length

@@ -6,6 +6,7 @@ on:
     paths:
       - '.github/workflows/browser-engine-matrix.yml'
       - 'scripts/browser-storage-engines.mjs'
+      - 'scripts/browser-portable-backup.mjs'
       - 'scripts/browser-acceptance-stress-client.js'
       - 'scripts/browser-acceptance.mjs'
       - 'apps/web/**'
@@ -46,7 +47,7 @@ jobs:
       - name: Install Firefox and WebKit plus required system libraries
         run: npx playwright install --with-deps firefox webkit
 
-      - name: Verify Firefox and WebKit restore scenarios
+      - name: Verify Firefox and WebKit restore and downloaded-backup portability
         run: node scripts/browser-storage-engines.mjs
 
       - name: Assert tracked dependency files unchanged

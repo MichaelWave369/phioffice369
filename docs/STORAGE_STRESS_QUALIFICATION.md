@@ -32,6 +32,14 @@ The production Chromium suite includes the stress scenario:
 
 These checks verify content integrity under the specific fixtures. They do **not** prove that a browser can store arbitrary amounts of data or survive forced OS/browser termination while a write is still pending.
 
+## Automated Firefox and WebKit qualification (Sprint 4 candidate)
+
+The new separate GitHub Actions workflow, `.github/workflows/browser-engine-matrix.yml`, runs the **same production stress fixture** in real Mozilla Firefox and Playwright WebKit engines on an isolated Ubuntu runner. It checks the browser's declared result after seed, migration, combined backup, storage reset, UI restore, reload and document reopen. It records each engine's version. The runner uses an explicit pinned Playwright version (`1.56.1`) installed only in the optional qualification job; the standard app lockfile and production bundle remain untouched.
+
+To run this locally after building, install Playwright version 1.56.1 without modifying the project lockfile, install its Firefox and WebKit browsers with the CLI, then run `npm run test:browser:engines`. Use `npm run test:browser:engines -- firefox` to target one engine. This script launches only disposable browser contexts and starts its own local fixture server; it never touches your usual browser profile.
+
+**Coverage boundary:** WebKit in Playwright is a useful browser-engine check, not a substitute for Safari on actual Apple hardware. Manual macOS Safari testing, real browser crashes, 500+ file loads, device-to-device downloaded backup restores and heavier slide image workloads still need separate evidence. A successful CI run must not be described as production Safari certification.
+
 ## Manual Firefox and Safari/WebKit runs
 
 Run the same built fixture on each real browser engine. The project does not currently ship a Firefox/WebKit automation dependency, so **do not report automated cross-browser PASS** on the strength of Chromium CI.

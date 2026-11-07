@@ -83,3 +83,29 @@ session. The standalone PhiOffice editors and local files remain untouched.
 Run `npm test && npm run build && npm run test:browser:bridge` to verify
 the existing protocol and the default-build non-regression. A dedicated
 rendered-UI two-server acceptance is still a separate release gate.
+
+## R2 rendered two-app browser acceptance
+
+The `browser-bridge-ui` GitHub CI job checks out the reviewed PhiOS host
+**at an exact pinned, review-required PhiOS PR #398 commit**
+`cd04250aa8694ec1918c11c4c40feac6caceecaf`. It installs both
+applications from their respective lockfiles and compiles each with
+ephemeral loopback origins.
+
+Run `npm run test:browser:bridge:ui` after placing that pinned checkout at
+`.interop/phios` and installing both applications' dependencies. Chrome or
+Chromium and Node's WebSocket support are required.
+
+The test uses Chrome DevTools to open the real built PhiShell, select Build
+Field, start the reviewed pilot, check a real PhiOffice iframe, request
+context before approval (must deny), approve a *synthetic* project ID,
+request again (must return only an opaque identifier), revoke and retry
+(must deny), disconnect (must remove the iframe), and independently open
+PhiOffice standalone (no embedded bridge UI). Browser context and user
+profile are disposable; no real PhiOffice document, cloud data, identity,
+or host command is accessed.
+
+This validates the **rendered, configured pilot on local isolated origins**.
+It does not qualify any public deployment or confirm that arbitrary remote
+websites may safely be embedded. The pinned host SHA must be deliberately
+reviewed and updated whenever the host code changes.

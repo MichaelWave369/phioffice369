@@ -52,3 +52,40 @@ jobs:
       - name: Verify acknowledged IndexedDB saves after hard Chromium process termination
         timeout-minutes: 5
         run: npm run test:browser:crash
+
+  browser-bridge-ui:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout PhiOffice369
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout pinned, reviewed PhiOS pilot
+        uses: actions/checkout@v4
+        with:
+          repository: MichaelWave369/PhiOS
+          ref: cd04250aa8694ec1918c11c4c40feac6caceecaf
+          path: .interop/phios
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install PhiOffice dependencies
+        run: npm ci --no-audit
+
+      - name: Install pinned PhiShell dependencies
+        run: npm ci --no-audit --prefix .interop/phios/phishell
+
+      - name: Check Chromium availability
+        run: command -v google-chrome || command -v chromium || command -v chromium-browser
+
+      - name: Run rendered PhiOS and PhiOffice bridge acceptance
+        run: npm run test:browser:bridge:ui

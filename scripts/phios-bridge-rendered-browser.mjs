@@ -316,9 +316,10 @@ try {
   assert.equal(await evaluate(clickExpression('.phios-bridge-pilot',
     'Approve selected project ref')), 'unavailable',
     'A remembered ID must never restore previous sharing approval');
-  await waitFor('remembered picker state', () =>
-    evaluate('Boolean(document.querySelector('
-      + JSON.stringify('button[title="nonexistent"]') + ') === null)')); // no external calls
+  await waitFor('remembered project action enabled', () =>
+    evaluate('(() => { const b = Array.from(document.querySelectorAll(".phios-bridge-local-registry button"))'
+      + '.find(button => button.textContent?.trim() === "Use remembered project");'
+      + 'return Boolean(b && !b.disabled); })()'));
   assert.equal(await evaluate(clickExpression('.phios-bridge-local-registry',
     'Use remembered project')), 'clicked');
   await waitFor('remembered project shown locally', async () =>

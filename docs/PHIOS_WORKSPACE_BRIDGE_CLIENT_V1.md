@@ -139,7 +139,7 @@ disabled without an independently reviewed configured origin.
 
 The real two-app Chrome acceptance now pins PhiOS local project registry R1,
 currently proposed as [PhiOS PR #400](https://github.com/MichaelWave369/PhiOS/pull/400),
-at commit `101dfa061881912608625df6adf941eb560f1964`.
+at commit `2f4d024e00e67ebf3eadfe1da469a817d132c854`.
 It is still an explicitly configured, reviewed, cross-origin browser pilot
 rather than a public deployment.
 

@@ -184,7 +184,7 @@ try {
     const tree = await call('Page.getFrameTree');
     return childFrameId(tree.frameTree, officeOrigin + '/phioffice369/');
   });
-  const { executionContextId: childContext } = await call('Page.createIsolatedWorld', {
+  let { executionContextId: childContext } = await call('Page.createIsolatedWorld', {
     frameId, worldName: 'PhiOSOfficeBridgeAcceptance',
   });
 
@@ -224,6 +224,26 @@ try {
   for (const secret of ['private-user@local.invalid', 'private-secret-tag',
     '/sensitive/test/document.docx', 'secret local file']) {
     assert.ok(!hostText.includes(secret), 'Private manifest fields must not appear in host panel');
+  }
+
+  assert.equal(await evaluate('localStorage.getItem("phios.project-registry.v1")'), null,
+    'Selecting a manifest must not save metadata automatically');
+  assert.equal(await evaluate(clickExpression('.phios-bridge-local-registry',
+    'Remember this project on device')), 'clicked',
+    'Remembering project metadata requires a separate operator click');
+  const registryJSON = await waitFor('explicit local saved reference', () =>
+    evaluate('localStorage.getItem("phios.project-registry.v1")'));
+  const registry = JSON.parse(registryJSON);
+  assert.deepEqual(Object.keys(registry), ['format', 'version', 'entries']);
+  assert.deepEqual(registry.entries, [{
+    projectRef: 'project:qa-browser-case',
+    title: 'Browser QA Project',
+    source: 'phioffice369.project_manifest.v0.1',
+  }], 'Only ID, local title and source may be remembered');
+  for (const secret of ['private-user@local.invalid', 'private-secret-tag',
+    '/sensitive/test/document.docx', 'secret local file',
+    'execution_authority', 'read_approved', 'credentials']) {
+    assert.ok(!registryJSON.includes(secret), 'Private fields and grants must never persist');
   }
 
   assert.equal(await evaluate(clickExpression('.phios-bridge-pilot',
@@ -270,6 +290,64 @@ try {
   await waitFor('iframe detached by host disconnect', () =>
     evaluate('!document.querySelector(".phios-bridge-pilot iframe")'));
 
+  // A remembered project survives a disconnect, but its approval MUST NOT.
+  assert.equal(await evaluate(clickExpression('.phios-bridge-pilot', 'Start opt-in pilot')),
+    'clicked', 'Reconnecting is always an explicit operator action');
+  const nextFrameId = await waitFor('newly loaded PhiOffice frame after reconnect', async () => {
+    const tree = await call('Page.getFrameTree');
+    return childFrameId(tree.frameTree, officeOrigin + '/phioffice369/');
+  });
+  ({ executionContextId: childContext } = await call('Page.createIsolatedWorld', {
+    frameId: nextFrameId, worldName: 'PhiOSOfficeRegistryReconnect',
+  }));
+  await waitFor('fresh child connection without saved authority', async () =>
+    (await clientText()).includes('Connected; project access is not yet approved'));
+
+  const savedPickExpression = '(() => {'
+    + 'const sel = document.querySelector('
+    + JSON.stringify('select[aria-label="Saved project references"]') + ');'
+    + 'if (!sel) return false;'
+    + 'sel.value = "project:qa-browser-case";'
+    + 'sel.dispatchEvent(new Event("change", { bubbles: true }));'
+    + 'return sel.value === "project:qa-browser-case";'
+    + '})()';
+  assert.equal(await evaluate(savedPickExpression), true,
+    'Only explicitly remembered project metadata is available after reconnect');
+  assert.equal(await evaluate(clickExpression('.phios-bridge-pilot',
+    'Approve selected project ref')), 'unavailable',
+    'A remembered ID must never restore previous sharing approval');
+  await waitFor('remembered project action enabled', () =>
+    evaluate('(() => { const b = Array.from(document.querySelectorAll(".phios-bridge-local-registry button"))'
+      + '.find(button => button.textContent?.trim() === "Use remembered project");'
+      + 'return Boolean(b && !b.disabled); })()'));
+  assert.equal(await evaluate(clickExpression('.phios-bridge-local-registry',
+    'Use remembered project')), 'clicked');
+  await waitFor('remembered project shown locally', async () =>
+    (await evaluate('document.querySelector(".phios-bridge-project-picker > p.muted")?.textContent || ""'))
+      .includes('project:qa-browser-case'));
+  assert.equal(await evaluate(clickExpression('.phioffice-phios-bridge',
+    'Request project reference'), childContext), 'clicked');
+  await waitFor('remembered reference denied until reapproved', async () =>
+    (await clientText()).includes('Project request denied; operator approval required'));
+  assert.equal(await evaluate(clickExpression('.phios-bridge-pilot',
+    'Approve selected project ref')), 'clicked');
+  assert.equal(await evaluate(clickExpression('.phioffice-phios-bridge',
+    'Request project reference'), childContext), 'clicked');
+  await waitFor('remembered reference consented again', async () =>
+    (await clientText()).includes('Received project ID: project:qa-browser-case'));
+
+  assert.equal(await evaluate(clickExpression('.phios-bridge-local-registry',
+    'Forget saved project')), 'clicked');
+  const forgottenJSON = await evaluate('localStorage.getItem("phios.project-registry.v1")');
+  assert.deepEqual(JSON.parse(forgottenJSON).entries, [],
+    'Operator Forget must actually erase the local registry entry');
+  assert.equal(await evaluate(clickExpression('.phioffice-phios-bridge',
+    'Request project reference'), childContext), 'clicked');
+  await waitFor('forget revokes future reads', async () =>
+    (await clientText()).includes('Project request denied; operator approval required'));
+  assert.ok(!(await clientText()).includes('project:qa-browser-case'),
+    'Forget must revoke future reads and clear stale client display');
+
   await call('Page.navigate', { url: officeOrigin + '/phioffice369/' });
   await waitFor('standalone PhiOffice suite available', () =>
     evaluate('Boolean(document.querySelector(".workspace-brandbar"))'));
@@ -277,7 +355,7 @@ try {
     true, 'The bridge UI must not activate for standalone PhiOffice');
 
   console.log('PASS: compiled PhiOS + PhiOffice real Chrome UI bridge acceptance');
-  console.log('PASS: explicit start, chosen manifest, no private fields, consent, replacement, revoke, standalone');
+  console.log('PASS: explicit local registry save, reconnect default denial, reapprove, forget, privacy, standalone');
 } finally {
   await browserSession?.close();
   await Promise.all([hostServer, officeServer].map((server) =>

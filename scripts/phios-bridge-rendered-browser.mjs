@@ -169,7 +169,15 @@ try {
   await waitFor('visible PhiOffice bridge client', async () =>
     (await clientText()).includes('Request project reference'));
   await waitFor('origin-bound PhiOffice handshake', async () =>
-    (await clientText()).includes('Connected; project access is not yet approved'));
+    (await clientText()).includes('Connected; project access is not yet approved'), 12000)
+    .catch(async (error) => {
+      const childStatus = await clientText().catch(() => 'unavailable');
+      const hostStatus = await evaluate(
+        'document.querySelector(".phios-bridge-pilot [role=status]")?.textContent || ""',
+      ).catch(() => 'unavailable');
+      throw new Error(error.message + '; child=' + childStatus.slice(0, 300)
+        + '; host=' + hostStatus.slice(0, 300));
+    });
 
   assert.equal(await evaluate(clickExpression('.phioffice-phios-bridge',
     'Request project reference'), childContext), 'clicked');

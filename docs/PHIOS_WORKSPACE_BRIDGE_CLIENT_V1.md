@@ -160,3 +160,26 @@ PhiOffice and earlier denial/replacement/privacy checks.
 project database, live application context, authenticated PhiID identity,
 PhiCloud sync, or a document access grant. Any future shared registry must
 have its own reviewable permission model and per-operation authorization.
+
+## R5 portable, metadata-only reference bundle acceptance
+
+The compiled two-app Chrome scenario now pins the reviewed PhiOS R4
+candidate from [PhiOS PR #401](https://github.com/MichaelWave369/PhiOS/pull/401)
+at `ca4648c61ff338ec40de623dd845554da0533aba`.
+
+It supplies a test-only portable `phios.project-references` v1 JSON file
+through the real PhiOS import picker. It verifies:
+
+- Injected top-level authority fields cause rejection and **no storage writes**.
+- A valid bundle is previewed but cannot be saved until **Confirm reference
+  import** is clicked.
+- Existing local titles win when an incoming ID conflicts.
+- New IDs append only after confirmation.
+- Imported metadata never selects a project, grants access, or changes
+  the standalone PhiOffice behavior.
+- The earlier reconnect/remember/forget suite still requires fresh consent.
+
+Only the PhiOS browser-local registry is affected. This is an offline
+identity-reference transfer, not synchronized projects or credentials.
+No actual project files, private account data, or provider authorization
+is exchanged.

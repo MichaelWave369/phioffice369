@@ -1,0 +1,30 @@
+/* Opt-in embedded PhiOS bridge panel, never present in standalone builds. */
+.phioffice-phios-bridge {
+  position: fixed;
+  z-index: 1100;
+  bottom: 12px;
+  right: 12px;
+  width: min(340px, calc(100vw - 24px));
+  max-height: min(270px, 60vh);
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 10px 36px var(--shadow);
+  color: var(--ink);
+  font-size: 0.85rem;
+}
+.phioffice-phios-bridge strong { display: block; }
+.phioffice-phios-bridge small { color: var(--muted); display: block; }
+.phioffice-phios-bridge p { margin: 8px 0; font-size: 0.8rem; overflow-wrap: anywhere; }
+.phioffice-phios-bridge-actions { display: flex; flex-wrap: wrap; gap: 7px; }
+.phioffice-phios-bridge-actions button {
+  cursor: pointer;
+  border: 1px solid var(--accent);
+  border-radius: 7px;
+  padding: 7px 9px;
+  background: var(--accent-fill);
+  color: var(--ink);
+}
+.phioffice-phios-bridge-actions button:disabled { opacity: 0.5; cursor: not-allowed; }

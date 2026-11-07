@@ -109,5 +109,7 @@ export function useWorkspaceDraft(key, snapshot, loaded) {
     };
   }, [snapshot, save, saveStatus, transactional]);
 
-  return { saveStatus, setSaveStatus, saveFailed, save, readSavedRaw: () => saved.current.raw };
+  return { saveStatus, setSaveStatus, saveFailed, save, readSavedRaw: () => saved.current.raw,
+    readCurrentDraft: () => current.current };
+
 }

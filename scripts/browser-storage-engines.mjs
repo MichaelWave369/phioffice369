@@ -86,6 +86,20 @@ try {
       console.log('PASS ' + engine + ' in-editor protected save: ' + protectedDetails);
       await context.close();
       context = await browser.newContext({ acceptDownloads: true });
+      const unsavedPage = await context.newPage();
+      await unsavedPage.goto(url.replace('?scenario=stress', '?scenario=live-recovery'), {
+        waitUntil: 'domcontentloaded', timeout: 30000,
+      });
+      await unsavedPage.waitForFunction(
+        () => ['PASS', 'FAIL'].includes(document.documentElement.dataset.phiAcceptance),
+        undefined, { polling: 200, timeout: 120000 },
+      );
+      const unsavedStatus = await unsavedPage.locator('html').getAttribute('data-phi-acceptance');
+      const unsavedDetails = await unsavedPage.locator('#phi-browser-acceptance-result').innerText();
+      assert.equal(unsavedStatus, 'PASS', engine + ' unsaved recovery failure: ' + unsavedDetails);
+      console.log('PASS ' + engine + ' live unsaved recovery export: ' + unsavedDetails);
+      await context.close();
+      context = await browser.newContext({ acceptDownloads: true });
       const recoveryPage = await context.newPage();
       await recoveryPage.goto(url.replace('?scenario=stress', '?scenario=backup-idb'), {
         waitUntil: 'domcontentloaded', timeout: 30000,

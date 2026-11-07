@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { readWorkspaceRecord } from '../lib/workspaceRecords.js';
 import { migrateWorkspaceFile } from '../lib/workspaceFileActions.js';
+import { downloadLiveDraftRecoveryBackup } from '../lib/liveDraftRecovery.js';
 
 export default function WorkspaceSaveActions({
   save, saveFailed, onBack, storageKey = null, onStatus = null, allowProtectedCopy = false, readSavedRaw = null,
+  readCurrentDraft = null,
 }) {
   const [protecting, setProtecting] = useState(false);
   const lastProtectedRaw = useRef(null);
@@ -49,8 +51,23 @@ export default function WorkspaceSaveActions({
     }
   }
 
+  function downloadRecovery() {
+    if (!storageKey || !readCurrentDraft) return;
+    try {
+      const result = downloadLiveDraftRecoveryBackup(storageKey, readCurrentDraft());
+      onStatus?.('Recovery JSON download requested: ' + result.filename
+        + '. Confirm it saved outside the browser. This file is unencrypted.');
+    } catch (error) {
+      onStatus?.('Recovery download could not start. Keep this editor open and use another export option. '
+        + (error?.message ?? 'Unknown error.'));
+    }
+  }
+
   return <>
     <button type="button" onClick={() => save()}>Save file</button>
+    {storageKey && readCurrentDraft && (
+      <button type="button" onClick={downloadRecovery}>Download recovery JSON</button>
+    )}
     {allowProtectedCopy && (
       <button type="button" disabled={protecting || saveFailed} onClick={() => { void protectSnapshot(); }}>
         {protecting ? 'Protecting copy…' : 'Save protected copy'}

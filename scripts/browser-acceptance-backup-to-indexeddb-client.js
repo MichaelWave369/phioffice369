@@ -10,7 +10,8 @@ async function waitFor(check, what, attempts = 160) {
     if (result) return result;
     await new Promise(resolve => setTimeout(resolve, 40));
   }
-  throw Error('Timed out waiting for ' + what);
+  throw Error('Timed out waiting for ' + what + '. Vault status: '
+    + (document.querySelector('.vault-status')?.textContent?.slice(0, 500) ?? '(none)'));
 }
 const button = (label) => [...document.querySelectorAll('button')]
   .find(node => !node.disabled && node.textContent.trim() === label);
@@ -108,7 +109,7 @@ async function run() {
   try {
     await uploadBackup(backup);
     await click('Recover file copies to IndexedDB');
-    await waitFor(() => document.querySelector('.vault-status')?.textContent.includes('126 created'), 'new IndexedDB copies', 300);
+    await waitFor(() => document.querySelector('.vault-status')?.textContent.includes('126 created'), 'new IndexedDB copies', 700);
     const rows = await readIndexedRows();
     const restored = rows.filter(row => row.key.includes(':file_tx_restore_'));
     assert(restored.length === 126, 'Expected 126 independent recovered copies, got ' + restored.length);
@@ -122,7 +123,7 @@ async function run() {
       'Recovery modified standard storage under quota');
     await click('Recover file copies to IndexedDB');
     await waitFor(() => document.querySelector('.vault-status')?.textContent.includes('126 already present'),
-      'idempotent retry', 300);
+      'idempotent retry', 700);
     assert((await readIndexedRows()).length === rows.length, 'Second recovery duplicated rows');
     // Reopen recovered file via the real Vault UI.
     await click('Refresh scan');

@@ -121,8 +121,10 @@ async function run() {
   await click('Restore Vault renamed');
   assert(!JSON.parse(localStorage.getItem(key)).trashedAt, 'Restore did not remove Trash marker');
 
+  downloaded = null;
   await click('Backup workspace');
-  const exported = JSON.parse(await downloaded.text());
+  const backupBlob = await waitFor(() => downloaded, 'workspace backup download');
+  const exported = JSON.parse(await backupBlob.text());
   assert(exported.storageSnapshot.some(([name, value]) => name === key && JSON.parse(value).content === 'Stored independently'), 'Backup lost document content');
 
   const backup = (items) => ({ schema: 'phioffice369.workspace_backup.v0.1', storageSnapshot: items });
@@ -138,7 +140,7 @@ async function run() {
   assert(localStorage.getItem(incomingKey) === null, 'Cancelled restore wrote data');
   uploadBackup(backup([[incomingKey, incoming], [key, conflict]]));
   await click('Restore missing items');
-  assert(localStorage.getItem(incomingKey) === incoming, 'Missing file not restored');
+  await waitFor(() => localStorage.getItem(incomingKey) === incoming, 'missing file restored');
   assert(JSON.parse(localStorage.getItem(key)).title === 'Vault renamed', 'Restore overwrote newer work');
   const beforeCopy = localStorage.getItem(key);
   const tools = await waitFor(() => document.querySelector('.vault-storage-tools'), 'storage pilot tools');

@@ -166,13 +166,13 @@ function getPacketExportMime(packet) {
   return 'text/markdown;charset=utf-8';
 }
 
-export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
+export default function PhiWriteLite({ template, onBack, onOpenDeck, loadedFile }) {
   const importInputRef = useRef(null);
   const docxImportRef = useRef(null);
   const editorRef = useRef(null);
   const pendingSelectionRef = useRef(null);
   const storageKey = createPhiWriteStorageKey(template.id);
-  const [loaded] = useState(() => readWorkspaceRecord(storageKey));
+  const [loaded] = useState(() => loadedFile ?? readWorkspaceRecord(storageKey));
   const savedDraft = loaded.record;
   const [title, setTitle] = useState(savedDraft?.title ?? template.title);
   const [history, editContent] = useReducer(updateDocumentHistory,
@@ -215,8 +215,8 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
   }), [savedDraft, template, title, content, activeLabelId]);
   const { saveStatus, setSaveStatus, saveFailed, save } = useWorkspaceDraft(storageKey, draftSnapshot, loaded);
 
-  function backToPhiOffice() {
-    if (save()) onBack();
+  async function backToPhiOffice() {
+    if (await save()) onBack();
   }
 
   const wordCount = content.trim() ? content.trim().split(/\s+/).length : 0;
@@ -638,14 +638,14 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
     setAssistantStatus(recordLocalExport('PhiDeck-lite JSON exported', { artifactId: `deck_${template.id}`, format: 'json', filename, sourceApp: 'PhiDeck' }));
   }
 
-  function handleOpenDeckWorkspace() {
+  async function handleOpenDeckWorkspace() {
     const slides = deckSlides.length ? deckSlides : createDeckSlides(title, template, content);
     setDeckSlides(slides);
     if (!onOpenDeck) {
       setAssistantStatus('PhiDeck-lite workspace bridge is unavailable');
       return;
     }
-    if (!save()) return;
+    if (!await save()) return;
     onOpenDeck(createPhiWriteToPhiDeckPayload({ title, template, slides }));
   }
 
@@ -658,14 +658,14 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck }) {
     setAssistantStatus('v0.2 transform preview generated locally');
   }
 
-  function handleOpenV02Deck(packet) {
+  async function handleOpenV02Deck(packet) {
     const slides = packet?.payload?.slides ?? [];
     setDeckSlides(slides);
     if (!onOpenDeck) {
       setAssistantStatus('PhiDeck-lite workspace bridge is unavailable');
       return;
     }
-    if (!save()) return;
+    if (!await save()) return;
     onOpenDeck(createPhiWriteToPhiDeckPayload({ title: packet.target.title, template, slides }));
   }
 

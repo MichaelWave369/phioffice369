@@ -41,6 +41,10 @@ export function readWorkspaceRecord(key, storage = getBrowserLocalStorage()) {
   } catch {
     return { record: null, raw: null, state: 'unavailable' };
   }
+  return parseWorkspaceRecord(key, raw);
+}
+
+export function parseWorkspaceRecord(key, raw) {
   if (raw === null) return { record: null, raw, state: 'missing' };
   try {
     const record = JSON.parse(raw);

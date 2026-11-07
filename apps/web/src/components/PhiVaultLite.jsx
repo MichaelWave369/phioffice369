@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ClipboardCopy, Database, Download, FolderLock, RefreshCw, Search, ShieldCheck, Sparkles, Upload, X } from 'lucide-react';
 import { createProjectManifest } from '@phioffice369/core';
-import { createWorkspaceBackupPayload, restoreWorkspaceBackupPayload } from '../lib/emergencyBackups.js';
+import { createCompleteWorkspaceBackup, readTransactionalWorkspace, restoreCompleteWorkspaceBackup } from '../lib/transactionalWorkspace.js';
+import { isIndexedDbAvailable } from '../lib/indexedDbStorageAdapter.js';
 import { normalizeProjectFolder, parseTagInput, writeArtifactMetadata } from '../lib/localArtifactMetadata.js';
 import {
   buildExportTimeline,
@@ -9,6 +10,7 @@ import {
   formatExportTime,
   groupArtifactsByApp,
   scanContinuityArtifacts,
+  storedDraftToArtifact,
   uniqueArtifactValues,
 } from '../lib/localArtifactRegistry.js';
 import { createAsyncArtifactRegistryStatus, scanContinuityArtifactsAsync } from '../lib/localArtifactRegistryAsync.js';
@@ -47,7 +49,7 @@ import {
 } from '../lib/storageReadinessGate.js';
 import { createVaultImportPreviewFromFile, applyVaultImportPreviewState } from '../lib/vaultImportValidation.js';
 import { scanRecentWorkspaces } from '../lib/recentWorkspaces.js';
-import { changeWorkspaceFile } from '../lib/workspaceFileActions.js';
+import { changeTransactionalFile, changeWorkspaceFile, migrateWorkspaceFile } from '../lib/workspaceFileActions.js';
 import { getBrowserLocalStorage } from '../lib/workspaceStorageAccess.js';
 import './PhiVaultLite.css';
 import './PhiVaultMigration.css';
@@ -81,6 +83,11 @@ function getInitialVaultScanSource() {
 export default function PhiVaultLite({ onOpenFile, onFilesChanged }) {
   const fileInputRef = useRef(null);
   const latestImport = useRef(0);
+  const transactionalScan = useRef(0);
+  const [transactionalFiles, setTransactionalFiles] = useState([]);
+  const [transactionalRecovery, setTransactionalRecovery] = useState([]);
+  const [transactionalUnavailable, setTransactionalUnavailable] = useState(false);
+  const [fileActionPending, setFileActionPending] = useState(false);
   const [fileName, setFileName] = useState('');
   const [trashedFiles, setTrashedFiles] = useState(() => scanRecentWorkspaces({ trashed: true }));
   const [syncArtifacts, setSyncArtifacts] = useState(() => scanContinuityArtifacts());
@@ -137,11 +144,11 @@ export default function PhiVaultLite({ onOpenFile, onFilesChanged }) {
     vaultScanSwitchReport,
   }), [requestedVaultScanSource, vaultScanSwitchReport]);
   const vaultVisibleScanSummary = useMemo(() => summarizeVaultVisibleScanPolicy(vaultVisibleScanPolicy), [vaultVisibleScanPolicy]);
-  const artifacts = useMemo(() => selectVisibleVaultArtifacts({
-    syncArtifacts,
-    asyncArtifacts,
-    policy: vaultVisibleScanPolicy,
-  }), [syncArtifacts, asyncArtifacts, vaultVisibleScanPolicy]);
+  const artifacts = useMemo(() => [
+    ...selectVisibleVaultArtifacts({ syncArtifacts, asyncArtifacts, policy: vaultVisibleScanPolicy }),
+    ...transactionalFiles.filter(({ state }) => state === 'saved')
+      .map(({ key, record, revision }) => storedDraftToArtifact(key, record, revision)),
+  ], [syncArtifacts, asyncArtifacts, vaultVisibleScanPolicy, transactionalFiles]);
   const visibleScanSourceLabel = vaultVisibleScanSummary.activeSource === VAULT_SCAN_SOURCE_ASYNC ? 'Async adapter scan' : 'Sync localStorage scan';
 
   const filteredArtifacts = useMemo(() => filterArtifacts(artifacts, query, appFilter, kindFilter, projectFilter), [appFilter, artifacts, kindFilter, projectFilter, query]);
@@ -162,7 +169,7 @@ export default function PhiVaultLite({ onOpenFile, onFilesChanged }) {
   const kindOptions = useMemo(() => uniqueArtifactValues(artifacts, 'kind'), [artifacts]);
   const projectOptions = useMemo(() => uniqueArtifactValues(artifacts, 'projectFolder'), [artifacts]);
   const selectedFile = useMemo(() => selectedArtifact &&
-    scanRecentWorkspaces().find(({ key }) => key === selectedArtifact.path), [selectedArtifact]);
+    scanRecentWorkspaces({ transactionalFiles }).find(({ key }) => key === selectedArtifact.path), [selectedArtifact, transactionalFiles]);
   const selectedReceipt = selectedArtifact?.receipts?.[0] ?? null;
   const projectFolderCount = projectOptions.filter((option) => option !== 'all').length;
 
@@ -210,12 +217,32 @@ export default function PhiVaultLite({ onOpenFile, onFilesChanged }) {
     }
   }
 
+  async function refreshTransactionalFiles() {
+    const scan = ++transactionalScan.current;
+    try {
+      const { files, recovery } = await readTransactionalWorkspace();
+      if (scan !== transactionalScan.current) return;
+      setTransactionalFiles(files);
+      setTransactionalRecovery(recovery);
+      setTransactionalUnavailable(false);
+      setTrashedFiles(scanRecentWorkspaces({ trashed: true, transactionalFiles: files }));
+    } catch {
+      if (scan !== transactionalScan.current) return;
+      setTransactionalFiles([]);
+      setTransactionalRecovery([]);
+      setTransactionalUnavailable(true);
+      setTrashedFiles(scanRecentWorkspaces({ trashed: true }));
+    }
+  }
+
   useEffect(() => {
-    refreshStorageStatus();
+    void refreshStorageStatus();
+    void refreshTransactionalFiles();
+    return () => { transactionalScan.current += 1; };
   }, []);
 
   function refreshFiles() {
-    setTrashedFiles(scanRecentWorkspaces({ trashed: true }));
+    void refreshTransactionalFiles();
     onFilesChanged?.();
   }
 
@@ -250,14 +277,13 @@ export default function PhiVaultLite({ onOpenFile, onFilesChanged }) {
     setStatus('Project manifest exported');
   }
 
-  function exportWorkspaceBackup() {
+  async function exportWorkspaceBackup() {
     try {
-      const storage = getBrowserLocalStorage();
-      if (!storage) throw new Error('Browser storage is unavailable.');
-      const payload = createWorkspaceBackupPayload({ storage, manifest });
+      const payload = await createCompleteWorkspaceBackup({ manifest });
       const safeTimestamp = payload.createdAt.replace(/[:.]/g, '-');
       downloadJson(`phioffice369-workspace-backup-${safeTimestamp}.json`, payload);
-      setStatus(`Workspace backup exported with ${payload.storageSnapshot.length} local items. The backup is unencrypted.`);
+      const recovery = payload.transactionalRecovery?.length ?? 0;
+      setStatus(`Workspace backup exported with ${payload.storageSnapshot.length} local items. The backup is unencrypted.${recovery ? ` ${recovery} records included for manual recovery.` : ''}`);
     } catch {
       setStatus('Could not read browser storage for a workspace backup.');
     }
@@ -401,29 +427,49 @@ export default function PhiVaultLite({ onOpenFile, onFilesChanged }) {
     setImportErrors([]);
   }
 
-  function restoreImportedBackup() {
-    if (!importedBackup) return;
-    const result = restoreWorkspaceBackupPayload(importedBackup, getBrowserLocalStorage());
-    refreshArtifacts();
-    const summary = `Restored ${result.restored} items. Kept ${result.conflicts} conflicting items, skipped ${result.unchanged} identical items and ignored ${result.ignored} settings or unsupported keys.`;
-    setStatus(result.ok ? summary : `${result.reason} ${summary}`);
-    if (result.ok) clearImportPreview();
+  async function restoreImportedBackup() {
+    if (!importedBackup || fileActionPending) return;
+    setFileActionPending(true);
+    try {
+      const result = await restoreCompleteWorkspaceBackup(importedBackup);
+      refreshArtifacts();
+      const summary = `Restored ${result.restored} items. Kept ${result.conflicts} conflicting items, skipped ${result.unchanged} identical items and ignored ${result.ignored} settings or unsupported keys.`;
+      setStatus(result.ok ? summary : `${result.reason} ${summary}`);
+      if (result.ok) clearImportPreview();
+    } catch {
+      setStatus('Restore could not verify existing IndexedDB files. Retry with browser storage available.');
+    } finally {
+      setFileActionPending(false);
+    }
   }
 
-  function manageFile(key, action) {
-    const result = changeWorkspaceFile(key, action, fileName);
-    if (!result.ok) {
-      setStatus(result.message);
-      return;
+  async function manageFile(file, action) {
+    if (fileActionPending) return;
+    setFileActionPending(true);
+    try {
+      let result;
+      if (action === 'migrate') result = await migrateWorkspaceFile(file.key);
+      else if (file.revision !== undefined) result = await changeTransactionalFile(file, action, fileName);
+      else result = changeWorkspaceFile(file.key, action, fileName);
+      if (!result.ok) {
+        setStatus(result.message);
+        return;
+      }
+      refreshArtifacts();
+      const messages = {
+        rename: 'File renamed.',
+        duplicate: 'File duplicated.',
+        trash: 'File moved to Trash. You can restore it here.',
+        restore: 'File restored from Trash.',
+        migrate: 'Verified IndexedDB copy created. The original draft is available in standard storage.',
+        'standard-copy': 'Standard copy created. Open it to resume standard saves. The IndexedDB copy is available in PhiVault.',
+      };
+      setStatus(messages[action] + (result.metadataFailed ? ' Tags and folder could not be copied.' : ''));
+    } catch (error) {
+      setStatus(`File action could not complete. ${error?.message ?? 'Check browser storage and retry.'}`);
+    } finally {
+      setFileActionPending(false);
     }
-    refreshArtifacts();
-    const messages = {
-      rename: 'File renamed.',
-      duplicate: result.message.startsWith('File duplicated') ? result.message : 'File duplicated.',
-      trash: 'File moved to Trash. You can restore it here.',
-      restore: 'File restored from Trash.',
-    };
-    setStatus(messages[action]);
   }
 
   async function copyJson(payload, label) {
@@ -548,6 +594,7 @@ export default function PhiVaultLite({ onOpenFile, onFilesChanged }) {
     setTagInput(nextMetadata.tags.join(', '));
     setProjectInput(nextMetadata.projectFolder ?? '');
     refreshStorageStatus();
+    if (selectedFile?.revision !== undefined) void refreshTransactionalFiles();
     setStatus(statusMessage(nextMetadata));
   }
 
@@ -819,15 +866,23 @@ export default function PhiVaultLite({ onOpenFile, onFilesChanged }) {
             </details>
           )}
 
+          {transactionalUnavailable && <p role="status">Transactional files are unavailable. Check browser storage and refresh the scan.</p>}
+          {transactionalRecovery.length > 0 && (
+            <div className="import-preview">
+              <p>{transactionalRecovery.length} IndexedDB records need manual recovery because their data is damaged or their file key is already in standard storage.</p>
+              <button type="button" onClick={() => downloadJson('phioffice369-transactional-recovery.json', transactionalRecovery)}>Download transactional recovery</button>
+            </div>
+          )}
           {importedBackup && (
             <div className="import-preview backup-preview">
               <h3>Workspace backup preview</h3>
               <p>{typeof importedBackup.source === 'string' ? importedBackup.source : 'Local backup file'}</p>
               <code>{importedBackup.schema}</code>
               <span>{importedBackup.storageSnapshot.length} local items</span>
-              <p>Restore adds missing files and metadata. Existing keys are kept. Browser settings are skipped.</p>
-              <button type="button" onClick={restoreImportedBackup}>Restore missing items</button>
-              <button type="button" onClick={() => { clearImportPreview(); setStatus('Backup restore cancelled.'); }}>Cancel restore</button>
+              <p>Restore adds missing files and metadata to standard storage. Existing keys are kept across both stores.</p>
+              {Array.isArray(importedBackup.transactionalRecovery) && importedBackup.transactionalRecovery.length > 0 && <p>This backup also contains records for manual recovery.</p>}
+              <button type="button" disabled={fileActionPending} onClick={restoreImportedBackup}>Restore missing items</button>
+              <button type="button" disabled={fileActionPending} onClick={() => { clearImportPreview(); setStatus('Backup restore cancelled.'); }}>Cancel restore</button>
             </div>
           )}
 
@@ -906,7 +961,7 @@ export default function PhiVaultLite({ onOpenFile, onFilesChanged }) {
               <summary>Trash ({trashedFiles.length})</summary>
               <p>Trashed files still use browser storage and are included in workspace backups.</p>
               <ul>{trashedFiles.map((file) => (
-                <li key={file.key}>{file.title} · {file.app} <button type="button" onClick={() => manageFile(file.key, 'restore')}>Restore {file.title}</button></li>
+                <li key={file.key}>{file.title} · {file.app} <button type="button" disabled={fileActionPending} onClick={() => manageFile(file, 'restore')}>Restore {file.title}</button></li>
               ))}</ul>
             </details>
           )}
@@ -942,12 +997,18 @@ export default function PhiVaultLite({ onOpenFile, onFilesChanged }) {
               {selectedFile && (
                 <div className="detail-tag-editor">
                   <label><span>File name</span><input value={fileName} maxLength={240} onChange={(event) => setFileName(event.target.value)} /></label>
+                  <p>{selectedFile.revision === undefined
+                    ? 'Standard browser storage. Create an IndexedDB copy to try transactional saves for this file.'
+                    : `Transactional IndexedDB · revision ${selectedFile.revision}. Copy to standard storage to return to standard saves.`}</p>
                   <div className="detail-tag-actions">
-                    <button type="button" onClick={() => onOpenFile(selectedFile)}>Open file</button>
-                    <button type="button" onClick={() => manageFile(selectedFile.key, 'rename')}>Rename file</button>
-                    <button type="button" onClick={() => manageFile(selectedFile.key, 'duplicate')}>Duplicate file</button>
-                    {selectedFile.isIndependent && <button type="button" onClick={() => {
-                      if (window.confirm(`Move "${selectedFile.title}" to Trash?`)) manageFile(selectedFile.key, 'trash');
+                    <button type="button" disabled={fileActionPending} onClick={() => onOpenFile(selectedFile)}>Open file</button>
+                    <button type="button" disabled={fileActionPending} onClick={() => manageFile(selectedFile, 'rename')}>Rename file</button>
+                    <button type="button" disabled={fileActionPending} onClick={() => manageFile(selectedFile, 'duplicate')}>Duplicate file</button>
+                    {selectedFile.revision === undefined
+                      ? <button type="button" disabled={fileActionPending || !isIndexedDbAvailable()} onClick={() => manageFile(selectedFile, 'migrate')}>Create IndexedDB copy</button>
+                      : <button type="button" disabled={fileActionPending} onClick={() => manageFile(selectedFile, 'standard-copy')}>Copy to standard storage</button>}
+                    {selectedFile.isIndependent && <button type="button" disabled={fileActionPending} onClick={() => {
+                      if (window.confirm(`Move "${selectedFile.title}" to Trash?`)) manageFile(selectedFile, 'trash');
                     }}>Move to Trash</button>}
                   </div>
                 </div>

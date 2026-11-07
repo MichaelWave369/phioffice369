@@ -62,6 +62,20 @@ export function attachLocalMetadata(artifact) {
   return mergeArtifactMetadata(artifact, readArtifactMetadata(artifact.artifactId));
 }
 
+export function storedDraftToArtifact(key, record, revision) {
+  const { kind, app } = getArtifactKindAndAppFromStorageKey(key);
+  const artifact = attachLocalMetadata(createArtifactManifestEntry({
+    artifactId: storageKeyToArtifactId(key),
+    title: getArtifactTitleFromStoredValue(key, record),
+    kind, app,
+    path: key,
+    labels: getStoredTrustLabels(record),
+    sourceTemplateId: getStoredSourceTemplateId(record),
+    status: revision === undefined ? getArtifactStatusFromStorageKey(key) : 'indexeddb-draft',
+  }));
+  return revision === undefined ? artifact : { ...artifact, revision };
+}
+
 export function scanLocalDraftArtifacts() {
   if (!canUseBrowserLocalStorage()) return [];
 
@@ -74,18 +88,7 @@ export function scanLocalDraftArtifacts() {
     .flatMap((key) => {
       const storedValue = parseStoredJsonValue(key);
       if (storedValue?.trashedAt) return [];
-      const { kind, app } = getArtifactKindAndAppFromStorageKey(key);
-
-      return attachLocalMetadata(createArtifactManifestEntry({
-        artifactId: storageKeyToArtifactId(key),
-        title: getArtifactTitleFromStoredValue(key, storedValue),
-        kind,
-        app,
-        path: key,
-        labels: getStoredTrustLabels(storedValue),
-        sourceTemplateId: getStoredSourceTemplateId(storedValue),
-        status: getArtifactStatusFromStorageKey(key),
-      }));
+      return storedDraftToArtifact(key, storedValue);
     });
 }
 

@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Download, ShieldCheck } from 'lucide-react';
 import { createProjectManifest } from '@phioffice369/core';
-import { createWorkspaceBackupPayload, storageKeys } from '../lib/emergencyBackups.js';
+import { storageKeys } from '../lib/emergencyBackups.js';
+import { createCompleteWorkspaceBackup, readTransactionalWorkspace } from '../lib/transactionalWorkspace.js';
 import { scanContinuityArtifacts } from '../lib/localArtifactRegistry.js';
 import { getStorageStatus } from '../lib/storageDiagnostics.js';
 import './DataSovereigntyStatusBar.css';
@@ -37,6 +38,7 @@ export default function DataSovereigntyStatusBar({ refreshKey }) {
     detectedBackend: 'checking',
     snapshotCount: 0,
     artifactCount: 0,
+    transactionalCount: null,
     latestEmergencyBackup: null,
     message: 'Checking local storage status...',
   });
@@ -48,11 +50,13 @@ export default function DataSovereigntyStatusBar({ refreshKey }) {
     try {
       const storageStatus = await getStorageStatus(window);
       const artifacts = scanContinuityArtifacts();
+      const transactional = await readTransactionalWorkspace().catch(() => null);
       setStatus({
         adapterId: storageStatus.activeAdapterId,
         detectedBackend: storageStatus.detectedBackend,
         snapshotCount: storageStatus.snapshotCount,
-        artifactCount: artifacts.length,
+        artifactCount: artifacts.length + (transactional?.files.filter(({ state }) => state === 'saved').length ?? 0),
+        transactionalCount: transactional?.files.length ?? null,
         latestEmergencyBackup: getLatestEmergencyBackupTime(window.localStorage),
         message: 'Files are stored in this browser. Keep exported copies of important work.',
       });
@@ -70,11 +74,10 @@ export default function DataSovereigntyStatusBar({ refreshKey }) {
     refreshStatus();
   }, [refreshKey]);
 
-  function exportWorkspace() {
+  async function exportWorkspace() {
     if (typeof window === 'undefined') return;
 
     try {
-      const storage = window.localStorage;
       const manifest = createProjectManifest({
         projectId: 'local_phioffice369_status_bar_export',
         title: 'PhiOffice369 Local Workspace Export',
@@ -83,8 +86,7 @@ export default function DataSovereigntyStatusBar({ refreshKey }) {
         tags: ['local-first', 'workspace-backup', 'phioffice369'],
         artifacts: scanContinuityArtifacts(),
       });
-      const payload = createWorkspaceBackupPayload({
-        storage,
+      const payload = await createCompleteWorkspaceBackup({
         manifest,
         source: 'Data Sovereignty status bar export',
       });
@@ -104,10 +106,11 @@ export default function DataSovereigntyStatusBar({ refreshKey }) {
         <span>Browser storage</span>
       </div>
       <div className="status-details">
-        <span>Backend: {status.adapterId}</span>
+        <span>Workspace scan: {status.adapterId}</span>
         <span>Detected: {status.detectedBackend}</span>
         <span>Artifacts: {status.artifactCount}</span>
-        <span>Snapshot items: {status.snapshotCount}</span>
+        <span>Scan snapshot items: {status.snapshotCount}</span>
+        <span>Transactional files: {status.transactionalCount ?? 'unavailable'}</span>
         <span>Last emergency backup: {status.latestEmergencyBackup ?? 'none recorded'}</span>
       </div>
       <button type="button" className="status-export-button" onClick={exportWorkspace}>

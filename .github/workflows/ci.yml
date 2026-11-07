@@ -49,6 +49,10 @@ jobs:
       - name: Test PhiOS workspace bridge across browser origins
         run: npm run test:browser:bridge
 
+      - name: Verify acknowledged IndexedDB saves after hard Chromium process termination
+        timeout-minutes: 5
+        run: npm run test:browser:crash
+
   browser-bridge-ui:
     runs-on: ubuntu-latest
     permissions:

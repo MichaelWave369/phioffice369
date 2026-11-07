@@ -11,6 +11,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { openChromeSession } from './chrome-session.mjs';
 import { verifyReviewedHostCheckout, REVIEWED_PHIOS_HOST_SHA } from './phios-reviewed-host-pin.mjs';
 import { witnessInstallExpression, verifyWireObservations } from './phios-bridge-wire-evidence.mjs';
+import { qualifyR9BrowserRegistry } from './phios-r9-rendered-registry-acceptance.mjs';
 
 const officeDir = resolve('.');
 const phiShellDir = resolve('.interop/phios/phishell');
@@ -154,7 +155,7 @@ function importReferenceBundleExpression(entries, extraFields = {}) {
 }
 
 // Fail before building either app if the independently checked-out PhiOS
-// source differs from the reviewed, *merged* PR #402 commit.
+// source differs from the reviewed, *merged* PhiOS #406 commit.
 const reviewedHostCommit = verifyReviewedHostCheckout(resolve('.interop/phios'));
 const chrome = findBrowser();
 const hostServer = staticServer(hostDist, '/');
@@ -336,6 +337,21 @@ try {
     registry.entries[0], imported,
   ], 'Local metadata wins on conflict; only new references are appended');
   assert.ok(!afterPortableImport.includes('grant'), 'Import must never persist authority fields');
+
+  // R9 lives on the merged PhiOS host, not in PhiOffice. Exercise the
+  // actual two-step, operator-confirmed V2 copy/rollback UI before any
+  // project-ref approval is given to the iframe. Only test data are used.
+  const r9Evidence = await qualifyR9BrowserRegistry({
+    evaluate, waitFor, clientText, hostOrigin,
+    clickClientRequest: () => evaluate(clickExpression(
+      '.phioffice-phios-bridge', 'Request project reference'), childContext),
+  });
+  assert.equal(r9Evidence.hostOriginIsLoopback, true);
+  console.log('PASS: actual PhiOS R9 V2 copy/rollback in compiled Chrome, with V1 preserved');
+  console.log('PHIOS_R9_BROWSER_COPY_ROLLBACK:' + JSON.stringify({
+    ...r9Evidence, hostCommit: reviewedHostCommit,
+  }));
+
   assert.equal(await evaluate(clickExpression('.phios-bridge-pilot',
     'Approve selected project ref')), 'clicked',
     'Import never grants context; the selected project still requires approval');
@@ -467,7 +483,7 @@ try {
   console.log('PASS: compiled PhiOS + PhiOffice real Chrome UI bridge acceptance');
   console.log('PASS: reviewed adapter catalog, forged-source denial, portable import, fresh consent, standalone');
   assert.equal(reviewedHostCommit, REVIEWED_PHIOS_HOST_SHA);
-  console.log('PASS: merged PhiOS #402 host pin, actual postMessage field allowlist, default denial and new-session identity');
+  console.log('PASS: merged PhiOS #406 host pin, actual postMessage field allowlist, default denial and new-session identity');
   // Structured *test-only* evidence. This summarizes the rendered Chrome run,
   // not a production app install, publisher signature, or durable user grant.
   console.log('PHIOS_R7_BROWSER_HANDOFF:' + JSON.stringify({

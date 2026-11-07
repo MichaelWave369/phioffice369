@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os';
 import { extname, join, resolve, sep } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { openChromeSession } from './chrome-session.mjs';
-import { verifyReviewedHostCheckout } from './phios-reviewed-host-pin.mjs';
+import { verifyReviewedHostCheckout, REVIEWED_PHIOS_HOST_SHA } from './phios-reviewed-host-pin.mjs';
 import { witnessInstallExpression, verifyWireObservations } from './phios-bridge-wire-evidence.mjs';
 
 const officeDir = resolve('.');
@@ -155,7 +155,7 @@ function importReferenceBundleExpression(entries, extraFields = {}) {
 
 // Fail before building either app if the independently checked-out PhiOS
 // source differs from the reviewed, *merged* PR #402 commit.
-verifyReviewedHostCheckout(resolve('.interop/phios'));
+const reviewedHostCommit = verifyReviewedHostCheckout(resolve('.interop/phios'));
 const chrome = findBrowser();
 const hostServer = staticServer(hostDist, '/');
 const officeServer = staticServer(officeDist, '/phioffice369/');
@@ -466,7 +466,23 @@ try {
 
   console.log('PASS: compiled PhiOS + PhiOffice real Chrome UI bridge acceptance');
   console.log('PASS: reviewed adapter catalog, forged-source denial, portable import, fresh consent, standalone');
+  assert.equal(reviewedHostCommit, REVIEWED_PHIOS_HOST_SHA);
   console.log('PASS: merged PhiOS #402 host pin, actual postMessage field allowlist, default denial and new-session identity');
+  // Structured *test-only* evidence. This summarizes the rendered Chrome run,
+  // not a production app install, publisher signature, or durable user grant.
+  console.log('PHIOS_R7_BROWSER_HANDOFF:' + JSON.stringify({
+    schema: 'phios.browser_phi_office_handoff_r7.v0.1',
+    scope: 'disposable_two_origin_chromium_qa',
+    hostCommit: reviewedHostCommit,
+    defaultDenied: firstWire.deniedCount >= 1,
+    opaqueRefReplies: firstWire.receivedContextCount + secondWire.receivedContextCount,
+    revokedAndForgottenRequestsDenied: firstWire.deniedCount >= 3 && secondWire.deniedCount >= 2,
+    uniqueSessionAfterReconnect: firstWire.sessionId !== secondWire.sessionId,
+    standalonePhiOfficeUnaffected: true,
+    nativeAppInstalled: false,
+    publisherIdentityAuthenticated: false,
+    executionAuthority: false,
+  }));
 } finally {
   await browserSession?.close();
   await Promise.all([hostServer, officeServer].map((server) =>

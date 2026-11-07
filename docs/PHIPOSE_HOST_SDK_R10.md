@@ -16,7 +16,7 @@ The browser app builds offline and maintains its own lockfile. Pulling JavaScrip
 
 **Upstream source:** `MichaelWave369/OverStrings/packages/phipose-host-sdk/index.mjs`
 
-**Snapshot Git blob SHA:** `70bf6014f7b69ec0efcf5289687e3cac01f648bc`
+**Snapshot Git blob SHA:** `46d852582327d38966fdb01aace666bd3f9cd9cd`
 
 The SHA is a Git object identifier for *file bytes*, not an identity proof or signature of the author. Bump the provenance test only after comparing and reviewing the new upstream module. The two repository files had identical Git blob SHA values when this rung was authored.
 

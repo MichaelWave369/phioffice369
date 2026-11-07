@@ -8,7 +8,7 @@ export function persistDraftSnapshot(key, snapshot, storage = getBrowserLocalSto
       return { ok: false, message: 'This file changed in another tab or in PhiVault. Export a copy before reopening.' };
     }
     const raw = JSON.stringify({ ...snapshot, updatedAt: new Date().toISOString() });
-    if (writeStorageValue(key, raw, storage)) return { ok: true, message: 'Saved locally', raw };
+    if (writeStorageValue(key, raw, storage)) return { ok: true, message: 'Saved locally in this browser (not crash-proof). Export backups of important work.', raw };
     return { ok: false, message: 'Local storage is unavailable. Export a copy before leaving.' };
   } catch {
     return { ok: false, message: 'Local save failed (possibly full storage). Export a copy before leaving.' };

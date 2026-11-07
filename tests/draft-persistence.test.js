@@ -8,6 +8,7 @@ test('exit checkpoint preserves editable payload with a timestamp', () => {
   const original = { templateId: 'example', title: 'Unsaved last keystroke', content: 'Draft text' };
   const result = persistDraftSnapshot('phioffice369:phiwrite:example', original, storage);
   assert.equal(result.ok, true);
+  assert.match(result.message, /not crash-proof/);
   assert.equal(result.raw, saved.get('phioffice369:phiwrite:example'));
   const data = JSON.parse(saved.get('phioffice369:phiwrite:example'));
   assert.equal(data.content, 'Draft text');

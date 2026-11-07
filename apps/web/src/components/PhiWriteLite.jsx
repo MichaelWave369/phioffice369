@@ -213,7 +213,7 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck, loadedFile 
     ...savedDraft, templateId: template.id, sourceTemplateId: template.sourceTemplateId ?? template.id,
     title: workspaceTitle(title, 'PhiWrite'), content, activeLabelId,
   }), [savedDraft, template, title, content, activeLabelId]);
-  const { saveStatus, setSaveStatus, saveFailed, save } = useWorkspaceDraft(storageKey, draftSnapshot, loaded);
+  const { saveStatus, setSaveStatus, saveFailed, save, readSavedRaw } = useWorkspaceDraft(storageKey, draftSnapshot, loaded);
 
   async function backToPhiOffice() {
     if (await save()) onBack();
@@ -795,7 +795,9 @@ export default function PhiWriteLite({ template, onBack, onOpenDeck, loadedFile 
         <button className="ghost-button" type="button" onClick={backToPhiOffice}><ArrowLeft aria-hidden="true" />Back to PhiOffice</button>
         <div><p className="eyebrow">PhiWrite-lite</p><h2>{template.title}</h2><p className="save-status" role="status">{saveStatus}</p></div>
         <div className="workspace-actions">
-          <WorkspaceSaveActions save={save} saveFailed={saveFailed} onBack={onBack} />
+          <WorkspaceSaveActions save={save} saveFailed={saveFailed} onBack={onBack}
+            storageKey={storageKey} onStatus={setSaveStatus} readSavedRaw={readSavedRaw}
+            allowProtectedCopy={loaded.revision === undefined && ['saved', 'missing'].includes(loaded.state)} />
           <button className="ghost-button" type="button" onClick={handleResetDraft}><RotateCcw aria-hidden="true" />Reset</button>
           <button className="ghost-button" type="button" onClick={triggerMarkdownImport}><Upload aria-hidden="true" />Import .md</button>
           <button className="ghost-button" type="button" onClick={triggerDocxImport}><Upload aria-hidden="true" />Preview .docx</button>

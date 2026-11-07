@@ -91,7 +91,7 @@ export default function PhiGridLite({ template, onBack, loadedFile }) {
     ...savedGrid, templateId: template.id, sourceTemplateId: template.sourceTemplateId ?? template.id,
     title: workspaceTitle(title, 'PhiGrid'), columns, rows, activeLabelId, formulasEnabled, budgetMode, columnWidths,
   }), [savedGrid, template, title, columns, rows, activeLabelId, formulasEnabled, budgetMode, columnWidths]);
-  const { saveStatus, setSaveStatus, saveFailed, save } = useWorkspaceDraft(storageKey, draftSnapshot, loaded);
+  const { saveStatus, setSaveStatus, saveFailed, save, readSavedRaw } = useWorkspaceDraft(storageKey, draftSnapshot, loaded);
 
   async function backToPhiOffice() {
     if (await save()) onBack();
@@ -252,7 +252,9 @@ export default function PhiGridLite({ template, onBack, loadedFile }) {
           <p className="grid-save-status" role="status" aria-live="polite">{saveStatus}</p>
         </div>
         <div className="grid-actions">
-          <WorkspaceSaveActions save={save} saveFailed={saveFailed} onBack={onBack} />
+          <WorkspaceSaveActions save={save} saveFailed={saveFailed} onBack={onBack}
+            storageKey={storageKey} onStatus={setSaveStatus} readSavedRaw={readSavedRaw}
+            allowProtectedCopy={loaded.revision === undefined && ['saved', 'missing'].includes(loaded.state)} />
           <button type="button" onClick={resetGrid}><RotateCcw aria-hidden="true" /> Reset</button>
           <button type="button" onClick={triggerCsvImport}><Upload aria-hidden="true" /> Import CSV</button>
           <button type="button" onClick={exportCsv}><Download aria-hidden="true" /> Export CSV</button>

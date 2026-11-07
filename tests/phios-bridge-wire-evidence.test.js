@@ -29,11 +29,11 @@ function verify(items, opts = {}) {
   });
 }
 
-test('the browser host test pins merged PhiOS PR #402 exactly, not its candidate SHA', () => {
+test('the browser host test pins merged PhiOS PR #406 exactly, not its candidate SHA', () => {
   const workflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
   assert.match(workflow, /browser-bridge-ui:/);
   assert.ok(workflow.includes('ref: ' + REVIEWED_PHIOS_HOST_SHA));
-  assert.equal(REVIEWED_PHIOS_HOST_SHA, '1d0119eb8e35a542a45dec3192aa271a42e65af4');
+  assert.equal(REVIEWED_PHIOS_HOST_SHA, '53ed5caa46c463a0c7385c9bb177c803fdeaaa03');
   assert.equal(requireReviewedHostSha(REVIEWED_PHIOS_HOST_SHA), REVIEWED_PHIOS_HOST_SHA);
   for (const changed of ['c3285db4378938502c363d430fe9d124be51b2e4', 'g'.repeat(40), '']) {
     assert.throws(() => requireReviewedHostSha(changed), /SHA mismatch/);

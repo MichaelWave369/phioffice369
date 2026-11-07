@@ -7,6 +7,8 @@ import { recordLocalExport } from '../lib/localReceipts.js';
 import { readWorkspaceRecord, workspaceTitle } from '../lib/workspaceRecords.js';
 import { useWorkspaceDraft } from '../lib/useWorkspaceDraft.js';
 import WorkspaceSaveActions from './WorkspaceSaveActions.jsx';
+import PhiPoseEditorCompanion from './PhiPoseEditorCompanion.jsx';
+import {gridVisibleCellAddresses,adjacentNavigationIndex} from '../lib/phiPoseNavigationTargets.js';
 import './PhiGridLite.css';
 
 function slugify(value) {
@@ -55,6 +57,8 @@ function downloadTextFile(filename, body, type) {
 
 export default function PhiGridLite({ template, onBack, loadedFile }) {
   const importInputRef = useRef(null);
+  const gestureGridRef=useRef(null);
+  const [gestureCellIndex,setGestureCellIndex]=useState(-1);
   const latestImport = useRef(0);
   const defaultColumns = useMemo(() => getColumns(template), [template]);
   const storageKey = createPhiGridStorageKey(template.id);
@@ -123,6 +127,24 @@ export default function PhiGridLite({ template, onBack, loadedFile }) {
     }
     return indices;
   }, [calculatedRows, columns, filter, sortColumn, sortAscending]);
+
+  const gestureCells=useMemo(()=>gridVisibleCellAddresses(visibleIndices,columns),
+    [visibleIndices,columns]);
+  const currentGestureCell=gestureCellIndex>=0&&gestureCellIndex<gestureCells.length
+    ? gestureCellIndex:-1;
+  function navigateGestureCell(direction){
+    const next=adjacentNavigationIndex(gestureCells.length,currentGestureCell,direction);
+    if(next===null)return;
+    const target=gestureCells[next];
+    setGestureCellIndex(next);
+    const input=gestureGridRef.current?.querySelector(
+      '[data-phipose-cell="'+target.address+'"]'
+    );
+    if(input){
+      input.focus({preventScroll:true});
+      input.scrollIntoView({block:'nearest',inline:'nearest'});
+    }
+  }
 
   function budgetDifference(row, rowIndex) {
     if (formulasEnabled && (isGridFormula(row.Planned) || isGridFormula(row.Actual))) {
@@ -263,6 +285,17 @@ export default function PhiGridLite({ template, onBack, loadedFile }) {
         </div>
       </div>
 
+      <PhiPoseEditorCompanion mode="grid"
+        currentIndex={currentGestureCell}
+        total={gestureCells.length}
+        onNavigate={navigateGestureCell}
+        blocked={Boolean(pendingCsvImport)}
+        currentLabel={currentGestureCell>=0
+          ? 'Cell '+gestureCells[currentGestureCell].address+
+            ' ('+(currentGestureCell+1)+'/'+gestureCells.length+')'
+          : gestureCells.length+' visible cells available'}
+      />
+
       {pendingCsvImport && (
         <section className="panel grid-import-preview" aria-label="CSV import review">
           <h3>Review CSV before replacing your current grid</h3>
@@ -330,7 +363,7 @@ export default function PhiGridLite({ template, onBack, loadedFile }) {
             onChange={(event) => setFormulasEnabled(event.target.checked)} /> Calculate formulas</label>
           <p className="grid-sheet-note">Use =SUM(B1:B3), =AVERAGE(B1,B2), MIN, MAX, COUNT or arithmetic. Sorting and filtering keep the original row addresses. CSV exports the whole sheet as values and protects formula-like text with a leading apostrophe. JSON keeps the formula text.</p>
 
-          <div className="table-wrap" tabIndex={0} aria-label="Spreadsheet data">
+          <div ref={gestureGridRef} className="table-wrap" tabIndex={0} aria-label="Spreadsheet data">
             <table>
               <thead><tr><th scope="col">Row</th>{columns.map((column, index) => (
                 <th key={column} scope="col" style={{ minWidth: Math.max(100, Math.min(400, Number(columnWidths[index]) || 140)) }}>
@@ -353,6 +386,7 @@ export default function PhiGridLite({ template, onBack, loadedFile }) {
                         onFocus: () => setFocusedCell(address),
                         onBlur: () => setFocusedCell(''),
                         'aria-label': column + ' row ' + (rowIndex + 1),
+                        'data-phipose-cell':address,
                       };
                       return (
                         <td key={column} className={formula ? 'formula-cell' : undefined}>

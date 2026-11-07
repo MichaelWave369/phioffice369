@@ -146,8 +146,8 @@ try {
   await waitFor('rendered PhiOS desktop', () =>
     evaluate('Boolean(document.querySelector(".start-button"))'));
 
-  const opened = await evaluate('(() => { const b = document.querySelector('button[aria-label^="Builder"]');'
-    + ' if (!b) return false; b.click(); return true; })()');
+  const opened = await evaluate("(() => { const b = document.querySelector('[aria-label^=Builder]');"
+    + " if (!b) return false; b.click(); return true; })()");
   assert.equal(opened, true, 'PhiShell Builder tile must open an actual Build Field window');
 
   await waitFor('PhiOffice pilot panel in Build Field', () =>

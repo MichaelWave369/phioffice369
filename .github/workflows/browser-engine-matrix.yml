@@ -1,0 +1,53 @@
+name: PhiOffice369 browser engine storage qualification
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/browser-engine-matrix.yml'
+      - 'scripts/browser-storage-engines.mjs'
+      - 'scripts/browser-acceptance-stress-client.js'
+      - 'scripts/browser-acceptance.mjs'
+      - 'apps/web/**'
+      - 'packages/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: storage-engine-matrix-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  firefox-webkit:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Use project's Node version
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Install locked app dependencies
+        run: npm ci --no-audit
+
+      - name: Build production app
+        run: npm run build
+
+      - name: Install pinned optional browser qualification tooling
+        run: npm install --no-save --no-package-lock --ignore-scripts --no-audit --no-fund playwright@1.56.1
+
+      - name: Install Firefox and WebKit plus required system libraries
+        run: npx playwright install --with-deps firefox webkit
+
+      - name: Verify Firefox and WebKit restore scenarios
+        run: node scripts/browser-storage-engines.mjs
+
+      - name: Assert tracked dependency files unchanged
+        run: git diff --exit-code -- package.json package-lock.json

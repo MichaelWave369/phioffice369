@@ -17,6 +17,7 @@ const digest = raw => raw === null ? null : createHash('sha256').update(raw).dig
 const trials = [
   { id: 'grace-now', mode: 'grace', ms: 0 },
   { id: 'grace-2s', mode: 'grace', ms: 2000 },
+  { id: 'grace-5s', mode: 'grace', ms: 5000 },
   { id: 'kill-now', mode: 'kill', ms: 0 },
   { id: 'kill-2s', mode: 'kill', ms: 2000 },
   { id: 'kill-5s', mode: 'kill', ms: 5000 },

@@ -37,7 +37,7 @@ async function confirmMode(evaluate, value) {
 }
 
 export async function qualifyR9BrowserRegistry({
-  evaluate, waitFor, clientText, clickClientRequest, hostOrigin,
+  evaluate, waitFor, clientText, clickClientRequest, receivedDenials, hostOrigin,
 }) {
   const initialV1 = await readStorage(evaluate, V1);
   assert.ok(initialV1, 'R9 requires already stored, reviewed V1 fixture');
@@ -115,10 +115,13 @@ export async function qualifyR9BrowserRegistry({
     assert.equal(await evaluate('window.__r9ConfirmationCount'), 1,
       'R9 copy must require one user confirmation');
 
-    // V2 is metadata, not an app grant. A fresh child request stays denied.
-    await clickClientRequest();
+    // V2 is metadata, not an app grant. Observe a NEW real postMessage
+    // denial, rather than accepting possibly stale text from a prior denial.
+    const deniedBeforeCopyRequest = await receivedDenials();
+    assert.equal(await clickClientRequest(), 'clicked');
     await waitFor('R9 V2 copy cannot grant child read', async () =>
-      (await clientText()).includes('Project request denied; operator approval required'));
+      (await receivedDenials()) > deniedBeforeCopyRequest
+      && (await clientText()).includes('Project request denied; operator approval required'));
     assert.ok(!(await clientText()).includes('Received project ID: ' + REF),
       'R9 copy MUST NOT grant the embedded app project access');
 

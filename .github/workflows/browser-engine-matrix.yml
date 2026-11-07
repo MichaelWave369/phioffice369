@@ -6,6 +6,8 @@ on:
     paths:
       - '.github/workflows/browser-engine-matrix.yml'
       - 'scripts/browser-storage-engines.mjs'
+      - 'scripts/chrome-session.mjs'
+      - 'scripts/browser-process-shutdown.mjs'
       - 'scripts/browser-portable-backup.mjs'
       - 'scripts/browser-acceptance-stress-client.js'
       - 'scripts/browser-acceptance.mjs'

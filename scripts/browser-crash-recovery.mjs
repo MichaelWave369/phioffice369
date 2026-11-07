@@ -70,10 +70,18 @@ async function navigate(session, url) {
   if (result.errorText) throw Error(result.errorText);
 }
 
+let preparation = null;
 let first = null;
 let second = null;
 try {
   const base = await ready;
+  preparation = await openChromeSession(browser, profile);
+  await navigate(preparation, base + '?scenario=crash&phase=prepare');
+  const checkpoint = await waitForStatus(preparation, 'PREPARED');
+  console.log('LEGACY CHECKPOINT: ' + checkpoint);
+  await preparation.close();
+  preparation = null;
+  await rm(join(profile, 'DevToolsActivePort'), { force: true });
   first = await openChromeSession(browser, profile);
   await navigate(first, base + '?scenario=crash&phase=seed');
   const prepared = await waitForStatus(first, 'READY');
@@ -87,6 +95,7 @@ try {
   const verified = await waitForStatus(second, 'PASS');
   console.log('PASS: Hard Chromium SIGKILL + restart. ' + verified);
 } finally {
+  await preparation?.close().catch(() => {});
   await first?.close().catch(() => {});
   await second?.close().catch(() => {});
   if (!serverExited) {

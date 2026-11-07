@@ -183,3 +183,23 @@ Only the PhiOS browser-local registry is affected. This is an offline
 identity-reference transfer, not synchronized projects or credentials.
 No actual project files, private account data, or provider authorization
 is exchanged.
+
+## R6 reviewed project adapter catalog acceptance
+
+The actual compiled two-app Chrome scenario pins the PhiOS reviewed-adapter
+candidate at `c3285db4378938502c363d430fe9d124be51b2e4`
+([PhiOS #402](https://github.com/MichaelWave369/PhiOS/pull/402)).
+
+The test checks that the rendered PhiOS catalog lists exactly one
+`reviewed-browser-pilot` adapter, the PhiOffice v0.1 project-manifest
+reader, and explicitly says PhiID/PhiCloud have **no reviewed adapters**.
+It then submits a forged PhiCloud source through the real local bundle
+picker. The unknown source must fail, and the browser's project registry
+must remain unchanged. The existing tests still verify separate manifest
+selection, explicit approval, project ref-only replies, portable import
+preview, and consent revocation after reconnect.
+
+A reviewed adapter is a source-format and target compatibility declaration,
+not authentication, ownership attestation or access permission. No other
+PhiOS app is registered here; no cloud project or file data travels over
+the browser bridge.

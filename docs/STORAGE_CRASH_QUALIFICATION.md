@@ -10,11 +10,11 @@ After `npm ci --no-audit && npm run build`, execute:
 
 The runner starts a local server for the compiled app and a unique temporary Chromium user-data directory. It then:
 
-1. Creates a synthetic standard-storage PhiWrite source in a **separate browser session that closes normally**, then reopens that profile, verifies an opt-in IndexedDB copy, opens the copy in the real editor and waits until **revision 2** is acknowledged as committed.
+1. Creates a synthetic standard-storage PhiWrite source, verifies an opt-in IndexedDB copy, opens the copy in the real editor and waits until **revision 2** is acknowledged as committed. LocalStorage source survival is reported but **not** a condition for the IndexedDB qualification.
 2. Creates eight additional **synthetic image-heavy PhiDeck records**, each containing four independent 256×256 seeded PNG slide images. All are stored in completed real IndexedDB transactions. The fixture checks that the combined image payload exceeds six million encoded characters. These image rows are directly seeded into the editor IndexedDB store to stress persistence, **not** produced by the normal slide editor UI.
 3. Abruptly kills the Chrome process with `SIGKILL`, **without sending Browser.close, pagehide or a graceful shutdown**.
-4. Starts a new Chrome process using the **same temporary browser profile**, reads all IndexedDB records and checks the previously acknowledged revision 2, 32 PNG slide images and the unchanged legacy source.
-5. Reopens the committed PhiWrite document through the real UI and uses **Backup workspace** to verify the combined original source and every transactional record are included exactly.
+4. Starts a new Chrome process using the **same temporary browser profile**, reads all IndexedDB records and checks the previously acknowledged revision 2 and 32 PNG slide images. It explicitly reports whether the original localStorage source survived; an unflushed source may be missing after hard termination.
+5. Reopens the committed PhiWrite document through the real UI and uses **Backup workspace** to verify every committed transactional record is included exactly and any surviving original source is unchanged.
 
 The runner removes only its own temporary browser profile. No synthetic crash data is ever installed in your normal Chrome profile.
 
@@ -22,9 +22,9 @@ The ordinary CI test suite still runs independently; the crash fixture is **not*
 
 ## What PASS means and does not mean
 
-PASS establishes that previously acknowledged commits survive **one real hard browser-process termination** on the GitHub Linux Chromium runner, with sizable raster-bearing IndexedDB records.
+PASS establishes that previously acknowledged **IndexedDB commits** survive **one real hard browser-process termination** on the GitHub Linux Chromium runner, with sizable raster-bearing IndexedDB records. LocalStorage survival is explicitly reported and does not affect this narrow PASS.
 
-**Observed initial crash regression:** When the legacy source was written to localStorage moments before SIGKILL, the next Chrome process did not recover that newly written source. This is why the qualified version checkpoints the source in a prior, gracefully closed session. A normal localStorage.setItem return is not a power-loss or forced-kill durability guarantee.
+**Observed initial crash regression:** When the legacy source was written to localStorage moments before SIGKILL, the next Chrome process did not recover that newly written source. A follow-up clean-close test also failed to establish legacy persistence in this headless browser profile. This sprint does not certify localStorage crash durability. A normal localStorage.setItem return is not a power-loss or forced-kill durability guarantee.
 
 It does **not** guarantee that an edit still awaiting IndexedDB transaction completion survives the crash. On browser exit, that unsaved edit can be lost, and tests should not assume otherwise. Other gaps include power interruption, disk/controller write caches, browser site-data eviction, mobile browser policies, native Safari/macOS, and disk-full behavior on the same image-heavy workload.
 

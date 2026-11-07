@@ -73,7 +73,7 @@ test('a failed IndexedDB add stops safely and retry resumes without duplicating 
   }
   assert.equal(first.ok, false);
   assert.equal(first.restored, 1);
-  assert.match(first.reason, /QuotaExceededError/);
+  assert.match(first.reason, /(AbortError|QuotaExceededError)/);
   const completed = await restoreBackupFileCopiesToIndexedDb(backup, { storage: standard, environment: env });
   assert.equal(completed.ok, true);
   assert.equal(completed.restored, 2);

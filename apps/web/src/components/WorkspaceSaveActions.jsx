@@ -3,7 +3,7 @@ import { readWorkspaceRecord } from '../lib/workspaceRecords.js';
 import { migrateWorkspaceFile } from '../lib/workspaceFileActions.js';
 
 export default function WorkspaceSaveActions({
-  save, saveFailed, onBack, storageKey = null, onStatus = null, allowProtectedCopy = false,
+  save, saveFailed, onBack, storageKey = null, onStatus = null, allowProtectedCopy = false, readSavedRaw = null,
 }) {
   const [protecting, setProtecting] = useState(false);
   const lastProtectedRaw = useRef(null);
@@ -27,6 +27,9 @@ export default function WorkspaceSaveActions({
       if (!await save()) return;
       const currentSource = readWorkspaceRecord(storageKey);
       if (currentSource.state !== 'saved') throw new Error('The current file could not be read.');
+      if (!readSavedRaw || currentSource.raw !== readSavedRaw()) {
+        throw new Error('The file changed in another tab or its saved version was not verified. Export your edits and reopen the source before protecting a copy.');
+      }
       if (lastProtectedRaw.current === currentSource.raw) {
         onStatus?.('This exact saved version already has a verified IndexedDB copy in PhiVault.'
           + ' New edits are NOT protected automatically.');

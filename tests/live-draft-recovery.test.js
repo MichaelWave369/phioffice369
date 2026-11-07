@@ -21,7 +21,7 @@ const cases = [
   ['phioffice369:phideck:file_unsaved_deck', {
     title: 'Unwritten deck', templateId: 'file_unsaved_deck',
     slides: [{ id: 'slide-1', title: 'Unsaved pixels', bullets: ['Keep the newest slide'],
-      image: { src: 'data:image/png;base64,abc', alt: 'synthetic image' } }],
+      image: { src: 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVQIHWP4z8DwHwAFgAI/ScLytQAAAABJRU5ErkJggg==', alt: 'synthetic image' } }],
     activeLabelId: 'private',
   }],
 ];

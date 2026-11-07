@@ -109,3 +109,28 @@ This validates the **rendered, configured pilot on local isolated origins**.
 It does not qualify any public deployment or confirm that arbitrary remote
 websites may safely be embedded. The pinned host SHA must be deliberately
 reviewed and updated whenever the host code changes.
+
+## R3 selected manifest identity acceptance (PhiOS R2)
+
+The rendered two-app acceptance now pins the **PhiOS PR #399** host candidate
+at `d8b2153d06fc3ba4c1d4561a6661c48581e30658`, pending its independent
+qualification. This replaces the prior R2 synthetic-ID UI test, while
+retaining the earlier isolated protocol tests.
+
+The Chrome test supplies a disposable PhiOffice
+`phioffice369.project_manifest.v0.1` file through the real PhiOS file
+input (not a network request). It verifies there is no possible approval
+before selection, the selected project ID remains unavailable until explicit
+operator approval, the child receives only `project:<id>`, and private
+manifest owner, tags, artifact paths, file titles and local display title
+never enter the child's rendered content.
+
+Changing the selected project revokes its predecessor until explicitly
+reapproved. Revocation denies subsequent context requests, and the child
+clears its stale displayed reference after receiving denial. Disconnect
+removes the iframe. Standalone PhiOffice retains no embedded bridge UI.
+
+The manifest is a **local selection aid**, not proof of ownership, project
+registry membership, secure identity, or permission to read project data.
+The host never sends manifest contents or files. The UI pilot remains
+disabled without an independently reviewed configured origin.

@@ -118,7 +118,8 @@ function selectManifestExpression(projectId, title) {
   };
   const contents = JSON.stringify(manifest);
   return '(() => {'
-    + 'const input = document.querySelector("input[aria-label=\"Choose local PhiOffice project manifest\"]");'
+    + 'const input = document.querySelector('
+    + JSON.stringify('input[aria-label="Choose local PhiOffice project manifest"]') + ');'
     + 'if (!input) return false;'
     + 'const file = new File([' + JSON.stringify(contents)
     + '], "selected-project.json", { type: "application/json" });'

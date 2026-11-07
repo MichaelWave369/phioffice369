@@ -122,3 +122,40 @@ export async function saveTransactionalDraft(key, expectedRevision, snapshot, {
     };
   }));
 }
+
+
+// Add-only, byte-preserving restore. A deterministic restored file key is
+// supplied by the caller after validating a complete backup. A conflict never
+// overwrites the existing revision or the imported source.
+export async function restoreTransactionalDraftRaw(key, raw, environment = globalThis) {
+  if (!isEditorKey(key) || typeof raw !== 'string' || !parseWorkspaceRecord(key, raw).record) {
+    throw new Error('Only valid PhiOffice files can be restored into transactional storage.');
+  }
+  return withStore(environment, 'readwrite', (store) => new Promise((resolve, reject) => {
+    const read = store.get(key);
+    read.onerror = () => reject(read.error);
+    read.onsuccess = () => {
+      const existing = read.result;
+      if (existing) {
+        const valid = loadRow(existing, key);
+        resolve({ status: valid.record && existing.raw === raw ? 'unchanged' : 'conflict', key });
+        return;
+      }
+      const row = { key, raw, revision: 1 };
+      const add = store.add(row);
+      add.onerror = () => reject(add.error);
+      add.onsuccess = () => {
+        const verify = store.get(key);
+        verify.onerror = () => reject(verify.error);
+        verify.onsuccess = () => {
+          if (verify.result?.raw !== raw || verify.result?.revision !== 1
+              || !loadRow(verify.result, key).record) {
+            reject(new Error('Restored IndexedDB copy could not be verified.'));
+          } else {
+            resolve({ status: 'restored', key });
+          }
+        };
+      };
+    };
+  }));
+}

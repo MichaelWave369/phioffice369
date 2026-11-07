@@ -7,6 +7,12 @@ PhiOffice369 gives builders, families, creators, students, small businesses, and
 > Internal codename: **MikeySoft Office**  
 > Public-facing name: **PhiOffice369**
 
+## Rung 10 · ΦPose Shared Host SDK
+
+PhiDeck's existing approved gesture navigation is now backed by the **portable OverStrings ΦPose Host SDK** instead of an app-specific copy of the session and envelope validator. It still accepts only next/previous slide selection, never document edits or system effects. The vendored source is pinned to an exact reviewed Git blob in a regression test, with no runtime network fetch.
+
+[Read the SDK adoption and provenance guide](docs/PHIPOSE_HOST_SDK_R10.md).
+
 ## Rung 9 · ΦPose deck navigation pilot
 
 The PhiDeck editor now offers an **off-by-default, five-minute** companion that can accept `phioffice.page.next` and `phioffice.page.previous` gesture requests from OverStrings on the same reviewed browser origin. An operator must open a deck and explicitly enable this local UI-only control. It changes **slide selection only**, never document content, saves, exports, or privileges. Synthetic input needs separate explicit opt-in; replay, stale messages, unknown actions and out-of-bounds slides are denied. Same-origin popup messaging is not authentication, and real Quest 3 multi-window use remains unverified.

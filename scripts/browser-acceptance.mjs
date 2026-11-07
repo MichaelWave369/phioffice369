@@ -21,6 +21,7 @@ const acceptanceClients = Object.freeze({
   offline: resolve('scripts/browser-acceptance-offline-client.js'),
   transactional: resolve('scripts/browser-acceptance-transactional-client.js'),
   stress: resolve('scripts/browser-acceptance-stress-client.js'),
+  'backup-idb': resolve('scripts/browser-acceptance-backup-to-indexeddb-client.js'),
   crash: resolve('scripts/browser-acceptance-crash-client.js'),
 });
 // The crash fixture needs an external driver to SIGKILL and restart one profile.

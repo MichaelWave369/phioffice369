@@ -54,9 +54,9 @@ test('captured Chrome evidence demonstrates only a bounded, approved project ref
 });
 
 test('fresh session after reconnect is mandatory', () => {
-  const next = [denial(ID2), context('project:test', ID2)];
+  const next = [denial(ID2), context('project:test', ID2), denial(ID2)];
   assert.equal(verify(next, { priorSessionId: ID1 }).sessionId, ID2);
-  assert.throws(() => verify([denial(), context('project:test')],
+  assert.throws(() => verify([denial(), context('project:test'), denial()],
     { priorSessionId: ID1 }), /replayed/);
 });
 
@@ -71,7 +71,7 @@ test('rejects wrong frame/origin/authority, mixed sessions and unexpected packet
     { ...c, keys: CONTEXT_KEYS.filter(key => key !== 'project_ref') },
     { ...c, projectRef: '/private/token' },
   ]) {
-    assert.throws(() => verify([d, invalid]), /Bridge/);
+    assert.throws(() => verify([d, invalid]), /Bridge|Unexpected/);
   }
 });
 
@@ -86,9 +86,10 @@ test('denial may never carry an identity or private fields', () => {
 
 test('fail closed on missing consent, extra contexts, incorrect order and invalid witness envelope', () => {
   assert.throws(() => verify([denial()]), /incomplete/);
-  assert.throws(() => verify([context('project:test')]), /incomplete/);
-  assert.throws(() => verify([denial(), context('project:test'), context('project:test')]), /incomplete/);
-  assert.throws(() => verify([denial(), context('project:other')]), /incomplete/);
+  assert.throws(() => verify([context('project:test')]), /Bridge/);
+  assert.throws(() => verify([context('project:test'), denial()]), /Bridge/);
+  assert.throws(() => verify([denial(), context('project:test'), context('project:test')]), /Bridge/);
+  assert.throws(() => verify([denial(), context('project:other'), denial()]), /incomplete/);
   assert.throws(() => verify(null), /input/);
   assert.throws(() => verify([denial(), context('project:test')], {
     expectedHostOrigin: 'https://example.com',

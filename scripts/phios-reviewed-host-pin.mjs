@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 
-export const REVIEWED_PHIOS_HOST_SHA = '1d0119eb8e35a542a45dec3192aa271a42e65af4';
+export const REVIEWED_PHIOS_HOST_SHA = '53ed5caa46c463a0c7385c9bb177c803fdeaaa03';
 
 /** A merged, explicitly reviewed source pin, not a publisher trust root. */
 export function requireReviewedHostSha(observed, expected = REVIEWED_PHIOS_HOST_SHA) {

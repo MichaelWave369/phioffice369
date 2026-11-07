@@ -254,3 +254,42 @@ be used as the next synthetic handoff fixture.
 The R7 test is not a test of actual PhiOS x86_64 image installation,
 native app lifecycle, Quest/browser WebXR runtime, PhiID or PhiCloud, network
 transport authentication, or production physical-device qualification.
+
+## R9: browser-rendered V2 copy and rollback acceptance
+
+The next real Chrome acceptance uses the **merged** [PhiOS #406](https://github.com/MichaelWave369/PhiOS/pull/406) source commit
+`53ed5caa46c463a0c7385c9bb177c803fdeaaa03`.
+This includes PhiOS R8's reviewed provider-qualified project identity codec
+and R9's explicit V2 copy/rollback UI, as well as the independently qualified
+native ISO download-resilience change. The exact host SHA is enforced both at
+checkout and at test-run startup. **No floating branch is accepted.**
+
+The two-app Chromium acceptance still compiles the independently checked-out
+PhiOS and PhiOffice sources on separate disposable loopback origins. With
+synthetic reviewed PhiOffice V1 project references, it now also tests the
+actual R9 UI in the built PhiOS host:
+
+- No V2 key exists after V1 import or read-only preview.
+- Cancel the *Create V2 metadata copy* confirmation; verify no write.
+- Change the V1 record after preview; approved copy refuses stale source data.
+- Re-preview and explicitly confirm; V2 contains only four approved metadata
+  fields and the right `phioffice` provider, while V1 is byte-for-byte intact.
+- A newly observed **denied** host-to-child response proves the V2 copy does
+  not grant PhiOffice access to its project reference.
+- A second copy preview refuses to overwrite an occupied V2 key.
+- Cancel the rollback confirmation; verify no deletion.
+- Change V1 after rollback review; deletion is refused. Restore the synthetic
+  V1 fixture, re-review, confirm, and verify V2 absent with V1 unchanged.
+- The original R7 origin/session/field privacy, revocation, reconnect and
+  standalone PhiOffice tests continue in the same run.
+
+On success the job prints `PHIOS_R9_BROWSER_COPY_ROLLBACK:` with bounded,
+test-only evidence and the exact merged host commit. It is evidence of this
+browser-local UI path, **not** physical disk durability, a native PhiOS
+installation, production key management, a PhiID account grant, a second
+provider admission, or any real project-file transfer.
+
+The exact V1-to-V2 schema is still intentionally **a supplemental copy**.
+PhiOS's existing V1 bridge is unchanged. A real second provider needs its own
+reviewed manifest parser, explicit target admission and independently exercised
+cross-origin permission tests, with cross-tab storage races considered separately.

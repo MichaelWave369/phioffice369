@@ -85,6 +85,15 @@ async function run() {
   assert(protectedAgain.length === 1 && protectedAgain[0].raw === copies[0].raw,
     'A later standard edit unexpectedly modified the one-time protected checkpoint');
 
+  const competingSource = JSON.stringify({ ...JSON.parse(localStorage.getItem(key)),
+    content: 'Another tab modified this source before we made a protected copy.' });
+  localStorage.setItem(key, competingSource);
+  await click('Save protected copy');
+  await waitFor(() => document.querySelector('.save-status')?.textContent.includes('changed in another tab'),
+    'stale editor copy blocked');
+  assert((await readTransactionalRows()).length === 1, 'Stale editor created a misleading new checkpoint');
+  assert(localStorage.getItem(key) === competingSource, 'Stale protected-copy action overwrote another tab');
+
   await click('Back to PhiOffice');
   await click('Vault');
   const protectedRow = await waitFor(() => [...document.querySelectorAll('.artifact-row')]

@@ -263,7 +263,9 @@ export default function PhiDeckLite({ template, onBack, initialDeck = null, load
           <p className="deck-save-status" role="status">{saveStatus}</p>
         </div>
         <div className="deck-actions">
-          <WorkspaceSaveActions save={save} saveFailed={saveFailed} onBack={onBack} />
+          <WorkspaceSaveActions save={save} saveFailed={saveFailed} onBack={onBack}
+            storageKey={storageKey} onStatus={setSaveStatus}
+            allowProtectedCopy={loaded.revision === undefined && ['saved', 'missing'].includes(loaded.state)} />
           <button type="button" onClick={resetDeck}><RotateCcw aria-hidden="true" /> Reset</button>
           <button type="button" onClick={() => importInputRef.current?.click()}><Upload aria-hidden="true" /> Import JSON</button>
           <button type="button" onClick={exportDeckJson}><Download aria-hidden="true" /> Export JSON</button>

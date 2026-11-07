@@ -45,3 +45,41 @@ The protocol remains experimental. A production embed and a reviewed
 operator connect flow are separate milestones. A public repository, Pages
 listing, or source-only application shelf grants no trust. Standalone app
 verification continues through `npm run test:browser`.
+
+## R1 operator-visible embedding pilot
+
+A disabled-by-default UI panel now exists in
+`apps/web/src/components/PhiOSWorkspaceBridgePanel.jsx`.
+It is not active in ordinary PhiOffice builds, even when opened in an iframe.
+A separate, reviewed build of PhiOffice must explicitly configure
+`VITE_PHIOS_PARENT_ORIGIN` as the **exact** origin of the PhiOS host.
+
+Local development example (two distinct origins):
+
+```sh
+# PhiShell dev server listens at http://localhost:5173
+# Start the PhiOffice dev server in a second terminal:
+VITE_PHIOS_PARENT_ORIGIN=http://localhost:5173 npm run dev -- --port 5174
+```
+
+For that same pilot, PhiShell must be built with matching independently
+configured `VITE_PHIOS_OFFICE_BRIDGE_URL=http://localhost:5174/` and
+`VITE_PHIOS_OFFICE_BRIDGE_APPROVED_ORIGIN=http://localhost:5174`.
+Neither application enables the link by default.
+
+When a reviewed PhiOS host embeds the app, the panel listens only for the
+configured exact parent origin/window source. It completes the existing
+session-bound protocol, lets a user request a project ref, shows denial or an
+opaque project reference, and allows local disconnection. This does not
+provide access to the project or its artifacts, and it never persists the
+reference in localStorage or IndexedDB.
+
+`host.revokeProject()` prevents **future** responses; a reference already
+delivered is not retrievable or deletable from the receiving process by the
+host. The reference must never be used as a credential. The operator must
+close the iframe or reload the application to establish a new consent
+session. The standalone PhiOffice editors and local files remain untouched.
+
+Run `npm test && npm run build && npm run test:browser:bridge` to verify
+the existing protocol and the default-build non-regression. A dedicated
+rendered-UI two-server acceptance is still a separate release gate.

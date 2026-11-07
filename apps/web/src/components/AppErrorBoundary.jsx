@@ -75,8 +75,8 @@ export default class AppErrorBoundary extends Component {
             <p className="eyebrow">PhiOffice369 recovery shield</p>
             <h1>PhiOffice369 encountered a problem.</h1>
             <p>
-              PhiOffice caught the crash and attempted to create an emergency local backup of PhiOffice369 browser storage.
-              No data was uploaded.
+              PhiOffice attempted an emergency backup of standard browser storage.
+              Reload the app and open PhiVault to export saved IndexedDB files.
             </p>
           </div>
 

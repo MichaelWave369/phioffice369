@@ -19,6 +19,7 @@ const acceptanceClients = Object.freeze({
   vault: resolve('scripts/browser-acceptance-vault-client.js'),
   readiness: resolve('scripts/browser-acceptance-readiness-client.js'),
   offline: resolve('scripts/browser-acceptance-offline-client.js'),
+  transactional: resolve('scripts/browser-acceptance-transactional-client.js'),
 });
 const scenarios = Object.keys(acceptanceClients);
 const base = '/phioffice369/';

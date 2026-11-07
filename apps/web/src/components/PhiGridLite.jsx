@@ -53,12 +53,12 @@ function downloadTextFile(filename, body, type) {
   URL.revokeObjectURL(url);
 }
 
-export default function PhiGridLite({ template, onBack }) {
+export default function PhiGridLite({ template, onBack, loadedFile }) {
   const importInputRef = useRef(null);
   const latestImport = useRef(0);
   const defaultColumns = useMemo(() => getColumns(template), [template]);
   const storageKey = createPhiGridStorageKey(template.id);
-  const [loaded] = useState(() => readWorkspaceRecord(storageKey));
+  const [loaded] = useState(() => loadedFile ?? readWorkspaceRecord(storageKey));
   const savedGrid = loaded.record;
   const [title, setTitle] = useState(savedGrid?.title ?? template.title);
   const [columns, setColumns] = useState(savedGrid?.columns ?? defaultColumns);
@@ -93,8 +93,8 @@ export default function PhiGridLite({ template, onBack }) {
   }), [savedGrid, template, title, columns, rows, activeLabelId, formulasEnabled, budgetMode, columnWidths]);
   const { saveStatus, setSaveStatus, saveFailed, save } = useWorkspaceDraft(storageKey, draftSnapshot, loaded);
 
-  function backToPhiOffice() {
-    if (save()) onBack();
+  async function backToPhiOffice() {
+    if (await save()) onBack();
   }
 
   const calculatedRows = useMemo(() => calculateGrid(columns, rows, formulasEnabled), [columns, rows, formulasEnabled]);

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Bot,
   CalendarCheck,
@@ -45,6 +45,8 @@ import {
   scanRecentWorkspaces,
 } from './lib/recentWorkspaces.js';
 import { readWorkspaceRecord } from './lib/workspaceRecords.js';
+import { readTransactionalDraft } from './lib/transactionalDraftStore.js';
+import { readTransactionalWorkspace } from './lib/transactionalWorkspace.js';
 import { resolveSuiteLaunch } from './lib/suiteLaunch.js';
 import { useWorkspaceAppearance } from './lib/useWorkspaceAppearance.js';
 import EcosystemConnections from './components/EcosystemConnections.jsx';
@@ -150,6 +152,7 @@ function createBridgeDeckTemplate(deckPayload) {
 export default function App() {
   const suiteSearchRef = useRef(null);
   const templateSearchRef = useRef(null);
+  const recentScan = useRef(0);
   const [launchTarget] = useState(() => resolveSuiteLaunch(window.location.search));
   const [appearance, changeAppearance] = useWorkspaceAppearance();
   const [activeTab, setActiveTab] = useState(launchTarget === 'PhiVault' ? 'Vault' : launchTarget === 'Professor Phi' ? launchTarget : 'Suite');
@@ -205,21 +208,40 @@ export default function App() {
     setActiveWorkspace({ kind: getWorkspaceKind(newTemplate), template: newTemplate });
   }
 
-  function openRecentFile(entry) {
-    if (readWorkspaceRecord(entry.key).state !== 'saved') {
-      setRecentFiles(scanRecentWorkspaces());
-      setFileNotice('That file is no longer available. Check PhiVault for recovery options.');
-      return;
+  const refreshRecentFiles = useCallback(async () => {
+    const revision = ++recentScan.current;
+    try {
+      const { files } = await readTransactionalWorkspace();
+      if (revision === recentScan.current) setRecentFiles(scanRecentWorkspaces({ transactionalFiles: files }));
+    } catch {
+      if (revision === recentScan.current) setRecentFiles(scanRecentWorkspaces());
     }
-    setFileNotice('');
-    const template = resolveRecentWorkspaceTemplate(entry);
-    setActiveWorkspace({ kind: getWorkspaceKind(template), template });
+  }, []);
+
+  useEffect(() => {
+    void refreshRecentFiles();
+  }, [refreshRecentFiles]);
+
+  async function openRecentFile(entry) {
+    const transactional = entry.revision !== undefined;
+    try {
+      const standard = readWorkspaceRecord(entry.key);
+      const loaded = transactional ? await readTransactionalDraft(entry.key) : standard;
+      if (loaded.state !== 'saved' || (transactional && standard.raw !== null)) {
+        throw new Error('File changed or is unavailable.');
+      }
+      setFileNotice('');
+      const template = resolveRecentWorkspaceTemplate(entry);
+      setActiveWorkspace({ kind: getWorkspaceKind(template), template, loadedFile: transactional ? loaded : undefined });
+    } catch {
+      void refreshRecentFiles();
+      setFileNotice('That file is no longer available. Check PhiVault for recovery options.');
+    }
   }
 
   function closeWorkspace() {
-    // Editors synchronously save before invoking onBack, so the list is current.
     setActiveWorkspace(null);
-    setRecentFiles(scanRecentWorkspaces());
+    void refreshRecentFiles();
   }
 
   function openBridgeDeck(deckPayload) {
@@ -274,10 +296,10 @@ export default function App() {
         {brandbar}
         <div id="workspace-content" tabIndex={-1}>
         {activeWorkspace.kind === 'grid'
-          ? <PhiGridLite key={activeWorkspace.template.id} template={activeWorkspace.template} onBack={closeWorkspace} />
+          ? <PhiGridLite key={activeWorkspace.template.id} template={activeWorkspace.template} loadedFile={activeWorkspace.loadedFile} onBack={closeWorkspace} />
           : activeWorkspace.kind === 'deck'
-            ? <PhiDeckLite key={activeWorkspace.template.id} template={activeWorkspace.template} initialDeck={activeWorkspace.initialDeck} onBack={closeWorkspace} />
-            : <PhiWriteLite key={activeWorkspace.template.id} template={activeWorkspace.template} onOpenDeck={openBridgeDeck} onBack={closeWorkspace} />}
+            ? <PhiDeckLite key={activeWorkspace.template.id} template={activeWorkspace.template} loadedFile={activeWorkspace.loadedFile} initialDeck={activeWorkspace.initialDeck} onBack={closeWorkspace} />
+            : <PhiWriteLite key={activeWorkspace.template.id} template={activeWorkspace.template} loadedFile={activeWorkspace.loadedFile} onOpenDeck={openBridgeDeck} onBack={closeWorkspace} />}
         </div>
         <ShortcutHelpOverlay isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
         <DataSovereigntyStatusBar refreshKey={recentFiles} />
@@ -364,7 +386,7 @@ export default function App() {
                     onClick={() => openRecentFile(file)} title={'Open ' + file.title + ' in ' + file.app}>
                     <span className="recent-file-name">{file.title}</span>
                     <span className="recent-file-meta">{file.app} · {file.updatedAt && file.sortTime
-                      ? new Date(file.sortTime).toLocaleString() : 'Local draft'} · {file.isIndependent ? 'Independent file' : 'Legacy template draft'}</span>
+                      ? new Date(file.sortTime).toLocaleString() : 'Local draft'} · {file.revision !== undefined ? 'IndexedDB revision ' + file.revision : file.isIndependent ? 'Independent file' : 'Legacy template draft'}</span>
                   </button>
                 ))}
               </div>
@@ -407,7 +429,7 @@ export default function App() {
         </section>
       )}
 
-      {activeTab === 'Vault' && <PhiVaultLite onOpenFile={openRecentFile} onFilesChanged={() => setRecentFiles(scanRecentWorkspaces())} />}
+      {activeTab === 'Vault' && <PhiVaultLite onOpenFile={openRecentFile} onFilesChanged={refreshRecentFiles} />}
 
       {activeTab === 'Trust' && (
         <section className="section-block two-column fade-in"><div className="panel"><p className="eyebrow">Trust panel v0.1</p><h2>Clear labels for human + AI work</h2><div className="label-grid interactive-labels">{trustLabels.map((item) => <button key={item.id} type="button" className={`label-chip ${selectedTrustLabel.id === item.id ? 'selected' : ''}`} onClick={() => setSelectedTrustLabel(item)}>{item.label}</button>)}</div></div><div className="panel trust-preview"><p className="eyebrow">Selected label</p><h2>{selectedTrustLabel.label}</h2><p>{selectedTrustLabel.description}</p><div className={`trust-sample ${selectedTrustLabel.tone}`}><CheckCircle2 aria-hidden="true" /><span>This artifact block is labeled: {selectedTrustLabel.label}</span></div><div className="metadata-row"><span>Publish risk: {selectedTrustLabel.publishRisk}</span></div><p className="note">The trust panel protects clarity, authorship, privacy, and public trust without shaming the user.</p></div></section>

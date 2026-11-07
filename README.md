@@ -87,25 +87,13 @@ PhiOffice369 aims to provide a free core suite with:
 - A file is saved in this browser's storage, not in an account or another device. Export from the editor and back up the full workspace in **PhiVault** before clearing browser storage.
 - This is still a prototype. New files are local-only; there is no live collaborative editing, remote sync, or fully interoperable XLSX/PPTX round trip.
 
-## Storage pilot guide
+## Storage and recovery
 
-PhiOffice369 currently keeps localStorage as the safe default. IndexedDB support is being introduced through a gated pilot path.
+Standard browser saves remain the default. To try transactional IndexedDB saves, select a saved file in **PhiVault**, choose **Create IndexedDB copy**, and open the new copy. The editor displays its committed revision. Competing edits produce a separate file in PhiVault.
 
-Read the operator guide before testing IndexedDB pilot mode:
+**Copy to standard storage** creates a new standard copy from the selected IndexedDB revision. **Backup workspace** includes both stores and restores missing files into standard storage. [Storage, recovery, and rollout limits](docs/TRANSACTIONAL_STORAGE.md).
 
-[`docs/storage-pilot-guide.md`](docs/storage-pilot-guide.md)
-
-Safe sequence:
-
-```text
-Backup workspace
-→ Plan IndexedDB migration
-→ Copy missing safely
-→ Verify copy
-→ Review readiness gate
-→ Enable IndexedDB pilot
-→ Refresh app
-```
+The existing [Vault scan pilot](docs/storage-pilot-guide.md) is a separate diagnostic path.
 
 ## MVP v0.1 target
 

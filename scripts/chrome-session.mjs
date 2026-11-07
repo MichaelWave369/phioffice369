@@ -7,7 +7,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 export async function openChromeSession(browser, profile) {
   const child = spawn(browser, [
     '--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage',
-    '--disable-extensions', '--no-first-run', '--no-default-browser-check',
+    '--disable-extensions', '--disable-popup-blocking', '--no-first-run', '--no-default-browser-check',
     '--disable-background-networking', '--disable-sync',
     '--remote-debugging-port=0', '--remote-debugging-address=127.0.0.1',
     '--user-data-dir=' + profile, 'about:blank',

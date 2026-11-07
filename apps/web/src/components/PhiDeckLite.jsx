@@ -76,14 +76,14 @@ function resolveInitialDeck(template, initialDeck, savedDeck) {
   };
 }
 
-export default function PhiDeckLite({ template, onBack, initialDeck = null }) {
+export default function PhiDeckLite({ template, onBack, initialDeck = null, loadedFile }) {
   const importInputRef = useRef(null);
   const imageInputRef = useRef(null);
   const presentButton = useRef(null);
   const latestImport = useRef(0);
   const latestImage = useRef(0);
   const storageKey = createPhiDeckStorageKey(template.id);
-  const [loaded] = useState(() => readWorkspaceRecord(storageKey));
+  const [loaded] = useState(() => loadedFile ?? readWorkspaceRecord(storageKey));
   const savedDeck = loaded.record;
   const [initialState] = useState(() => resolveInitialDeck(template, initialDeck, savedDeck));
   const [title, setTitle] = useState(initialState.title);
@@ -118,8 +118,8 @@ export default function PhiDeckLite({ template, onBack, initialDeck = null }) {
   }), [savedDeck, template, title, slides, lineage, activeLabelId]);
   const { saveStatus, setSaveStatus, saveFailed, save } = useWorkspaceDraft(storageKey, draftSnapshot, loaded);
 
-  function backToPhiOffice() {
-    if (save()) onBack();
+  async function backToPhiOffice() {
+    if (await save()) onBack();
   }
 
   function changeSlide(id, changes) {

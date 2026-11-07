@@ -28,5 +28,8 @@
     "phi369",
     "parallax"
   ],
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "fake-indexeddb": "6.2.7"
+  }
 }

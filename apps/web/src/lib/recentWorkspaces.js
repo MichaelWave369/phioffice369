@@ -32,8 +32,8 @@ export function scanRecentWorkspaces({
   storage = getBrowserLocalStorage(),
   templates = workspaceTemplates,
   trashed = false,
+  transactionalFiles = [],
 } = {}) {
-  if (!storage) return [];
   let keys = [];
   try {
     keys = listStorageKeys(storage);
@@ -41,11 +41,11 @@ export function scanRecentWorkspaces({
     return [];
   }
 
-  return keys.flatMap((key) => {
+  const storedFiles = keys.filter(workspaceTypeForKey).map((key) => ({ key, ...readWorkspaceRecord(key, storage) }));
+  return [...storedFiles, ...transactionalFiles].flatMap(({ key, record, state, revision }) => {
     const type = workspaceTypeForKey(key);
     if (!type) return [];
     const id = key.slice(type.prefix.length);
-    const { record, state } = readWorkspaceRecord(key, storage);
     if (state !== (trashed ? 'trashed' : 'saved')) return [];
     const sourceTemplateId = record.sourceTemplateId
       ?? (templates.some((template) => template.id === id) ? id : null);
@@ -59,6 +59,7 @@ export function scanRecentWorkspaces({
       updatedAt: typeof record.updatedAt === 'string' ? record.updatedAt : null,
       sortTime: validTimestamp(record.updatedAt),
       isIndependent: id.startsWith('file_'),
+      ...(revision === undefined ? {} : { revision }),
     }];
   }).sort((left, right) =>
     right.sortTime - left.sortTime || left.title.localeCompare(right.title) || left.key.localeCompare(right.key)

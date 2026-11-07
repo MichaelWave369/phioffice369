@@ -74,6 +74,18 @@ export async function openChromeSession(browser, profile) {
     });
   }
 
+  // Test-only hard termination. Unlike close(), this never sends Browser.close
+  // or pagehide, so acknowledged commits must survive a genuinely unclean exit.
+  async function forceKill() {
+    if (child.exitCode !== null || child.signalCode !== null) throw new Error('Chrome already exited.');
+    if (!child.kill('SIGKILL')) throw new Error('Could not forcibly terminate Chrome.');
+    await Promise.race([exited, sleep(7000)]);
+    if (child.exitCode === null && child.signalCode === null) {
+      throw new Error('Chrome did not exit after SIGKILL.');
+    }
+    if (socket?.readyState === WebSocket.OPEN) socket.close();
+  }
+
   async function close() {
     if (!failure && socket?.readyState === WebSocket.OPEN) {
       await Promise.race([send('Browser.close').catch(() => {}), sleep(1200)]);
@@ -96,7 +108,7 @@ export async function openChromeSession(browser, profile) {
     const { targetInfos } = await send('Target.getTargets');
     const { targetId } = targetInfos.find(({ type }) => type === 'page') ?? await send('Target.createTarget', { url: 'about:blank' });
     const { sessionId } = await send('Target.attachToTarget', { targetId, flatten: true });
-    return { call: (method, params) => send(method, params, sessionId), close, diagnostics: () => diagnostics };
+    return { call: (method, params) => send(method, params, sessionId), close, forceKill, diagnostics: () => diagnostics };
   } catch (error) {
     await close();
     throw error;

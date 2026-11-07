@@ -114,7 +114,7 @@ export class ScopedPhiPoseHost {
     try{reason=this.guard(i.action_id,context);}
     catch{return fail('context_denied');}
     if(reason!==null&&reason!==undefined&&reason!==true)
-      return fail(typeof reason==='string'&&reason.length<80?reason:'context_denied');
+      return fail(typeof reason==='string'&&reason.trim()&&reason.length<80?reason:'context_denied');
     this.lastSequence=i.sequence;
     this.lastAcceptedAt=nowMs;
     return Object.freeze({

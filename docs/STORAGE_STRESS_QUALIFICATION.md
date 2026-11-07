@@ -40,9 +40,22 @@ To run this locally after building, install Playwright version 1.56.1 without mo
 
 **Coverage boundary:** WebKit in Playwright is a useful browser-engine check, not a substitute for Safari on actual Apple hardware. Manual macOS Safari testing, real browser crashes, 500+ file loads, device-to-device downloaded backup restores and heavier slide image workloads still need separate evidence. A successful CI run must not be described as production Safari certification.
 
+## Sprint 5: downloaded backup portability (candidate)
+
+The browser-engine qualification runner additionally performs a **real downloaded-file** restore. It generates **510 synthetic** independent files (170 documents, 170 grids, 170 presentations, with PNG images on selected slides) and creates three verified IndexedDB copies in PhiVault.
+
+For each engine, the test:
+1. Opens the production build on the disposable localhost origin in a clean browser process.
+2. Exports the **actual PhiVault JSON download** to a temporary file on disk, checks that every source item and all three IndexedDB copies are present, and computes SHA-256 hashes of every original raw record.
+3. **Closes the source browser process**, opens a second completely fresh browser process and profile, and confirms the destination has no source files.
+4. Imports the saved JSON file via PhiVault's real file chooser, approves restore, verifies **513 raw file records byte-for-byte**, reloads, and reopens the copied document to check its contents.
+5. Deletes the synthetic downloaded backup file and both disposable contexts when finished.
+
+This closes the earlier **sessionStorage-only simulation gap**. It does not prove restore from a different physical device, Safari on macOS, or survival of data loss before the export was downloaded. The downloaded backup contains **unencrypted** synthetic document data. Never point the harness at your normal browser profile. The matrix may be re-run with \`npm run test:browser:engines\` after installing the pinned optional Playwright engines.
+
 ## Manual Firefox and Safari/WebKit runs
 
-Run the same built fixture on each real browser engine. The project does not currently ship a Firefox/WebKit automation dependency, so **do not report automated cross-browser PASS** on the strength of Chromium CI.
+Run the same built fixture on each real browser engine. The project ships an optional Firefox/WebKit Playwright CI matrix, but manual **macOS Safari** qualification remains separate from Linux WebKit and Chromium evidence.
 
 1. Build with npm ci --no-audit && npm run build.
 2. Start the local acceptance server in manual mode:
@@ -60,7 +73,7 @@ If a browser blocks popups, storage, service workers, or downloads, investigate 
 
 Before defaulting editor persistence to IndexedDB:
 - Repeat with 500+ mixed files and representative image-heavy presentations, respecting documented per-image and browser quota constraints.
-- Verify **actual downloaded** backups can be transferred to a clean profile on a different device and restored, not merely kept in sessionStorage during a synthetic rehearsal.
+- Extend the downloaded-file transfer test to a **different physical device** and verify identical SHA-256 record hashes there.
 - Test explicit eviction/quota scenarios separately for each browser and preserve exports of unsaved or damaged records.
 - Rehearse abrupt process termination, recovery after disk pressure, and concurrent multi-tab writes with separate profiles. A best-effort pagehide save is not crash-safe.
 - Measure backup duration, restore duration and peak storage; note failures rather than dropping records.

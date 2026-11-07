@@ -343,6 +343,9 @@ try {
   // project-ref approval is given to the iframe. Only test data are used.
   const r9Evidence = await qualifyR9BrowserRegistry({
     evaluate, waitFor, clientText, hostOrigin,
+    receivedDenials: () => evaluate(
+      'window.__phiosBridgeWitness?.filter(item => item.type === "host.denied").length || 0',
+      childContext),
     clickClientRequest: () => evaluate(clickExpression(
       '.phioffice-phios-bridge', 'Request project reference'), childContext),
   });

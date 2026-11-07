@@ -20,6 +20,7 @@ const acceptanceClients = Object.freeze({
   readiness: resolve('scripts/browser-acceptance-readiness-client.js'),
   offline: resolve('scripts/browser-acceptance-offline-client.js'),
   transactional: resolve('scripts/browser-acceptance-transactional-client.js'),
+  'protected-save': resolve('scripts/browser-acceptance-protected-save-client.js'),
   stress: resolve('scripts/browser-acceptance-stress-client.js'),
   'backup-idb': resolve('scripts/browser-acceptance-backup-to-indexeddb-client.js'),
   crash: resolve('scripts/browser-acceptance-crash-client.js'),

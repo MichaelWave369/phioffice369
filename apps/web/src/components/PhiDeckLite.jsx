@@ -5,6 +5,7 @@ import { deckMediaSize, deckSchemaForSlides, DECK_LAYOUTS, DECK_LIMITS, DECK_SHA
 import { buildDeckHtml } from '../lib/deckHtml.js';
 import DeckSlide from './DeckSlide.jsx';
 import DeckPresentation from './DeckPresentation.jsx';
+import PhiPoseDeckCompanion from './PhiPoseDeckCompanion.jsx';
 import { parsePhiDeckJsonImport } from '../lib/localImporters.js';
 import { recordLocalExport } from '../lib/localReceipts.js';
 import { getTransformIds } from '../lib/transformRegistry.js';
@@ -275,6 +276,12 @@ export default function PhiDeckLite({ template, onBack, initialDeck = null, load
         </div>
       </div>
 
+      <PhiPoseDeckCompanion
+        slides={slides}
+        activeSlideId={activeSlideId}
+        onSelectSlide={setActiveSlideId}
+        presenting={presenting}
+      />
       {pendingImport && (
         <section className="panel deck-import-review" aria-label="Deck import review">
           <h3>Review before replacing this deck</h3>

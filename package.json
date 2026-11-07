@@ -11,7 +11,8 @@
     "smoke:pages": "node scripts/smoke-pages-build.mjs",
     "test:browser": "node --experimental-websocket scripts/browser-acceptance.mjs",
     "test:browser:bridge": "node --experimental-websocket scripts/phios-bridge-browser.mjs",
-    "test:browser:engines": "node scripts/browser-storage-engines.mjs"
+    "test:browser:engines": "node scripts/browser-storage-engines.mjs",
+    "test:browser:bridge:ui": "node --experimental-websocket scripts/phios-bridge-rendered-browser.mjs"
   },
   "workspaces": [
     "apps/web",

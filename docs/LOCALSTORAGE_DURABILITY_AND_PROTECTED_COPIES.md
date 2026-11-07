@@ -22,7 +22,9 @@ After a production build, run:
 
     npm run test:browser:localstorage-probe
 
-The probe runs only on freshly created disposable Chrome profiles and a loopback server. It uses a stable origin for writing and reopening data, checks both a synthetic PhiWrite record and a separate control key, and compares SHA-256 hashes of exact source bytes. It tests six independent profile lifecycles: immediate and delayed graceful close, immediate and delayed SIGKILL, and a pagehide/navigation variant followed by SIGKILL.
+The probe runs only on freshly created disposable Chrome profiles and a loopback server. It uses a stable origin for writing and reopening data, checks both a synthetic PhiWrite record and a separate control key, and compares SHA-256 hashes of exact source bytes. It tests seven independent profile lifecycles: immediate, two-second and five-second graceful close; immediate, two-second and five-second SIGKILL; plus a pagehide/navigation variant followed by SIGKILL.
+
+A first GitHub CI diagnostic with Chrome 156 showed loss of both the PhiOffice file and the unrelated control value after immediate and two-second graceful closes, immediate and two-second kills, and pagehide-then-kill. Both survived a five-second delay before SIGKILL. Those observations are **specific to this headless Linux test environment**. A five-second graceful-close control was added to distinguish shutdown effects. No root cause or universal browser guarantee has been established. See [Issue #54](https://github.com/MichaelWave369/phioffice369/issues/54).
 
 Each trial prints either **PERSISTED** or **OBSERVED LOSS**. A machine-readable `LOCALSTORAGE_DURABILITY_PROBE` JSON line records Chrome version, delay, origin, exact hash comparison, and whether control and document values survived. A **green diagnostic job means the test was executed**, not that every localStorage case was persistent.
 

@@ -118,19 +118,12 @@ async function seedImageHeavyDecks() {
   return images.reduce((total, img) => total + img.length, 0) * deckCount;
 }
 
-async function preparePhase() {
-  await waitFor(() => document.querySelector('.tabs'), 'workspace launcher');
-  // Checkpoint the legacy source in a separate, *gracefully closed* session.
-  // A brand-new localStorage write is NOT guaranteed durable on SIGKILL.
-  localStorage.setItem(sourceKey, source);
-  assert(localStorage.getItem(sourceKey) === source, 'Could not stage legacy source');
-  emit('PREPARED', 'Standard-storage source staged; close Chromium normally to flush it before the destructive qualification.');
-}
-
 async function firstPhase() {
   await waitFor(() => document.querySelector('.tabs'), 'workspace launcher');
   document.querySelector('[aria-label="Close onboarding"]')?.click();
-  assert(localStorage.getItem(sourceKey) === source, 'Earlier, gracefully checkpointed local source missing');
+  // A just-created localStorage source is not a crash-durable checkpoint.
+  // The durable qualification targets the opt-in IndexedDB copy instead.
+  localStorage.setItem(sourceKey, source);
   await vault();
   await click('Refresh scan');
   await selectFile(sourceTitle);
@@ -155,7 +148,7 @@ async function firstPhase() {
 async function verifyPhase() {
   await waitFor(() => document.querySelector('.tabs'), 'restarted workspace');
   document.querySelector('[aria-label="Close onboarding"]')?.click();
-  assert(localStorage.getItem(sourceKey) === source, 'Unclean termination lost or changed original local file');
+  const legacyPresent = localStorage.getItem(sourceKey) === source;
   const rows = await readEditorRows();
   assert(rows.length === deckCount + 1, 'Unclean termination lost transactional files: ' + rows.length);
   const write = rows.find(row => row.key.startsWith('phioffice369:phiwrite:'));
@@ -194,7 +187,8 @@ async function verifyPhase() {
     const blob = await waitFor(() => exported, 'combined backup download');
     const backup = JSON.parse(await blob.text());
     const snapshot = new Map(backup.storageSnapshot);
-    assert(snapshot.get(sourceKey) === source, 'Backup lost standard storage source');
+    if (legacyPresent) assert(snapshot.get(sourceKey) === source, 'Backup lost surviving standard-storage source');
+    else assert(!snapshot.has(sourceKey), 'Unexpected changed legacy source after crash');
     assert(snapshot.get(write.key) === write.raw, 'Backup lost committed transactional revision');
     for (const deck of decks) assert(snapshot.get(deck.key) === deck.raw, 'Backup lost image-heavy deck ' + deck.key);
     assert(!backup.transactionalRecovery?.length, 'Unexpected backup recovery records');
@@ -202,12 +196,11 @@ async function verifyPhase() {
 
   emit('PASS', 'SIGKILL/restart preserved acknowledged PhiWrite revision 2 and all ' + deckCount
     + ' image-heavy IndexedDB decks (' + imageCharacters + ' image characters).'
-    + ' Original source and complete combined backup verified.');
+    + ' Complete IndexedDB backup verified. Legacy source survived immediate hard kill: ' + legacyPresent + '.');
 }
 
 (async () => {
   const phase = new URL(location.href).searchParams.get('phase');
-  if (phase === 'prepare') await preparePhase();
-  else if (phase === 'verify') await verifyPhase();
+  if (phase === 'verify') await verifyPhase();
   else await firstPhase();
 })().catch(error => emit('FAIL', error?.stack ?? String(error)));

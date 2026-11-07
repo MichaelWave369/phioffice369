@@ -2,6 +2,7 @@ import {useEffect,useRef,useState} from 'react';
 import {
   PhiPoseEditorHost,PHIPOSE_EDITOR_PROTOCOL,phiPoseOpenerMatches
 } from '../lib/phiPoseEditorHost.js';
+import './PhiPoseEditorCompanion.css';
 
 /**
  * Rung 11: common consent panel for real, non-destructive editor navigation.

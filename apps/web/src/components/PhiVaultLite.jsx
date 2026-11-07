@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ClipboardCopy, Database, Download, FolderLock, RefreshCw, Search, ShieldCheck, Sparkles, Upload, X } from 'lucide-react';
 import { createProjectManifest } from '@phioffice369/core';
-import { createCompleteWorkspaceBackup, readTransactionalWorkspace, restoreCompleteWorkspaceBackup } from '../lib/transactionalWorkspace.js';
+import { createCompleteWorkspaceBackup, readTransactionalWorkspace, restoreCompleteWorkspaceBackup, restoreBackupFileCopiesToIndexedDb } from '../lib/transactionalWorkspace.js';
 import { isIndexedDbAvailable } from '../lib/indexedDbStorageAdapter.js';
 import { normalizeProjectFolder, parseTagInput, writeArtifactMetadata } from '../lib/localArtifactMetadata.js';
 import {
@@ -438,6 +438,26 @@ export default function PhiVaultLite({ onOpenFile, onFilesChanged }) {
       if (result.ok) clearImportPreview();
     } catch {
       setStatus('Restore could not verify existing IndexedDB files. Retry with browser storage available.');
+    } finally {
+      setFileActionPending(false);
+    }
+  }
+
+  async function restoreBackupCopiesToIndexedDb() {
+    if (!importedBackup || fileActionPending) return;
+    setFileActionPending(true);
+    try {
+      const result = await restoreBackupFileCopiesToIndexedDb(importedBackup);
+      await refreshFiles();
+      const summary = 'IndexedDB file copies: ' + result.restored + ' created, '
+        + result.unchanged + ' already present, ' + result.conflicts
+        + ' collisions preserved. ' + result.ignored
+        + ' metadata, receipts or settings not imported by this option.';
+      setStatus(result.ok ? summary : (result.reason + ' ' + summary));
+      // Keep the backup preview so a partial restore is always retriable.
+    } catch (error) {
+      setStatus('IndexedDB file recovery could not complete. No existing files were overwritten. '
+        + (error?.message ?? 'You can retry the same backup.'));
     } finally {
       setFileActionPending(false);
     }
@@ -880,8 +900,10 @@ export default function PhiVaultLite({ onOpenFile, onFilesChanged }) {
               <code>{importedBackup.schema}</code>
               <span>{importedBackup.storageSnapshot.length} local items</span>
               <p>Restore adds missing files and metadata to standard storage. Existing keys are kept across both stores.</p>
+              <p>For large backups, create separate, independently revisioned IndexedDB file copies instead. Original keys and existing files are preserved. This option does not import tags, receipts or settings.</p>
               {Array.isArray(importedBackup.transactionalRecovery) && importedBackup.transactionalRecovery.length > 0 && <p>This backup also contains records for manual recovery.</p>}
               <button type="button" disabled={fileActionPending} onClick={restoreImportedBackup}>Restore missing items</button>
+              <button type="button" disabled={fileActionPending || !isIndexedDbAvailable()} onClick={restoreBackupCopiesToIndexedDb}>Recover file copies to IndexedDB</button>
               <button type="button" disabled={fileActionPending} onClick={() => { clearImportPreview(); setStatus('Backup restore cancelled.'); }}>Cancel restore</button>
             </div>
           )}

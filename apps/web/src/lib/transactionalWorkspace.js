@@ -1,7 +1,9 @@
 import { getBrowserLocalStorage, readStorageValue } from './workspaceStorageAccess.js';
 import { storedDraftToArtifact } from './localArtifactRegistry.js';
-import { listTransactionalDrafts } from './transactionalDraftStore.js';
+import { listTransactionalDrafts, restoreTransactionalDraftRaw } from './transactionalDraftStore.js';
 import { createWorkspaceBackupPayload, restoreWorkspaceBackupPayload } from './emergencyBackups.js';
+import { validateWorkspaceBackupImport } from './vaultImportValidation.js';
+import { workspaceTypeForKey } from './workspaceRecords.js';
 
 export async function readTransactionalWorkspace(storage = getBrowserLocalStorage()) {
   const files = [];
@@ -48,4 +50,50 @@ export async function restoreCompleteWorkspaceBackup(payload, storage = getBrows
     setItem: (key, value) => storage.setItem(key, value),
   };
   return restoreWorkspaceBackupPayload(payload, guardedStorage);
+}
+
+
+// Explicit recovery route for backups too large for standard browser storage. Each
+// file gets a stable, content-addressed new transactional key; source keys,
+// occupied keys, metadata, and non-file records are never modified.
+export async function restoreBackupFileCopiesToIndexedDb(payload, {
+  storage = getBrowserLocalStorage(), environment = globalThis,
+} = {}) {
+  const result = { ok: false, restored: 0, unchanged: 0, conflicts: 0, ignored: 0, reason: null };
+  const validation = validateWorkspaceBackupImport(payload);
+  if (!validation.ok) {
+    result.reason = validation.errors[0] ?? 'Backup validation failed.';
+    return result;
+  }
+  if (!storage?.getItem || !environment.indexedDB || !environment.crypto?.subtle && !globalThis.crypto?.subtle) {
+    result.reason = 'Standard browser storage, IndexedDB and WebCrypto are required to safely recover file copies.';
+    return result;
+  }
+  const cryptoApi = environment.crypto?.subtle ? environment.crypto : globalThis.crypto;
+  const encoder = new TextEncoder();
+  const files = payload.storageSnapshot.filter(([key]) => workspaceTypeForKey(key));
+  result.ignored = payload.storageSnapshot.length - files.length;
+  try {
+    for (const [sourceKey, raw] of files) {
+      const type = workspaceTypeForKey(sourceKey);
+      const bytes = encoder.encode(sourceKey + '\0' + raw);
+      const hash = Array.from(new Uint8Array(await cryptoApi.subtle.digest('SHA-256', bytes)),
+        (byte) => byte.toString(16).padStart(2, '0')).join('');
+      const targetKey = type.prefix + 'file_tx_restore_' + hash;
+      // The two browser stores cannot participate in one atomic transaction.
+      // Refuse any target key already occupied in standard storage.
+      if (storage.getItem(targetKey) !== null) {
+        result.conflicts += 1;
+        continue;
+      }
+      const outcome = await restoreTransactionalDraftRaw(targetKey, raw, environment);
+      result[outcome.status === 'restored' ? 'restored'
+        : outcome.status === 'unchanged' ? 'unchanged' : 'conflicts'] += 1;
+    }
+    result.ok = true;
+  } catch (error) {
+    result.reason = 'IndexedDB recovery was interrupted (' + (error?.name ?? 'StorageError')
+      + '). Earlier verified copies remain available; retry the same backup to resume.';
+  }
+  return result;
 }

@@ -71,6 +71,20 @@ try {
       assert.equal(status, 'PASS', engine + ' fixture failure: ' + details);
       console.log('PASS ' + engine + ' ' + browser.version() + ': ' + details);
       await context.close();
+      context = await browser.newContext({ acceptDownloads: true });
+      const recoveryPage = await context.newPage();
+      await recoveryPage.goto(url.replace('?scenario=stress', '?scenario=backup-idb'), {
+        waitUntil: 'domcontentloaded', timeout: 30000,
+      });
+      await recoveryPage.waitForFunction(
+        () => ['PASS', 'FAIL'].includes(document.documentElement.dataset.phiAcceptance),
+        undefined, { polling: 200, timeout: 120000 },
+      );
+      const recoveryStatus = await recoveryPage.locator('html').getAttribute('data-phi-acceptance');
+      const recoveryDetail = await recoveryPage.locator('#phi-browser-acceptance-result').innerText();
+      assert.equal(recoveryStatus, 'PASS', engine + ' recovery under quota: ' + recoveryDetail);
+      console.log('PASS ' + engine + ' IndexedDB-only backup restore: ' + recoveryDetail);
+      await context.close();
       context = null;
       await browser.close();
       browser = null;

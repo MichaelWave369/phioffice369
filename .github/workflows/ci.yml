@@ -71,7 +71,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: MichaelWave369/PhiOS
-          ref: 101dfa061881912608625df6adf941eb560f1964
+          ref: 2f4d024e00e67ebf3eadfe1da469a817d132c854
           path: .interop/phios
           persist-credentials: false
 

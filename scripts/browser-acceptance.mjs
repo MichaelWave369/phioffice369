@@ -20,6 +20,7 @@ const acceptanceClients = Object.freeze({
   readiness: resolve('scripts/browser-acceptance-readiness-client.js'),
   offline: resolve('scripts/browser-acceptance-offline-client.js'),
   transactional: resolve('scripts/browser-acceptance-transactional-client.js'),
+  stress: resolve('scripts/browser-acceptance-stress-client.js'),
 });
 const scenarios = Object.keys(acceptanceClients);
 const base = '/phioffice369/';
@@ -110,7 +111,8 @@ async function serve(request, response) {
 }
 
 await stat(indexFile); // Fail before opening the browser if npm run build was skipped.
-const browser = findChrome();
+const manual = process.env.PHI_BROWSER_MANUAL === '1';
+const browser = manual ? null : findChrome();
 const server = createServer((request, response) => {
   void serve(request, response);
 });
@@ -119,8 +121,16 @@ try {
   await new Promise((resolveReady) => server.listen(0, '127.0.0.1', resolveReady));
   const address = server.address();
   const url = 'http://127.0.0.1:' + address.port + base;
-  console.log('PhiOffice369 browser acceptance (disposable local profile) using: ' + browser);
-  for (const scenario of scenarios) {
+  if (manual) {
+    console.log('Manual browser acceptance URL: ' + url + '?scenario=stress');
+    console.log('Open in a disposable Firefox or Safari profile. Look for data-phi-acceptance="PASS" and a visible result. Ctrl+C to stop.');
+    await new Promise((resolveStop) => {
+      process.once('SIGINT', resolveStop);
+      process.once('SIGTERM', resolveStop);
+    });
+  } else {
+    console.log('PhiOffice369 browser acceptance (disposable local profile) using: ' + browser);
+    for (const scenario of scenarios) {
     const profile = await mkdtemp(join(tmpdir(), 'phioffice369-' + scenario + '-'));
     try {
       const result = await runChromeOnWallClock(browser, url + '?scenario=' + scenario, profile, { mobile: scenario === 'offline' });
@@ -136,6 +146,7 @@ try {
     } finally {
       await rm(profile, { recursive: true, force: true });
     }
+  }
   }
 } finally {
   await new Promise((resolveClose) => server.close(resolveClose));

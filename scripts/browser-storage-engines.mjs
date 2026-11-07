@@ -4,6 +4,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
+import { runPortableBackupQualification } from './browser-portable-backup.mjs';
 
 const allowed = new Set(['firefox', 'webkit']);
 const engines = process.argv.slice(2).length ? process.argv.slice(2) : ['firefox', 'webkit'];
@@ -69,6 +70,11 @@ try {
       const details = await page.locator('#phi-browser-acceptance-result').innerText();
       assert.equal(status, 'PASS', engine + ' fixture failure: ' + details);
       console.log('PASS ' + engine + ' ' + browser.version() + ': ' + details);
+      await context.close();
+      context = null;
+      await browser.close();
+      browser = null;
+      await runPortableBackupQualification(playwright[engine], url, engine);
     } catch (error) {
       throw new Error(engine + ' did not qualify: ' + error.message
         + (pageErrors.length ? '\nBrowser errors:\n' + pageErrors.join('\n') : ''));

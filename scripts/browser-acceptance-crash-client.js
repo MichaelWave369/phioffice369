@@ -118,10 +118,19 @@ async function seedImageHeavyDecks() {
   return images.reduce((total, img) => total + img.length, 0) * deckCount;
 }
 
+async function preparePhase() {
+  await waitFor(() => document.querySelector('.tabs'), 'workspace launcher');
+  // Checkpoint the legacy source in a separate, *gracefully closed* session.
+  // A brand-new localStorage write is NOT guaranteed durable on SIGKILL.
+  localStorage.setItem(sourceKey, source);
+  assert(localStorage.getItem(sourceKey) === source, 'Could not stage legacy source');
+  emit('PREPARED', 'Standard-storage source staged; close Chromium normally to flush it before the destructive qualification.');
+}
+
 async function firstPhase() {
   await waitFor(() => document.querySelector('.tabs'), 'workspace launcher');
   document.querySelector('[aria-label="Close onboarding"]')?.click();
-  localStorage.setItem(sourceKey, source);
+  assert(localStorage.getItem(sourceKey) === source, 'Earlier, gracefully checkpointed local source missing');
   await vault();
   await click('Refresh scan');
   await selectFile(sourceTitle);
@@ -197,6 +206,8 @@ async function verifyPhase() {
 }
 
 (async () => {
-  if (new URL(location.href).searchParams.get('phase') === 'verify') await verifyPhase();
+  const phase = new URL(location.href).searchParams.get('phase');
+  if (phase === 'prepare') await preparePhase();
+  else if (phase === 'verify') await verifyPhase();
   else await firstPhase();
 })().catch(error => emit('FAIL', error?.stack ?? String(error)));

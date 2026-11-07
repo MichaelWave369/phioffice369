@@ -82,6 +82,7 @@ async function loadApp(session, url) {
 
 const rows = [];
 let graceLost = false;
+let gracefulFallbacks = 0;
 try {
   const url = await ready;
   for (const trial of trials) {
@@ -111,8 +112,10 @@ try {
         await first.call('Page.navigate', { url: 'about:blank' });
         await sleep(500);
       }
-      if (trial.mode === 'grace') await first.close();
-      else await first.forceKill();
+      const shutdown = trial.mode === 'grace'
+        ? await first.close()
+        : (await first.forceKill(), { exitKind: 'sigkill', forced: true });
+      if (trial.mode === 'grace' && shutdown.forced) gracefulFallbacks += 1;
       first = null;
       await rm(join(profile, 'DevToolsActivePort'), { force: true });
       second = await openChromeSession(browser, profile);
@@ -122,14 +125,16 @@ try {
         + JSON.stringify(key) + '),control:localStorage.getItem(' + JSON.stringify(controlKey) + ')})');
       const row = {
         trial: trial.id, mode: trial.mode, delayMs: trial.ms, origin: afterOrigin,
+        processExitKind: shutdown.exitKind, processExitForced: shutdown.forced,
         rawBeforeSha256: digest(raw), rawAfterSha256: digest(seen.file),
         filePersisted: seen.file === raw, controlPersisted: seen.control === 'control:' + trial.id,
       };
       rows.push(row);
-      if (trial.mode === 'grace' && (!row.filePersisted || !row.controlPersisted)) graceLost = true;
+      if (trial.mode === 'grace' && !shutdown.forced
+        && (!row.filePersisted || !row.controlPersisted)) graceLost = true;
       console.log((row.filePersisted && row.controlPersisted ? 'PERSISTED' : 'OBSERVED LOSS') + ': '
         + trial.id + ', saved file=' + row.filePersisted + ', control=' + row.controlPersisted
-        + ', origin=' + row.origin);
+        + ', exit=' + row.processExitKind + ', origin=' + row.origin);
     } finally {
       await first?.close().catch(() => {});
       await second?.close().catch(() => {});
@@ -139,9 +144,11 @@ try {
   console.log('LOCALSTORAGE_DURABILITY_PROBE=' + JSON.stringify({
     schema: 'phioffice369.localstorage_durability_probe.v1',
     browserVersion: version, rows, gracefulBaselineLoss: graceLost,
+    gracefulFallbackCount: gracefulFallbacks,
     verdict: 'Diagnostic only; successful test execution does not certify localStorage durability',
   }));
-  if (graceLost) console.warn('UNRESOLVED: Graceful-close baseline did not preserve data. Investigate profile and browser flushing.');
+  if (graceLost) console.warn('UNRESOLVED: A fully graceful Chrome exit lost localStorage data. Confirm on additional OS/browser configurations.');
+  if (gracefulFallbacks) console.warn('INCONCLUSIVE: Some requested Browser.close calls needed forced termination. Do not label those rows graceful.');
 } finally {
   if (!serverClosed) {
     child.kill('SIGINT');

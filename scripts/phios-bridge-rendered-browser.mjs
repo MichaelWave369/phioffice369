@@ -9,6 +9,8 @@ import { tmpdir } from 'node:os';
 import { extname, join, resolve, sep } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { openChromeSession } from './chrome-session.mjs';
+import { verifyReviewedHostCheckout } from './phios-reviewed-host-pin.mjs';
+import { witnessInstallExpression, verifyWireObservations } from './phios-bridge-wire-evidence.mjs';
 
 const officeDir = resolve('.');
 const phiShellDir = resolve('.interop/phios/phishell');
@@ -151,6 +153,9 @@ function importReferenceBundleExpression(entries, extraFields = {}) {
     + '})()';
 }
 
+// Fail before building either app if the independently checked-out PhiOS
+// source differs from the reviewed, *merged* PR #402 commit.
+verifyReviewedHostCheckout(resolve('.interop/phios'));
 const chrome = findBrowser();
 const hostServer = staticServer(hostDist, '/');
 const officeServer = staticServer(officeDist, '/phioffice369/');
@@ -236,6 +241,8 @@ try {
       throw new Error(error.message + '; child=' + childStatus.slice(0, 300)
         + '; host=' + hostStatus.slice(0, 300));
     });
+  assert.equal(await evaluate(witnessInstallExpression(), childContext), true,
+    'A fresh child context must install the bounded wire observer before context requests');
 
   assert.equal(await evaluate(clickExpression('.phioffice-phios-bridge',
     'Request project reference'), childContext), 'clicked');
@@ -368,6 +375,13 @@ try {
     (await clientText()).includes('Project request denied; operator approval required'));
   assert.ok(!(await clientText()).includes('project:second-project'),
     'Revocation result clears stale project display in PhiOffice');
+  const firstWire = verifyWireObservations(
+    await evaluate('window.__phiosBridgeWitness', childContext), {
+      expectedHostOrigin: hostOrigin,
+      expectedRefs: ['project:qa-browser-case', 'project:second-project'],
+      requireDenied: 3,
+    },
+  );
 
   assert.equal(await evaluate(clickExpression('.phios-bridge-pilot', 'Disconnect')),
     'clicked');
@@ -386,6 +400,8 @@ try {
   }));
   await waitFor('fresh child connection without saved authority', async () =>
     (await clientText()).includes('Connected; project access is not yet approved'));
+  assert.equal(await evaluate(witnessInstallExpression(), childContext), true,
+    'Reconnect must install a new, isolated wire observer');
 
   const savedPickExpression = '(() => {'
     + 'const sel = document.querySelector('
@@ -431,6 +447,16 @@ try {
     (await clientText()).includes('Project request denied; operator approval required'));
   assert.ok(!(await clientText()).includes('project:qa-browser-case'),
     'Forget must revoke future reads and clear stale client display');
+  const secondWire = verifyWireObservations(
+    await evaluate('window.__phiosBridgeWitness', childContext), {
+      expectedHostOrigin: hostOrigin,
+      expectedRefs: ['project:qa-browser-case'],
+      priorSessionId: firstWire.sessionId,
+      requireDenied: 2,
+    },
+  );
+  assert.equal(firstWire.executionAuthority, false);
+  assert.equal(secondWire.executionAuthority, false);
 
   await call('Page.navigate', { url: officeOrigin + '/phioffice369/' });
   await waitFor('standalone PhiOffice suite available', () =>
@@ -440,6 +466,7 @@ try {
 
   console.log('PASS: compiled PhiOS + PhiOffice real Chrome UI bridge acceptance');
   console.log('PASS: reviewed adapter catalog, forged-source denial, portable import, fresh consent, standalone');
+  console.log('PASS: merged PhiOS #402 host pin, actual postMessage field allowlist, default denial and new-session identity');
 } finally {
   await browserSession?.close();
   await Promise.all([hostServer, officeServer].map((server) =>

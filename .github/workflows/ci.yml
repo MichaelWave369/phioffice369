@@ -53,6 +53,10 @@ jobs:
         timeout-minutes: 5
         run: npm run test:browser:crash
 
+      - name: Characterize browser storage persistence on clean and hard restarts
+        timeout-minutes: 6
+        run: npm run test:browser:localstorage-probe
+
   browser-bridge-ui:
     runs-on: ubuntu-latest
     permissions:

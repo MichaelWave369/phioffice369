@@ -250,7 +250,7 @@ try {
     'Approve selected project ref')), 'clicked');
   assert.equal(await evaluate(clickExpression('.phioffice-phios-bridge',
     'Request project reference'), childContext), 'clicked');
-  await waitFor('approved selected project reference', async ()
+  await waitFor('approved selected project reference', async () =>
     (await clientText()).includes('Received project ID: project:qa-browser-case'));
   for (const secret of ['Browser QA Project', 'private-user@local.invalid',
     'private-secret-tag', '/sensitive/test/document.docx', 'secret local file']) {

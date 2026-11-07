@@ -87,8 +87,8 @@ rendered-UI two-server acceptance is still a separate release gate.
 ## R2 rendered two-app browser acceptance
 
 The `browser-bridge-ui` GitHub CI job checks out the reviewed PhiOS host
-**at the exact pinned merge commit**
-`2ab25018bff05b6537b5b649c74469abd219add8`. It installs both
+**at an exact pinned, review-required PhiOS PR #398 commit**
+`cd04250aa8694ec1918c11c4c40feac6caceecaf`. It installs both
 applications from their respective lockfiles and compiles each with
 ephemeral loopback origins.
 

@@ -53,7 +53,7 @@ export async function restoreCompleteWorkspaceBackup(payload, storage = getBrows
 }
 
 
-// Explicit recovery route for backups too large for standard localStorage. Each
+// Explicit recovery route for backups too large for standard browser storage. Each
 // file gets a stable, content-addressed new transactional key; source keys,
 // occupied keys, metadata, and non-file records are never modified.
 export async function restoreBackupFileCopiesToIndexedDb(payload, {
@@ -66,7 +66,7 @@ export async function restoreBackupFileCopiesToIndexedDb(payload, {
     return result;
   }
   if (!storage?.getItem || !environment.indexedDB || !environment.crypto?.subtle && !globalThis.crypto?.subtle) {
-    result.reason = 'Browser localStorage, IndexedDB and WebCrypto are required to safely recover file copies.';
+    result.reason = 'Standard browser storage, IndexedDB and WebCrypto are required to safely recover file copies.';
     return result;
   }
   const cryptoApi = environment.crypto?.subtle ? environment.crypto : globalThis.crypto;

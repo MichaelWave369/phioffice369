@@ -58,7 +58,7 @@ async function openVault(page) {
 }
 async function selectFile(page, title) {
   await openVault(page);
-  await page.locator('.artifact-row h3').filter({ hasText: new RegExp('^' + title + '$') })
+  await page.locator('.artifact-row').getByRole('heading', { name: title, exact: true })
     .first().click({ timeout: 30000 });
   await page.locator('.artifact-detail-drawer').waitFor();
 }

@@ -17,7 +17,7 @@ test('vendor SDK matches reviewed OverStrings Git blob snapshot byte-for-byte',(
     Buffer.from('blob '+bytes.length+'\0','utf8'),bytes
   ]);
   const blobSha=createHash('sha1').update(gitObject).digest('hex');
-  assert.equal(blobSha,'70bf6014f7b69ec0efcf5289687e3cac01f648bc');
+  assert.equal(blobSha,'46d852582327d38966fdb01aace666bd3f9cd9cd');
   assert.equal(PHIPOSE_HOST_SDK_VERSION,'phipose.host-sdk.v0.1');
 });
 

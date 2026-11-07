@@ -24,6 +24,6 @@ The current backup upload accepts JSON files smaller than 32 MiB. This feature d
 
 tests/backup-to-indexeddb.test.js verifies quota-blocked standard storage, accurate file bytes, idempotent replay, interrupted IndexedDB writes and safe retry, occupied key handling, and whole-backup rejection for invalid or external keys.
 
-The built Chromium acceptance scenario backup-idb imports a synthetic 126-file backup (120 text files and 6 PNG-bearing decks with 60 slide images) through the actual PhiVault UI while localStorage writes throw a quota error. It checks exact file bytes, no standard-store modifications, idempotent repeat import and opening a restored document.
+The built browser acceptance scenario backup-idb imports a synthetic 126-file backup (120 text files and 6 PNG-bearing decks with 60 slide images) through the actual PhiVault UI while standard browser storage writes throw a quota error. It checks exact file bytes, no standard-store modifications, idempotent repeat import and opening a restored document. Chromium runs it in the standard acceptance suite; Firefox and WebKit run it as part of the separate browser-engine matrix.
 
 **Release discipline:** standard storage remains the default for editors. Review and verify backup recovery tests and other cross-engine storage qualifications before expanding the pilot. The browser's IndexedDB transaction completion does not promise survival of every pending edit after an immediate hard crash.

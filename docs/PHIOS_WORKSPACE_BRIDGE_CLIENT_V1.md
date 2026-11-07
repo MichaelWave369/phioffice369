@@ -134,3 +134,29 @@ The manifest is a **local selection aid**, not proof of ownership, project
 registry membership, secure identity, or permission to read project data.
 The host never sends manifest contents or files. The UI pilot remains
 disabled without an independently reviewed configured origin.
+
+## R4 browser-local project registry: remembered metadata, never saved consent
+
+The real two-app Chrome acceptance now pins PhiOS local project registry R1,
+currently proposed as [PhiOS PR #400](https://github.com/MichaelWave369/PhiOS/pull/400),
+at commit `101dfa061881912608625df6adf941eb560f1964`.
+It is still an explicitly configured, reviewed, cross-origin browser pilot
+rather than a public deployment.
+
+The fixture chooses a test-only local manifest, verifies its reference
+is **not** stored automatically, and explicitly clicks
+**Remember this project on device**. It inspects the browser's
+`phios.project-registry.v1` key to confirm it contains only
+`projectRef`, `title`, and `source` with a versioned format.
+No owner, tags, artifact paths, manifest contents or grants may appear.
+
+The test then disconnects and reconnects the real iframe, explicitly chooses
+the remembered project, and verifies a new request is **denied** until
+a fresh host approval. It tests that explicit **Forget saved project** deletes
+the stored reference and revokes future requests. It retains standalone
+PhiOffice and earlier denial/replacement/privacy checks.
+
+**Important:** This is browser-origin-local project metadata, not a shared
+project database, live application context, authenticated PhiID identity,
+PhiCloud sync, or a document access grant. Any future shared registry must
+have its own reviewable permission model and per-operation authorization.

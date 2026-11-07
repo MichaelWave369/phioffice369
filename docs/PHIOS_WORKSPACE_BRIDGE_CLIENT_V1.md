@@ -203,3 +203,54 @@ A reviewed adapter is a source-format and target compatibility declaration,
 not authentication, ownership attestation or access permission. No other
 PhiOS app is registered here; no cloud project or file data travels over
 the browser bridge.
+
+## R7: merged-host, wire-observed browser acceptance
+
+The two-app Chromium acceptance is now explicitly bound to the **merged**
+[PhiOS PR #402](https://github.com/MichaelWave369/PhiOS/pull/402) commit
+`1d0119eb8e35a542a45dec3192aa271a42e65af4`, rather than the PR's
+pre-merge candidate. The CI checkout and the executable local browser runner
+share an exact source-SHA contract. A changed checkout fails before either
+application is built, and no floating branch, network bootstrap or downloaded
+descriptor may silently replace it.
+
+The rendered Chrome acceptance continues to build both app clients from their
+own lockfiles and serve them on independent random **127.0.0.1 origins**.
+After a real cross-frame handshake, the test installs a *test-only listener in
+the child browser context* and checks the actual received `postMessage`
+envelopes (not just the visible status text):
+
+- A default-denied request must precede the first successful project ref.
+- Each `host.context` has exactly the protocol, type, app ID, session ID,
+  request ID, `execution_authority: false`, and one opaque `project_ref`.
+  It cannot include a document body, file path, title, owner, credential, token,
+  grant, or unreviewed application data.
+- Each `host.denied` carries only protocol-bound reason metadata, with no
+  project ref. The last request after **Revoke** must be denied.
+- After disconnect/reconnect, the host must issue a **different session**,
+  a remembered reference still needs fresh approval, and **Forget** must deny
+  future access. No new editor or credential permissions arise.
+- Standalone PhiOffice continues to run without any embedded bridge panel.
+
+On success CI prints `PHIOS_R7_BROWSER_HANDOFF:` followed by scoped JSON
+counts and the exact merged host SHA. This is **test evidence**, not a signed
+publisher credential or a release authorization.
+
+### Admission gate for the next application
+
+**Do not register another active provider yet.** PhiOS project registry v1
+uses `projectRef` as a global local-storage key. Two providers with the same
+reference could collide. The next adapter needs: a real versioned provider
+manifest, a named reviewed parser, a provider-qualified identity or explicitly
+approved v2 migration of existing v1 references, exact source/target
+compatibility checks, a dedicated two-app Chromium acceptance, and no
+background consent or native authority.
+
+PhiMail has a browser demonstration and local development account pilots,
+but *no reviewed PhiOS project identity manifest or cross-app browser adapter
+was established by this rung*. Mailbox credentials and messages must never
+be used as the next synthetic handoff fixture.
+
+The R7 test is not a test of actual PhiOS x86_64 image installation,
+native app lifecycle, Quest/browser WebXR runtime, PhiID or PhiCloud, network
+transport authentication, or production physical-device qualification.

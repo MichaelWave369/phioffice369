@@ -7,6 +7,11 @@ PhiOffice369 gives builders, families, creators, students, small businesses, and
 > Internal codename: **MikeySoft Office**  
 > Public-facing name: **PhiOffice369**
 
+## Rung 11: ΦPose navigation in PhiWrite and PhiGrid
+PhiWrite and PhiGrid now expose opt-in, five-minute **gesture navigation hosts** built on the reviewed ΦPose Host SDK. With a separately approved OverStrings companion, gestures can move the PhiWrite caret between Markdown headings or focus the next/previous visible PhiGrid cell. The integration does not change document text, spreadsheet values, or file permissions; it rejects cross-app commands and stale sessions.
+
+[Read the Rung 11 host contract and qualification guide](docs/PHIPOSE_EDITOR_NAVIGATION_R11.md).
+
 ## Rung 10 · ΦPose Shared Host SDK
 
 PhiDeck's existing approved gesture navigation is now backed by the **portable OverStrings ΦPose Host SDK** instead of an app-specific copy of the session and envelope validator. It still accepts only next/previous slide selection, never document edits or system effects. The vendored source is pinned to an exact reviewed Git blob in a regression test, with no runtime network fetch.

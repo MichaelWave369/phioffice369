@@ -1,0 +1,19 @@
+.phipose-editor-companion {
+  margin-top: 18px;
+  border: 1px solid rgba(118, 191, 217, 0.55);
+  border-radius: 18px;
+  padding: 18px 22px;
+  display: grid;
+  gap: 8px;
+}
+.phipose-editor-companion h3,
+.phipose-editor-companion p { margin: 0; }
+.phipose-editor-companion p { line-height: 1.5; }
+.phipose-editor-companion label,
+.phipose-editor-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.phipose-editor-companion input[type="checkbox"] { width: 18px; height: 18px; }
+.phipose-editor-actions button {
+  padding: 10px 14px; background: transparent; color: inherit;
+  border: 1px solid currentColor; border-radius: 12px; cursor: pointer;
+}
+.phipose-editor-companion small { color: var(--muted); line-height: 1.4; }
